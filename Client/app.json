@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "scheme": "acme",
+    "plugins": [
+      "expo-router"
+    ],
+    "name": "ZAAM",
+    "slug": "ZAAM",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "026c73e0-8f2e-431c-8575-836b9b37cbff"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.agaberr.ZAAM",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}
