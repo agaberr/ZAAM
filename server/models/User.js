@@ -46,20 +46,6 @@ const userSchema = new mongoose.Schema({
       required: true
     }
   }],
-  preferences: {
-    language: {
-      type: String,
-      default: 'English'
-    },
-    voice_type: {
-      type: String,
-      default: 'Female'
-    },
-    reminder_frequency: {
-      type: String,
-      default: 'daily'
-    }
-  }
 }, {
   timestamps: {
     createdAt: 'created_at',
