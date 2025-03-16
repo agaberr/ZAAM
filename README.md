@@ -75,11 +75,7 @@ A dedicated interactive page where users can engage with their AI companion:
             "phone": "+9876543210"
         }
     ],
-    "preferences": {
-        "language": "English",
-        "voice_type": "Male",
-        "reminder_frequency": "hourly"
-    },
+
     "created_at": "ISODate",
     "updated_at": "ISODate"
 }
