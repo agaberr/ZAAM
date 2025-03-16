@@ -7,8 +7,8 @@ const MOCK_USERS = [
   {
     id: '1',
     name: 'Ahmed',
-    email: 'admin',
-    password: 'admin',
+    email: 'ahmed',
+    password: 'ahmed',
   },
   {
     id: '2',
@@ -78,13 +78,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     const inAuthGroup = segments[0] === 'auth';
     const inOnboardingGroup = segments[0] === 'onboarding';
-    const isWelcomeScreen = segments[0] === 'welcome' || segments.length === 0;
+    const isWelcomeScreen = segments[0] === 'welcome';
     
     if (!isAuthenticated && !inAuthGroup && !inOnboardingGroup && !isWelcomeScreen) {
-      // Redirect to the welcome screen if not authenticated
+      // Redirect to the welcome screen if not authenticated and not already on welcome/auth/onboarding
       router.replace('/welcome');
     } else if (isAuthenticated && (inAuthGroup || isWelcomeScreen)) {
-      // Redirect to the home screen if authenticated and on auth screens
+      // Redirect to the home screen if authenticated and on auth/welcome screens
       router.replace('/');
     }
   }, [isAuthenticated, segments, navigationState?.key, isLoading]);
@@ -207,4 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-} 
+}
+
+// Add this default export to fix the error
+export default AuthProvider; 

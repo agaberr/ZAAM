@@ -19,9 +19,6 @@ export default function WelcomeScreen() {
   const handleGoogleAuth = () => {
     // TODO: Implement Google authentication
     console.log('Google auth pressed');
-    // For testing purposes, let's simulate successful auth and navigate to main app
-    // In a real app, you would authenticate first
-    // simulateSuccessfulAuth();
   };
 
   return (

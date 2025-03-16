@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Stack, SplashScreen } from 'expo-router';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './context/AuthContext';
 
 // Prevent the splash screen from auto-hiding
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {
+  /* ignore error */
+});
 
 // Define theme
 const theme = {
@@ -40,7 +41,9 @@ export default function AppLayout() {
   useEffect(() => {
     if (appIsReady) {
       // This tells the splash screen to hide immediately
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(() => {
+        /* ignore error */
+      });
     }
   }, [appIsReady]);
 
@@ -51,48 +54,19 @@ export default function AppLayout() {
   return (
     <PaperProvider theme={theme}>
       <AuthProvider>
-        <SafeAreaProvider>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: 'slide_from_right',
-            }}
-          >
-            <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
-            <Stack.Screen name="index" options={{ gestureEnabled: false }} />
-            <Stack.Screen name="auth/signin" />
-            <Stack.Screen name="auth/signup" />
-            <Stack.Screen name="onboarding/user-data" />
-            <Stack.Screen
-              name="dashboard"
-              options={{
-                headerShown: false,
-                gestureEnabled: false,
-              }}
-            />
-            <Stack.Screen
-              name="profile"
-              options={{
-                title: 'Profile',
-                presentation: 'modal',
-              }}
-            />
-            <Stack.Screen
-              name="talk-to-ai"
-              options={{
-                title: 'Talk to AI',
-                presentation: 'card',
-              }}
-            />
-            <Stack.Screen
-              name="reminders"
-              options={{
-                title: 'Reminders',
-                presentation: 'card',
-              }}
-            />
-          </Stack>
-        </SafeAreaProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: 'slide_from_right',
+          }}
+          initialRouteName="welcome"
+        >
+          <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
+          <Stack.Screen name="index" options={{ gestureEnabled: false }} />
+          <Stack.Screen name="auth/signin" />
+          <Stack.Screen name="auth/signup" />
+          <Stack.Screen name="onboarding/user-data" />
+        </Stack>
       </AuthProvider>
     </PaperProvider>
   );

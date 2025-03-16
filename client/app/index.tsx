@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, SafeAreaView, StatusBar } from 'react-native';
-import { DefaultTheme } from 'react-native-paper';
 import { useAuth } from './context/AuthContext';
 
-// Import screens
+// Import screens from your screens directory
 import HomeScreen from './screens/HomeScreen';
 import InsightsScreen from './screens/InsightsScreen';
 import TalkToAIScreen from './screens/TalkToAIScreen';
