@@ -1,169 +1,242 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, ScrollView } from 'react-native';
-import { TextInput, Button, Text, SegmentedButtons, List } from 'react-native-paper';
+import { TextInput, Button, Text, IconButton, Chip } from 'react-native-paper';
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-
-type Gender = 'male' | 'female' | 'other';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function UserDataScreen() {
-  const [name, setName] = useState('');
-  const [gender, setGender] = useState<Gender>('male');
   const [age, setAge] = useState('');
-  const [medications, setMedications] = useState('');
-  const [medicalInfo, setMedicalInfo] = useState('');
-  const [caregiverName, setCaregiverName] = useState('');
-  const [caregiverPhone, setCaregiverPhone] = useState('');
+  const [relation, setRelation] = useState('');
+  const [selectedCondition, setSelectedCondition] = useState('early');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
-    try {
-      setLoading(true);
-      // TODO: Implement data submission to backend
-      router.push('/dashboard');
-    } catch (error) {
-      console.error(error);
-    } finally {
+  const handleComplete = () => {
+    setLoading(true);
+    // Simulate data saving
+    setTimeout(() => {
       setLoading(false);
-    }
+      // Navigate to main app after completing onboarding
+      router.replace('/');
+    }, 1500);
+  };
+
+  const goBack = () => {
+    router.back();
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <StatusBar style="auto" />
-      <View style={styles.header}>
-        <Text variant="headlineMedium" style={styles.title}>Personal Information</Text>
-        <Text variant="bodyLarge" style={styles.subtitle}>
-          Help us personalize your experience
-        </Text>
-      </View>
-
-      <View style={styles.form}>
-        <TextInput
-          label="Full Name"
-          value={name}
-          onChangeText={setName}
-          mode="outlined"
-          style={styles.input}
-        />
-
-        <Text variant="bodyMedium" style={styles.label}>Gender</Text>
-        <SegmentedButtons
-          value={gender}
-          onValueChange={value => setGender(value as Gender)}
-          buttons={[
-            { value: 'male', label: 'Male' },
-            { value: 'female', label: 'Female' },
-            { value: 'other', label: 'Other' }
-          ]}
-          style={styles.segmentedButton}
-        />
-
-        <TextInput
-          label="Age"
-          value={age}
-          onChangeText={setAge}
-          mode="outlined"
-          keyboardType="numeric"
-          style={styles.input}
-        />
-
-        <TextInput
-          label="Medications Used"
-          value={medications}
-          onChangeText={setMedications}
-          mode="outlined"
-          multiline
-          numberOfLines={3}
-          style={styles.input}
-          placeholder="List your current medications..."
-        />
-
-        <TextInput
-          label="Additional Medical Information"
-          value={medicalInfo}
-          onChangeText={setMedicalInfo}
-          mode="outlined"
-          multiline
-          numberOfLines={4}
-          style={styles.input}
-          placeholder="Any relevant medical conditions or notes..."
-        />
-
-        <List.Accordion
-          title="Caregiver's Information (Optional)"
-          style={styles.accordion}
-        >
-          <TextInput
-            label="Caregiver's Name"
-            value={caregiverName}
-            onChangeText={setCaregiverName}
-            mode="outlined"
-            style={styles.input}
-          />
-
-          <TextInput
-            label="Caregiver's Phone"
-            value={caregiverPhone}
-            onChangeText={setCaregiverPhone}
-            mode="outlined"
-            keyboardType="phone-pad"
-            style={styles.input}
-          />
-        </List.Accordion>
-
-        <Button
-          mode="contained"
-          onPress={handleSubmit}
-          style={styles.button}
-          loading={loading}
-          disabled={!name || !age}
-        >
-          Continue to Dashboard
-        </Button>
-      </View>
-    </ScrollView>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#4285F4', '#34A853']}
+        style={styles.background}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      
+      <IconButton
+        icon="arrow-left"
+        size={24}
+        onPress={goBack}
+        style={styles.backButton}
+        iconColor="white"
+      />
+      
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <Text variant="headlineMedium" style={styles.title}>Patient Information</Text>
+          <Text variant="bodyLarge" style={styles.subtitle}>
+            Help us personalize the experience for your loved one
+          </Text>
+          
+          <View style={styles.form}>
+            <TextInput
+              label="Patient's Age"
+              value={age}
+              onChangeText={setAge}
+              mode="outlined"
+              style={styles.input}
+              keyboardType="number-pad"
+              outlineColor="rgba(255,255,255,0.3)"
+              activeOutlineColor="white"
+              textColor="white"
+              theme={{ colors: { onSurfaceVariant: 'white' } }}
+            />
+            
+            <TextInput
+              label="Your Relationship to Patient"
+              value={relation}
+              onChangeText={setRelation}
+              mode="outlined"
+              style={styles.input}
+              placeholder="e.g. Son, Daughter, Caregiver"
+              outlineColor="rgba(255,255,255,0.3)"
+              activeOutlineColor="white"
+              textColor="white"
+              theme={{ colors: { onSurfaceVariant: 'white' } }}
+            />
+            
+            <Text style={styles.sectionTitle}>Alzheimer's Stage</Text>
+            <View style={styles.chipContainer}>
+              <Chip
+                selected={selectedCondition === 'early'}
+                onPress={() => setSelectedCondition('early')}
+                style={[
+                  styles.chip,
+                  selectedCondition === 'early' && styles.selectedChip
+                ]}
+                textStyle={[
+                  styles.chipText,
+                  selectedCondition === 'early' && styles.selectedChipText
+                ]}
+              >
+                Early Stage
+              </Chip>
+              
+              <Chip
+                selected={selectedCondition === 'middle'}
+                onPress={() => setSelectedCondition('middle')}
+                style={[
+                  styles.chip,
+                  selectedCondition === 'middle' && styles.selectedChip
+                ]}
+                textStyle={[
+                  styles.chipText,
+                  selectedCondition === 'middle' && styles.selectedChipText
+                ]}
+              >
+                Middle Stage
+              </Chip>
+              
+              <Chip
+                selected={selectedCondition === 'late'}
+                onPress={() => setSelectedCondition('late')}
+                style={[
+                  styles.chip,
+                  selectedCondition === 'late' && styles.selectedChip
+                ]}
+                textStyle={[
+                  styles.chipText,
+                  selectedCondition === 'late' && styles.selectedChipText
+                ]}
+              >
+                Late Stage
+              </Chip>
+            </View>
+            
+            <Button
+              mode="contained"
+              onPress={handleComplete}
+              style={styles.button}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
+              loading={loading}
+              disabled={loading}
+            >
+              Complete Setup
+            </Button>
+            
+            <Button
+              mode="text"
+              onPress={() => router.replace('/')}
+              style={styles.skipButton}
+              labelStyle={styles.skipButtonLabel}
+            >
+              Skip for now
+            </Button>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,
-    backgroundColor: '#fff',
-    padding: 20,
+    flex: 1,
   },
-  header: {
-    marginTop: 60,
-    marginBottom: 40,
+  background: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 40,
+    left: 16,
+    zIndex: 10,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 80,
+    paddingBottom: 40,
+  },
+  content: {
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    alignSelf: 'center',
   },
   title: {
-    textAlign: 'center',
+    color: 'white',
     fontWeight: 'bold',
     marginBottom: 8,
   },
   subtitle: {
-    textAlign: 'center',
-    opacity: 0.7,
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 32,
   },
   form: {
-    gap: 16,
+    width: '100%',
   },
   input: {
     marginBottom: 16,
+    backgroundColor: 'transparent',
   },
-  label: {
-    marginBottom: 8,
+  sectionTitle: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 8,
+    marginBottom: 12,
   },
-  segmentedButton: {
-    marginBottom: 16,
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 24,
   },
-  accordion: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    marginBottom: 16,
+  chip: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  selectedChip: {
+    backgroundColor: 'white',
+  },
+  chipText: {
+    color: 'white',
+  },
+  selectedChipText: {
+    color: '#4285F4',
   },
   button: {
-    marginTop: 24,
-    marginBottom: 40,
+    marginTop: 16,
+    backgroundColor: 'white',
+    borderRadius: 12,
+  },
+  buttonContent: {
+    height: 56,
+  },
+  buttonLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#4285F4',
+  },
+  skipButton: {
+    marginTop: 16,
+  },
+  skipButtonLabel: {
+    color: 'white',
   },
 }); 

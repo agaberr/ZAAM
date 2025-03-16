@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView } from 'react-native';
-import { TextInput, Button, Text, HelperText } from 'react-native-paper';
+import { StyleSheet, View, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { Text, TextInput, Button, IconButton } from 'react-native-paper';
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
@@ -10,116 +10,174 @@ export default function SignInScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSignIn = async () => {
-    try {
-      setLoading(true);
-      // TODO: Implement actual authentication
-      // For now, just redirect to dashboard
-      router.replace('/dashboard');
-    } catch (error) {
-      console.error(error);
-    } finally {
+  const handleSignIn = () => {
+    setLoading(true);
+    // Simulate authentication
+    setTimeout(() => {
       setLoading(false);
-    }
+      // Navigate to main app after successful sign in
+      router.replace('/');
+    }, 1500);
+  };
+
+  const goBack = () => {
+    router.back();
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <StatusBar style="auto" />
-      <View style={styles.header}>
-        <Text variant="headlineMedium" style={styles.title}>Welcome Back</Text>
-        <Text variant="bodyLarge" style={styles.subtitle}>
-          Sign in to continue
-        </Text>
-      </View>
-
-      <View style={styles.form}>
-        <TextInput
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
-          mode="outlined"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          style={styles.input}
-        />
-
-        <TextInput
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          mode="outlined"
-          secureTextEntry={!showPassword}
-          right={
-            <TextInput.Icon
-              icon={showPassword ? 'eye-off' : 'eye'}
-              onPress={() => setShowPassword(!showPassword)}
-            />
-          }
-          style={styles.input}
-        />
-
-        <Button
-          mode="text"
-          onPress={() => console.log('Forgot password')}
-          style={styles.forgotButton}
-        >
-          Forgot Password?
-        </Button>
-
-        <Button
-          mode="contained"
-          onPress={handleSignIn}
-          style={styles.button}
-          loading={loading}
-          disabled={!email || !password}
-        >
-          Sign In
-        </Button>
-
-        <Button
-          mode="text"
-          onPress={() => router.back()}
-          style={styles.button}
-        >
-          Back to Welcome
-        </Button>
-      </View>
-    </ScrollView>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#4285F4', '#34A853']}
+        style={styles.background}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      
+      <IconButton
+        icon="arrow-left"
+        size={24}
+        onPress={goBack}
+        style={styles.backButton}
+        iconColor="white"
+      />
+      
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingView}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.content}>
+            <Text variant="headlineMedium" style={styles.title}>Sign In</Text>
+            <Text variant="bodyLarge" style={styles.subtitle}>
+              Welcome back! Please sign in to continue.
+            </Text>
+            
+            <View style={styles.form}>
+              <TextInput
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                mode="outlined"
+                style={styles.input}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                outlineColor="rgba(255,255,255,0.3)"
+                activeOutlineColor="white"
+                textColor="white"
+                theme={{ colors: { onSurfaceVariant: 'white' } }}
+              />
+              
+              <TextInput
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                mode="outlined"
+                style={styles.input}
+                secureTextEntry={!showPassword}
+                right={
+                  <TextInput.Icon
+                    icon={showPassword ? 'eye-off' : 'eye'}
+                    onPress={() => setShowPassword(!showPassword)}
+                    color="white"
+                  />
+                }
+                outlineColor="rgba(255,255,255,0.3)"
+                activeOutlineColor="white"
+                textColor="white"
+                theme={{ colors: { onSurfaceVariant: 'white' } }}
+              />
+              
+              <Button
+                mode="contained"
+                onPress={handleSignIn}
+                style={styles.button}
+                contentStyle={styles.buttonContent}
+                labelStyle={styles.buttonLabel}
+                loading={loading}
+                disabled={loading}
+              >
+                Sign In
+              </Button>
+              
+              <Button
+                mode="text"
+                onPress={() => console.log('Forgot password')}
+                style={styles.forgotButton}
+                labelStyle={styles.forgotButtonLabel}
+              >
+                Forgot Password?
+              </Button>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,
-    backgroundColor: '#fff',
-    padding: 20,
+    flex: 1,
   },
-  header: {
-    marginTop: 60,
-    marginBottom: 40,
+  background: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 40,
+    left: 16,
+    zIndex: 10,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  content: {
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    alignSelf: 'center',
   },
   title: {
-    textAlign: 'center',
+    color: 'white',
     fontWeight: 'bold',
     marginBottom: 8,
   },
   subtitle: {
-    textAlign: 'center',
-    opacity: 0.7,
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 32,
   },
   form: {
-    gap: 16,
+    width: '100%',
   },
   input: {
     marginBottom: 16,
-  },
-  forgotButton: {
-    alignSelf: 'flex-end',
-    marginTop: -8,
-    marginBottom: 16,
+    backgroundColor: 'transparent',
   },
   button: {
-    marginTop: 8,
+    marginTop: 16,
+    backgroundColor: 'white',
+    borderRadius: 12,
+  },
+  buttonContent: {
+    height: 56,
+  },
+  buttonLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#4285F4',
+  },
+  forgotButton: {
+    marginTop: 16,
+  },
+  forgotButtonLabel: {
+    color: 'white',
   },
 }); 

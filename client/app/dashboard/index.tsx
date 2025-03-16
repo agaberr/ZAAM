@@ -1,280 +1,528 @@
-import React from 'react';
-import { StyleSheet, View, ScrollView } from 'react-native';
-import { Text, Avatar, Card, Button, IconButton, useTheme, Chip } from 'react-native-paper';
-import { router } from 'expo-router';
+import React, { useState } from 'react';
+import { StyleSheet, View, ScrollView, Image, Dimensions, TouchableOpacity } from 'react-native';
+import { Text, Button, Searchbar, Card, Avatar, IconButton } from 'react-native-paper';
+import { Link, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
+import BottomNavigation from '../components/BottomNavigation';
 
-type AppRoute = '/dashboard' | '/reminders' | '/talk-to-ai' | '/profile';
+const { width } = Dimensions.get('window');
 
-export default function DashboardScreen() {
-  const theme = useTheme();
+export default function HomeScreen() {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [showDetails, setShowDetails] = useState(false);
 
-  const handleNavigation = (route: AppRoute) => {
-    router.push(route as any); // TODO: Update route types when proper type definitions are available
-  };
+  const onChangeSearch = (query: string) => setSearchQuery(query);
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.userInfo}>
-          <Avatar.Image
-            size={40}
-            source={require('../assets/default-avatar.png')}
-          />
-          <View style={styles.greeting}>
-            <Text variant="bodyMedium" style={styles.goodMorning}>Good morning!</Text>
-            <Text variant="titleMedium" style={styles.userName}>Noah Turner</Text>
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView style={styles.scrollView}>
+          {/* Header with greeting and profile */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.greeting}>Hello, Amit</Text>
+            </View>
+            <TouchableOpacity onPress={() => router.push('/profile')}>
+              <Avatar.Icon 
+                size={40} 
+                icon="account" 
+                style={styles.profileIcon}
+                color="#000"
+              />
+            </TouchableOpacity>
           </View>
-        </View>
-        <Text style={styles.location}>New York, NY</Text>
-      </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Card style={styles.searchBar}>
-          <Card.Content style={styles.searchContent}>
-            <IconButton icon="magnify" size={24} />
-            <Text variant="bodyMedium" style={styles.searchPlaceholder}>
-              Search a doctor, drugs, etc...
-            </Text>
-            <IconButton icon="microphone" size={24} />
-          </Card.Content>
-        </Card>
-      </View>
-
-      <ScrollView style={styles.content}>
-        {/* Recent Appointments */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text variant="titleMedium">Recent Appointments</Text>
-            <Button mode="text">View All</Button>
+          {/* Search bar */}
+          <View style={styles.searchContainer}>
+            <Searchbar
+              placeholder="Search..."
+              onChangeText={onChangeSearch}
+              value={searchQuery}
+              style={styles.searchBar}
+              iconColor="#777"
+            />
           </View>
-          
-          <Card style={styles.appointmentCard}>
-            <Card.Content>
-              <View style={styles.doctorInfo}>
-                <Avatar.Image
-                  size={50}
-                  source={require('../assets/doctor-avatar.png')}
-                />
-                <View style={styles.appointmentDetails}>
-                  <Text variant="titleMedium">Dr. Olivia Carter</Text>
-                  <Text variant="bodyMedium" style={styles.specialty}>Neurology</Text>
-                  <View style={styles.dateTime}>
-                    <Text variant="bodyMedium">24 Apr, Monday</Text>
-                    <Text variant="bodyMedium">7:00 am - 7:30 am</Text>
-                  </View>
+
+          {/* Membership card */}
+          <Card style={styles.membershipCard}>
+            <Card.Content style={styles.membershipContent}>
+              <View style={styles.membershipTextContainer}>
+                <Text style={styles.membershipTitle}>Buy your Plus membership</Text>
+                <View style={styles.priceContainer}>
+                  <Text style={styles.originalPrice}>₹1399</Text>
+                  <Text style={styles.discountedPrice}>₹699</Text>
                 </View>
+                <Button 
+                  mode="contained" 
+                  style={styles.buyButton}
+                  labelStyle={styles.buyButtonLabel}
+                  onPress={() => {}}>
+                  Buy now
+                </Button>
               </View>
-              <View style={styles.appointmentActions}>
-                <Button mode="outlined" style={styles.actionButton}>
-                  Re-schedule
-                </Button>
-                <Button mode="contained" style={styles.actionButton}>
-                  View profile
-                </Button>
+              <View style={styles.membershipImageContainer}>
+                <View style={styles.discountBadge}>
+                  <Text style={styles.discountText}>50% off</Text>
+                </View>
+                <MaterialCommunityIcons name="shield-plus" size={50} color="#4285F4" style={styles.shieldIcon} />
               </View>
             </Card.Content>
           </Card>
-        </View>
 
-        {/* Doctors Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text variant="titleMedium">Doctors</Text>
-            <Button mode="text">View All</Button>
+          {/* Quick action buttons */}
+          <View style={styles.quickActionsContainer}>
+            <TouchableOpacity style={styles.quickActionItem} onPress={() => router.push('/talk-to-ai')}>
+              <View style={styles.quickActionIconContainer}>
+                <FontAwesome5 name="stethoscope" size={24} color="#4285F4" />
+              </View>
+              <Text style={styles.quickActionText}>Consult AI</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.quickActionItem} onPress={() => router.push('/dashboard/activity')}>
+              <View style={styles.quickActionIconContainer}>
+                <MaterialCommunityIcons name="shield-check" size={24} color="#4285F4" />
+              </View>
+              <Text style={styles.quickActionText}>Activity Logs</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.quickActionItem} onPress={() => router.push('/reminders')}>
+              <View style={styles.quickActionIconContainer}>
+                <MaterialCommunityIcons name="chart-line" size={24} color="#4285F4" />
+              </View>
+              <Text style={styles.quickActionText}>Reminders</Text>
+            </TouchableOpacity>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-            <Chip selected style={styles.categoryChip}>All</Chip>
-            <Chip style={styles.categoryChip}>Cardiology</Chip>
-            <Chip style={styles.categoryChip}>Dermatology</Chip>
-            <Chip style={styles.categoryChip}>Neurology</Chip>
-          </ScrollView>
+          {/* Health monitoring banner */}
+          <TouchableOpacity 
+            style={styles.monitoringBanner}
+            onPress={() => router.push('/dashboard/health-tracking')}>
+            <Text style={styles.monitoringText}>Start monitoring your health today</Text>
+            <Ionicons name="chevron-forward" size={20} color="#4285F4" />
+          </TouchableOpacity>
 
-          <Card style={styles.doctorCard}>
-            <Card.Content>
-              <View style={styles.doctorInfo}>
-                <Avatar.Image
-                  size={50}
-                  source={require('../assets/doctor-avatar.png')}
-                />
-                <View style={styles.doctorDetails}>
-                  <Text variant="titleMedium">Dr. Daniel Reynolds</Text>
-                  <Text variant="bodyMedium" style={styles.specialty}>Cardiologist</Text>
-                  <View style={styles.rating}>
-                    <IconButton icon="star" size={16} iconColor="#FFD700" />
-                    <Text>4.9</Text>
-                    <Text variant="bodySmall" style={styles.reviews}>(86 Reviews)</Text>
+          {/* Top articles section */}
+          <View style={styles.articlesSection}>
+            <Text style={styles.sectionTitle}>Daily Routine Summary</Text>
+            
+            <View style={styles.articlesContainer}>
+              <TouchableOpacity 
+                style={styles.articleCard}
+                onPress={() => router.push('/dashboard/medications')}>
+                <View style={styles.articleContent}>
+                  <Text style={styles.articleTitle}>Medications</Text>
+                  <Text style={styles.articleDescription}>
+                    You have 2 medications scheduled for today
+                  </Text>
+                </View>
+                <View style={styles.articleImageContainer}>
+                  <MaterialCommunityIcons name="pill" size={40} color="#4285F4" />
+                </View>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.articleCard}
+                onPress={() => router.push('/insights')}>
+                <View style={styles.articleContent}>
+                  <Text style={styles.articleTitle}>Insights</Text>
+                  <Text style={styles.articleDescription}>
+                    View conversation analysis from your AI companion
+                  </Text>
+                </View>
+                <View style={styles.articleImageContainer}>
+                  <MaterialCommunityIcons name="brain" size={40} color="#4285F4" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Health tracking section */}
+          <View style={styles.articlesSection}>
+            <Text style={styles.sectionTitle}>Health & Medication Tracking</Text>
+            
+            <Card style={styles.medicationCard}>
+              <Card.Content>
+                <View style={styles.medicationHeader}>
+                  <Text style={styles.medicationTitle}>Upcoming Medications</Text>
+                  <Button 
+                    mode="text" 
+                    onPress={() => router.push('/reminders')}
+                    labelStyle={{color: '#4285F4'}}>
+                    View All
+                  </Button>
+                </View>
+                
+                <View style={styles.medicationItem}>
+                  <View style={styles.medicationTimeContainer}>
+                    <Text style={styles.medicationTime}>9:00 AM</Text>
+                  </View>
+                  <View style={styles.medicationDetails}>
+                    <Text style={styles.medicationName}>Aspirin</Text>
+                    <Text style={styles.medicationDosage}>100mg - 1 tablet</Text>
+                  </View>
+                  <Button 
+                    mode="contained" 
+                    compact 
+                    style={styles.takeMedButton}
+                    labelStyle={styles.takeMedButtonLabel}
+                    onPress={() => {}}>
+                    Take
+                  </Button>
+                </View>
+                
+                <View style={styles.medicationItem}>
+                  <View style={styles.medicationTimeContainer}>
+                    <Text style={styles.medicationTime}>1:00 PM</Text>
+                  </View>
+                  <View style={styles.medicationDetails}>
+                    <Text style={styles.medicationName}>Donepezil</Text>
+                    <Text style={styles.medicationDosage}>5mg - 1 tablet</Text>
+                  </View>
+                  <Button 
+                    mode="contained" 
+                    compact 
+                    style={styles.takeMedButton}
+                    labelStyle={styles.takeMedButtonLabel}
+                    onPress={() => {}}>
+                    Take
+                  </Button>
+                </View>
+              </Card.Content>
+            </Card>
+          </View>
+
+          {/* Activity logs section */}
+          <View style={styles.articlesSection}>
+            <Text style={styles.sectionTitle}>Activity Logs</Text>
+            
+            <Card style={styles.activityCard}>
+              <Card.Content>
+                <View style={styles.activityItem}>
+                  <View style={styles.activityIconContainer}>
+                    <MaterialCommunityIcons name="message-text" size={24} color="#4285F4" />
+                  </View>
+                  <View style={styles.activityDetails}>
+                    <Text style={styles.activityTitle}>AI Conversation</Text>
+                    <Text style={styles.activityTime}>Today, 10:30 AM</Text>
+                    <Text style={styles.activityDescription}>
+                      You asked about today's weather and your medication schedule
+                    </Text>
                   </View>
                 </View>
-                <IconButton
-                  icon="message"
-                  mode="contained"
-                  containerColor={theme.colors.primary}
-                  iconColor="white"
-                  size={24}
-                  style={styles.messageButton}
-                />
-              </View>
-            </Card.Content>
-          </Card>
-        </View>
-      </ScrollView>
+                
+                <View style={styles.activityItem}>
+                  <View style={styles.activityIconContainer}>
+                    <MaterialCommunityIcons name="pill" size={24} color="#4285F4" />
+                  </View>
+                  <View style={styles.activityDetails}>
+                    <Text style={styles.activityTitle}>Medication Taken</Text>
+                    <Text style={styles.activityTime}>Today, 9:05 AM</Text>
+                    <Text style={styles.activityDescription}>
+                      You took Aspirin (100mg)
+                    </Text>
+                  </View>
+                </View>
+                
+                <Button 
+                  mode="text" 
+                  onPress={() => router.push('/dashboard/activity')}
+                  style={styles.viewAllButton}
+                  labelStyle={{color: '#4285F4'}}>
+                  View All Activities
+                </Button>
+              </Card.Content>
+            </Card>
+          </View>
 
-      {/* Bottom Navigation */}
-      <Card style={styles.bottomNav}>
-        <Card.Content style={styles.bottomNavContent}>
-          <IconButton
-            icon="home"
-            size={24}
-            mode="contained"
-            containerColor="#E8F5F1"
-            iconColor="#00B383"
-            onPress={() => handleNavigation('/dashboard')}
-          />
-          <IconButton 
-            icon="calendar" 
-            size={24}
-            onPress={() => handleNavigation('/reminders')}
-          />
-          <IconButton 
-            icon="robot" 
-            size={24}
-            onPress={() => handleNavigation('/talk-to-ai')}
-          />
-          <IconButton 
-            icon="cog" 
-            size={24}
-            onPress={() => handleNavigation('/profile')}
-          />
-        </Card.Content>
-      </Card>
-    </SafeAreaView>
+          {/* Bottom spacer for navigation bar */}
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
+
+        {/* Fixed Bottom Navigation */}
+        <BottomNavigation />
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F6FA',
+    backgroundColor: '#F5F7FA',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
   },
   greeting: {
-    gap: 4,
-  },
-  goodMorning: {
-    color: '#666',
-  },
-  userName: {
+    fontSize: 24,
     fontWeight: 'bold',
   },
-  location: {
-    color: '#666',
+  profileIcon: {
+    backgroundColor: '#E8E8E8',
   },
   searchContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    paddingHorizontal: 20,
+    marginBottom: 15,
   },
   searchBar: {
+    borderRadius: 30,
     backgroundColor: 'white',
+    elevation: 0,
+  },
+  membershipCard: {
+    marginHorizontal: 20,
+    marginBottom: 15,
+    borderRadius: 15,
+    backgroundColor: '#E8F1FF',
     elevation: 2,
   },
-  searchContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 0,
-  },
-  searchPlaceholder: {
-    flex: 1,
-    color: '#666',
-  },
-  content: {
-    flex: 1,
-  },
-  section: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
-  },
-  sectionHeader: {
+  membershipContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  membershipTextContainer: {
+    flex: 2,
+  },
+  membershipTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  priceContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  appointmentCard: {
-    backgroundColor: '#2D68FF',
-    marginBottom: 16,
-  },
-  doctorInfo: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 16,
-  },
-  appointmentDetails: {
-    flex: 1,
-    gap: 4,
-  },
-  specialty: {
-    color: '#666',
-    marginBottom: 8,
-  },
-  dateTime: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  appointmentActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-  },
-  categoryScroll: {
-    marginBottom: 16,
-  },
-  categoryChip: {
+  originalPrice: {
+    fontSize: 16,
+    textDecorationLine: 'line-through',
+    color: '#777',
     marginRight: 8,
   },
-  doctorCard: {
-    backgroundColor: 'white',
-    marginBottom: 12,
+  discountedPrice: {
+    fontSize: 20,
+    fontWeight: 'bold',
   },
-  doctorDetails: {
+  buyButton: {
+    backgroundColor: '#0A2540',
+    borderRadius: 20,
+    width: 100,
+    height: 36,
+    justifyContent: 'center',
+  },
+  buyButtonLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  membershipImageContainer: {
     flex: 1,
-    gap: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  rating: {
+  discountBadge: {
+    position: 'absolute',
+    top: -10,
+    right: -10,
+    backgroundColor: '#777',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  discountText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  shieldIcon: {
+    marginTop: 5,
+  },
+  quickActionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 15,
+  },
+  quickActionItem: {
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    padding: 15,
+    borderRadius: 15,
+    width: width / 3.5,
+  },
+  quickActionIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#E8F1FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  quickActionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  monitoringBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#E8F1FF',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 15,
+    borderRadius: 15,
+  },
+  monitoringText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#0A2540',
+  },
+  articlesSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginHorizontal: 20,
+    marginBottom: 15,
+  },
+  articlesContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    justifyContent: 'space-between',
+  },
+  articleCard: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 15,
+    padding: 15,
+    width: width / 2.3,
+    flexDirection: 'row',
+  },
+  articleContent: {
+    flex: 2,
+  },
+  articleTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  articleDescription: {
+    fontSize: 12,
+    color: '#777',
+    lineHeight: 16,
+  },
+  articleImageContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medicationCard: {
+    marginHorizontal: 20,
+    borderRadius: 15,
+  },
+  medicationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  medicationTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  medicationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    marginBottom: 15,
+    backgroundColor: '#F9F9F9',
+    padding: 10,
+    borderRadius: 10,
   },
-  reviews: {
-    color: '#666',
+  medicationTimeContainer: {
+    backgroundColor: '#E8F1FF',
+    padding: 8,
+    borderRadius: 8,
+    marginRight: 10,
   },
-  messageButton: {
-    margin: 0,
+  medicationTime: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#4285F4',
   },
-  bottomNav: {
-    borderRadius: 0,
-    elevation: 8,
+  medicationDetails: {
+    flex: 1,
   },
-  bottomNavContent: {
+  medicationName: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  medicationDosage: {
+    fontSize: 14,
+    color: '#777',
+  },
+  takeMedButton: {
+    backgroundColor: '#4285F4',
+    borderRadius: 20,
+  },
+  takeMedButtonLabel: {
+    fontSize: 12,
+  },
+  activityCard: {
+    marginHorizontal: 20,
+    borderRadius: 15,
+  },
+  activityItem: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 0,
+    marginBottom: 15,
+  },
+  activityIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E8F1FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  activityDetails: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  activityTime: {
+    fontSize: 12,
+    color: '#777',
+    marginBottom: 5,
+  },
+  activityDescription: {
+    fontSize: 14,
+    color: '#333',
+  },
+  viewAllButton: {
+    alignSelf: 'center',
+    marginTop: 5,
+  },
+  bottomSpacer: {
+    height: 80,
+  },
+  headerButton: {
+    marginLeft: 10,
   },
 }); 

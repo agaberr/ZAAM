@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import { Button, Text } from 'react-native-paper';
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -19,6 +19,9 @@ export default function WelcomeScreen() {
   const handleGoogleAuth = () => {
     // TODO: Implement Google authentication
     console.log('Google auth pressed');
+    // For testing purposes, let's simulate successful auth and navigate to main app
+    // In a real app, you would authenticate first
+    // simulateSuccessfulAuth();
   };
 
   return (
