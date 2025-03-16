@@ -79,8 +79,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const inAuthGroup = segments[0] === 'auth';
     const inOnboardingGroup = segments[0] === 'onboarding';
     const isWelcomeScreen = segments[0] === 'welcome';
+    const isIndexScreen = segments[0] === undefined || segments[0] === '';
     
-    if (!isAuthenticated && !inAuthGroup && !inOnboardingGroup && !isWelcomeScreen) {
+    if (isIndexScreen && !isAuthenticated) {
+      // Redirect to welcome screen if on index and not authenticated
+      router.replace('/welcome');
+    } else if (!isAuthenticated && !inAuthGroup && !inOnboardingGroup && !isWelcomeScreen) {
       // Redirect to the welcome screen if not authenticated and not already on welcome/auth/onboarding
       router.replace('/welcome');
     } else if (isAuthenticated && (inAuthGroup || isWelcomeScreen)) {

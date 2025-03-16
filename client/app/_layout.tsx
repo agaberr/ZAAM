@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Stack, SplashScreen } from 'expo-router';
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 import { AuthProvider } from './context/AuthContext';
 

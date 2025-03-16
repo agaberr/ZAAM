@@ -1,21 +1,13 @@
 import React from 'react';
-import { StyleSheet, View, Dimensions } from 'react-native';
+import { StyleSheet, View, Dimensions, Pressable } from 'react-native';
 import { Button, Text } from 'react-native-paper';
-import { router } from 'expo-router';
+import { Link, Stack } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
-  const handleEmailSignUp = () => {
-    router.push('/auth/signup');
-  };
-
-  const handleSignIn = () => {
-    router.push('/auth/signin');
-  };
-
   const handleGoogleAuth = () => {
     // TODO: Implement Google authentication
     console.log('Google auth pressed');
@@ -46,15 +38,16 @@ export default function WelcomeScreen() {
           Your AI Companion for Alzheimer's Care
         </Text>
         <View style={styles.buttonContainer}>
-          <Button
-            mode="contained"
-            onPress={handleEmailSignUp}
-            style={styles.button}
-            contentStyle={styles.buttonContent}
-            labelStyle={styles.buttonLabel}
-          >
-            Create Account
-          </Button>
+          <Link href="/auth/signup" asChild>
+            <Button
+              mode="contained"
+              style={styles.button}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
+            >
+              Create Account
+            </Button>
+          </Link>
           <Button
             mode="outlined"
             onPress={handleGoogleAuth}
@@ -65,14 +58,15 @@ export default function WelcomeScreen() {
           >
             Continue with Google
           </Button>
-          <Button
-            mode="text"
-            onPress={handleSignIn}
-            style={styles.textButton}
-            labelStyle={styles.textButtonLabel}
-          >
-            Already have an account? Sign In
-          </Button>
+          <Link href="/auth/signin" asChild>
+            <Button
+              mode="text"
+              style={styles.textButton}
+              labelStyle={styles.textButtonLabel}
+            >
+              Already have an account? Sign In
+            </Button>
+          </Link>
         </View>
       </View>
     </View>
