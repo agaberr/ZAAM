@@ -3,21 +3,35 @@ import { StyleSheet, View, KeyboardAvoidingView, Platform, ScrollView } from 're
 import { Text, TextInput, Button, IconButton } from 'react-native-paper';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../context/AuthContext';
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  const { signIn } = useAuth();
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      return;
+    }
+    
     setLoading(true);
-    // Simulate authentication
-    setTimeout(() => {
+    setError('');
+    
+    try {
+      await signIn(email, password);
+      // No need to navigate here - the auth context will handle it
+    } catch (err) {
+      setError('Invalid username or password. Try using "ahmed" for both.');
+      console.error(err);
+    } finally {
       setLoading(false);
-      // Navigate to main app after successful sign in
-      router.replace('/');
-    }, 1500);
+    }
   };
 
   const goBack = () => {
@@ -51,6 +65,8 @@ export default function SignInScreen() {
             <Text variant="bodyLarge" style={styles.subtitle}>
               Welcome back! Please sign in to continue.
             </Text>
+            
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
             
             <View style={styles.form}>
               <TextInput
@@ -153,6 +169,13 @@ const styles = StyleSheet.create({
   subtitle: {
     color: 'rgba(255,255,255,0.8)',
     marginBottom: 32,
+  },
+  errorText: {
+    color: '#FF3B30',
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 16,
   },
   form: {
     width: '100%',

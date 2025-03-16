@@ -3,21 +3,40 @@ import { StyleSheet, View, ScrollView } from 'react-native';
 import { TextInput, Button, Text, IconButton, Chip } from 'react-native-paper';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../context/AuthContext';
 
 export default function UserDataScreen() {
   const [age, setAge] = useState('');
   const [relation, setRelation] = useState('');
   const [selectedCondition, setSelectedCondition] = useState('early');
   const [loading, setLoading] = useState(false);
+  
+  const { completeOnboarding } = useAuth();
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     setLoading(true);
-    // Simulate data saving
-    setTimeout(() => {
+    
+    try {
+      // In a real app, you would save this data to your backend
+      await completeOnboarding();
+      // No need to navigate here - the auth context will handle it
+    } catch (error) {
+      console.error('Failed to complete onboarding:', error);
+    } finally {
       setLoading(false);
-      // Navigate to main app after completing onboarding
-      router.replace('/');
-    }, 1500);
+    }
+  };
+
+  const skipOnboarding = async () => {
+    setLoading(true);
+    
+    try {
+      await completeOnboarding();
+    } catch (error) {
+      console.error('Failed to skip onboarding:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const goBack = () => {
@@ -137,9 +156,10 @@ export default function UserDataScreen() {
             
             <Button
               mode="text"
-              onPress={() => router.replace('/')}
+              onPress={skipOnboarding}
               style={styles.skipButton}
               labelStyle={styles.skipButtonLabel}
+              disabled={loading}
             >
               Skip for now
             </Button>

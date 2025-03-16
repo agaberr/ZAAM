@@ -3,6 +3,7 @@ import { StyleSheet, View, KeyboardAvoidingView, Platform, ScrollView } from 're
 import { TextInput, Button, Text, IconButton } from 'react-native-paper';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../context/AuthContext';
 
 export default function SignUpScreen() {
   const [name, setName] = useState('');
@@ -11,15 +12,33 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  const { signUp } = useAuth();
 
-  const handleSignUp = () => {
+  const handleSignUp = async () => {
+    if (!name || !email || !password) {
+      setError('Please fill in all required fields');
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    
     setLoading(true);
-    // Simulate account creation
-    setTimeout(() => {
+    setError('');
+    
+    try {
+      await signUp(name, email, password);
+      // No need to navigate here - the auth context will handle it
+    } catch (err) {
+      setError('Sign up failed. Please try again.');
+      console.error(err);
+    } finally {
       setLoading(false);
-      // Navigate to onboarding after successful sign up
-      router.push('/onboarding/user-data');
-    }, 1500);
+    }
   };
 
   const goBack = () => {
@@ -53,6 +72,8 @@ export default function SignUpScreen() {
             <Text variant="bodyLarge" style={styles.subtitle}>
               Join ZAAM and get personalized Alzheimer's care assistance
             </Text>
+            
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
             
             <View style={styles.form}>
               <TextInput
@@ -180,6 +201,13 @@ const styles = StyleSheet.create({
   subtitle: {
     color: 'rgba(255,255,255,0.8)',
     marginBottom: 32,
+  },
+  errorText: {
+    color: '#FF3B30',
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 16,
   },
   form: {
     width: '100%',

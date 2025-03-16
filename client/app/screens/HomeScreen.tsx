@@ -2,31 +2,39 @@ import React, { useState } from 'react';
 import { StyleSheet, View, ScrollView, Image, Dimensions, TouchableOpacity } from 'react-native';
 import { Text, Button, Searchbar, Card, Avatar, IconButton, Chip } from 'react-native-paper';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen({ setActiveTab }) {
+  const { userData } = useAuth();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showDetails, setShowDetails] = useState(false);
 
   const onChangeSearch = (query: string) => setSearchQuery(query);
 
+  // Current time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView}>
-        {/* Header with greeting and profile */}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Header with greeting */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Hello, Amit</Text>
+            <Text style={styles.greeting}>{getGreeting()}</Text>
+            <Text style={styles.name}>{userData?.name || 'Amit'}</Text>
           </View>
-          <TouchableOpacity onPress={() => setActiveTab('profile')}>
-            <Avatar.Icon 
-              size={40} 
-              icon="account" 
-              style={styles.profileIcon}
-              color="#000"
-            />
-          </TouchableOpacity>
+          <Avatar.Image 
+            size={50} 
+            source={require('../assets/default-avatar.png')} 
+            style={styles.avatar}
+          />
         </View>
 
         {/* Search bar */}
@@ -257,7 +265,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
-  profileIcon: {
+  name: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  avatar: {
     backgroundColor: '#E8E8E8',
   },
   searchContainer: {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View, ScrollView, Image, TouchableOpacity, Switch, Alert } from 'react-native';
 import { Text, Button, Card, Avatar, TextInput, Divider, List, IconButton, Chip } from 'react-native-paper';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
 
 interface Medication {
   id: string;
@@ -28,11 +29,13 @@ interface MemoryAid {
 }
 
 export default function ProfileScreen({ setActiveTab }) {
+  const { userData, signOut } = useAuth();
+  
   // User profile state
-  const [name, setName] = useState('Amit Kumar');
+  const [name, setName] = useState(userData?.name || 'Amit Kumar');
   const [age, setAge] = useState('75');
   const [gender, setGender] = useState('Male');
-  const [email, setEmail] = useState('amit.kumar@example.com');
+  const [email, setEmail] = useState(userData?.email || 'amit.kumar@example.com');
   const [phone, setPhone] = useState('+1 (555) 123-4567');
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -122,7 +125,7 @@ export default function ProfileScreen({ setActiveTab }) {
         },
         { 
           text: "Log Out", 
-          onPress: () => console.log("Logged out"),
+          onPress: () => signOut(),
           style: "destructive"
         }
       ]
