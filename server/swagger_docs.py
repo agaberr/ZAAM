@@ -21,12 +21,14 @@ auth_ns = Namespace('Authentication', description='Authentication operations', p
 user_ns = Namespace('Users', description='User operations', path='/api/users')
 reminder_ns = Namespace('Reminders', description='Reminder operations', path='/api/reminders')
 google_ns = Namespace('Google Integration', description='Google Calendar integration', path='/api/auth/google')
+ai_ns = Namespace('AI Assistant', description='AI natural language processing', path='/api/ai')
 
 # Add namespaces to API
 api.add_namespace(auth_ns)
 api.add_namespace(user_ns)
 api.add_namespace(reminder_ns)
 api.add_namespace(google_ns)
+api.add_namespace(ai_ns)
 
 # Define models for documentation
 # Authentication models
@@ -152,6 +154,24 @@ google_status_model = google_ns.model('GoogleConnectionStatus', {
     'connected': fields.Boolean(description='Whether Google Calendar is connected', example=True),
     'connected_at': fields.DateTime(description='When the connection was established', 
                                  example='2023-06-10T09:30:00Z')
+})
+
+# AI Assistant models
+ai_input_model = ai_ns.model('AIInput', {
+    'text': fields.String(required=True, description='Natural language input to process', 
+                        example='I need to remember to buy groceries tomorrow. What is the weather like? Any news about tech?')
+})
+
+ai_response_model = ai_ns.model('AIResponse', {
+    'response': fields.String(description='AI generated response', 
+                           example='REMINDER: I\'ll help you with these reminders:\n- I need to remember to buy groceries tomorrow.\n\nWEATHER: Here\'s the weather information you asked about:\n- What is the weather like?\n\nNEWS: I found news information in your request:\n- Any news about tech?'),
+    'success': fields.Boolean(description='Whether the request was successful', example=True)
+})
+
+category_response_model = ai_ns.model('CategoryResponse', {
+    'response': fields.String(description='Category-specific response'),
+    'category': fields.String(description='Category of the processed text', enum=['news', 'reminder', 'weather']),
+    'success': fields.Boolean(description='Whether the request was successful', example=True)
 })
 
 # Authentication routes
@@ -347,6 +367,51 @@ class DetailedReminderStats(Resource):
     def get(self):
         """Get detailed reminder statistics including types, overdue counts, and more"""
         return {'message': 'This is a documentation endpoint. See the actual implementation in reminder_routes.py'}
+
+# AI routes
+@ai_ns.route('/process')
+class AIProcess(Resource):
+    @ai_ns.doc('process_ai_request')
+    @ai_ns.expect(ai_input_model)
+    @ai_ns.response(200, 'Success', ai_response_model)
+    @ai_ns.response(400, 'Invalid input')
+    @ai_ns.response(500, 'Processing error')
+    def post(self):
+        """Process natural language input and categorize into different services"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in ai_routes.py'}
+
+@ai_ns.route('/news')
+class AINews(Resource):
+    @ai_ns.doc('process_news')
+    @ai_ns.expect(ai_input_model)
+    @ai_ns.response(200, 'Success', category_response_model)
+    @ai_ns.response(400, 'Invalid input')
+    @ai_ns.response(500, 'Processing error')
+    def post(self):
+        """Process news-specific requests"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in ai_routes.py'}
+
+@ai_ns.route('/reminder')
+class AIReminder(Resource):
+    @ai_ns.doc('process_reminder')
+    @ai_ns.expect(ai_input_model)
+    @ai_ns.response(200, 'Success', category_response_model)
+    @ai_ns.response(400, 'Invalid input')
+    @ai_ns.response(500, 'Processing error')
+    def post(self):
+        """Process reminder-specific requests"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in ai_routes.py'}
+
+@ai_ns.route('/weather')
+class AIWeather(Resource):
+    @ai_ns.doc('process_weather')
+    @ai_ns.expect(ai_input_model)
+    @ai_ns.response(200, 'Success', category_response_model)
+    @ai_ns.response(400, 'Invalid input')
+    @ai_ns.response(500, 'Processing error')
+    def post(self):
+        """Process weather-specific requests"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in ai_routes.py'}
 
 # Security definitions
 authorizations = {

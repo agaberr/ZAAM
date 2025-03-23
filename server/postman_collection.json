@@ -569,6 +569,143 @@
 				}
 			],
 			"description": "Google Calendar integration endpoints"
+		},
+		{
+			"name": "AI Assistant",
+			"item": [
+				{
+					"name": "Process Text",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"text\": \"I need to remember to buy groceries tomorrow. What is the weather like? Any news about technology?\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/process",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"process"
+							]
+						},
+						"description": "Process natural language input and categorize into different services"
+					},
+					"response": []
+				},
+				{
+					"name": "Process News",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"text\": \"What are the latest developments in AI technology? Tell me about recent tech news.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/news",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"news"
+							]
+						},
+						"description": "Process news-specific requests"
+					},
+					"response": []
+				},
+				{
+					"name": "Process Reminder",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"text\": \"Remind me to call John tomorrow at 3pm. I also need to buy groceries and pick up prescription.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/reminder",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"reminder"
+							]
+						},
+						"description": "Process reminder-specific requests"
+					},
+					"response": []
+				},
+				{
+					"name": "Process Weather",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"text\": \"What will the weather be like tomorrow? Is it going to rain this weekend?\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/weather",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"weather"
+							]
+						},
+						"description": "Process weather-specific requests"
+					},
+					"response": []
+				}
+			]
 		}
 	]
 } 

@@ -13,6 +13,7 @@ from routes.user_routes import register_user_routes
 from routes.auth_routes import register_auth_routes
 from routes.reminder_routes import register_reminder_routes
 from routes.google_auth_routes import register_google_auth_routes
+from routes.ai_routes import register_ai_routes
 
 # Load environment variables
 load_dotenv()
@@ -62,6 +63,7 @@ register_user_routes(app, mongo)
 register_auth_routes(app, mongo)
 register_reminder_routes(app, mongo)
 register_google_auth_routes(app, mongo)
+register_ai_routes(app, mongo)
 
 if __name__ == '__main__':
     print("Starting Flask server...")
