@@ -21,6 +21,24 @@ class User:
         self.created_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
 
+    def to_dict(self):
+        """Convert user to dictionary for serialization"""
+        result = {
+            "full_name": self.full_name,
+            "age": self.age,
+            "gender": self.gender,
+            "contact_info": self.contact_info,
+            "emergency_contacts": self.emergency_contacts,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at
+        }
+        
+        # Only include _id if it's not None
+        if self._id is not None:
+            result["_id"] = self._id
+            
+        return result
+
     def save(self, db):
         """Save the user to the database."""
         if db is None:
@@ -36,23 +54,44 @@ class User:
         if errors:
             return False, errors
             
+        # Check if email is already registered
+        if self._id is None and User.find_by_email(db, self.contact_info.get("email")) is not None:
+            return False, ["Email is already registered"]
+            
         user_data = {
             "full_name": self.full_name,
             "age": self.age,
             "gender": self.gender,
-            "contact_info": self.contact_info,  # Save as dictionary
+            "contact_info": self.contact_info,
             "password_hash": self.password_hash,
             "emergency_contacts": self.emergency_contacts,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
         
-        try:
-            result = db.users.insert_one(user_data)
-            self._id = result.inserted_id
-            return True, None  # Indicate success
-        except Exception as e:
-            return False, [str(e)]
+        # For update operations
+        if self._id is not None:
+            user_data["updated_at"] = datetime.utcnow()
+            try:
+                result = db.users.update_one(
+                    {"_id": self._id},
+                    {"$set": user_data}
+                )
+                return result.modified_count > 0, None
+            except Exception as e:
+                return False, [str(e)]
+        # For insert operations
+        else:
+            try:
+                # Remove _id field for new records since it's null and MongoDB will auto-generate it
+                if "_id" in user_data:
+                    del user_data["_id"]
+                
+                result = db.users.insert_one(user_data)
+                self._id = result.inserted_id
+                return True, None  # Indicate success
+            except Exception as e:
+                return False, [str(e)]
 
     @staticmethod
     def find_by_email(db, email):

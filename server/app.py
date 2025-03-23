@@ -11,6 +11,8 @@ from pymongo import MongoClient
 from routes.main_routes import register_main_routes
 from routes.user_routes import register_user_routes
 from routes.auth_routes import register_auth_routes
+from routes.reminder_routes import register_reminder_routes
+from routes.google_auth_routes import register_google_auth_routes
 
 # Load environment variables
 load_dotenv()
@@ -19,11 +21,16 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
+# Configure session
+app.secret_key = os.getenv("SECRET_KEY", os.getenv("JWT_SECRET", "super-secret-key"))
+
 # Configure MongoDB
 mongo_uri = os.getenv("MONGO_URI")
 if not mongo_uri:
     print("Error: MONGO_URI environment variable not set")
     sys.exit(1)
+
+print(f"Connecting to MongoDB at: {mongo_uri}")
 
 # Test MongoDB connection directly first
 try:
@@ -37,12 +44,24 @@ except Exception as e:
 
 # Configure PyMongo
 app.config["MONGO_URI"] = mongo_uri
+app.config["MONGO_CONNECT"] = True  # Ensure we connect explicitly
 mongo = PyMongo(app)
+
+# Test to ensure database is accessible
+try:
+    # Try to access a collection to verify db connection
+    mongo.db.list_collection_names()
+    print("MongoDB collections accessible via PyMongo!")
+except Exception as e:
+    print(f"Error accessing MongoDB via PyMongo: {e}")
+    sys.exit(1)
 
 # Register routes
 register_main_routes(app)
 register_user_routes(app, mongo)
 register_auth_routes(app, mongo)
+register_reminder_routes(app, mongo)
+register_google_auth_routes(app, mongo)
 
 if __name__ == '__main__':
     print("Starting Flask server...")

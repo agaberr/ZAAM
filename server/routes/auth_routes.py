@@ -56,7 +56,11 @@ def register_auth_routes(app, mongo):
                 return jsonify({"error": "Invalid email or password"}), 401
 
             token = user.generate_auth_token()
-            return jsonify({"message": "Login successful", "token": token})
+            return jsonify({
+                "message": "Login successful", 
+                "token": token,
+                "user_id": str(user._id)
+            })
         except Exception as e:
             return jsonify({"error": str(e)}), 500
             
