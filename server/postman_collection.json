@@ -1,0 +1,574 @@
+{
+	"info": {
+		"_postman_id": "c9b3a62d-2cfc-4ef0-b05a-bd2fb5c3f6c0",
+		"name": "Reminder API with Google Calendar Integration",
+		"description": "API collection for the Reminder system with Google Calendar integration",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "reminder_id",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const response = pm.response.json();",
+									"if (response.user_id) {",
+									"    pm.environment.set(\"user_id\", response.user_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"full_name\": \"John Doe\",\n    \"age\": 30,\n    \"gender\": \"Male\",\n    \"contact_info\": {\n        \"email\": \"john.doe@example.com\",\n        \"phone\": \"+1234567890\"\n    },\n    \"password\": \"SecurePassword123\",\n    \"emergency_contacts\": [\n        {\n            \"name\": \"Jane Doe\",\n            \"phone\": \"+1987654321\",\n            \"relationship\": \"Spouse\"\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"register"
+							]
+						},
+						"description": "Register a new user"
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const response = pm.response.json();",
+									"if (response.token) {",
+									"    pm.environment.set(\"auth_token\", response.token);",
+									"}",
+									"if (response.user_id) {",
+									"    pm.environment.set(\"user_id\", response.user_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"password\": \"SecurePassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login and get authentication token"
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoints"
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Get User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/users/{{user_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"{{user_id}}"
+							]
+						},
+						"description": "Get user details"
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"full_name\": \"John Updated Doe\",\n    \"age\": 31,\n    \"gender\": \"Male\",\n    \"contact_info\": {\n        \"email\": \"john.doe@example.com\",\n        \"phone\": \"+1234567890\"\n    },\n    \"emergency_contacts\": [\n        {\n            \"name\": \"Jane Doe\",\n            \"phone\": \"+1987654321\",\n            \"relationship\": \"Spouse\"\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/users/{{user_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"{{user_id}}"
+							]
+						},
+						"description": "Update user information"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/users/{{user_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"{{user_id}}"
+							]
+						},
+						"description": "Delete a user"
+					},
+					"response": []
+				}
+			],
+			"description": "User management endpoints"
+		},
+		{
+			"name": "Reminders",
+			"item": [
+				{
+					"name": "Create Reminder",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const response = pm.response.json();",
+									"if (response.reminder_id) {",
+									"    pm.environment.set(\"reminder_id\", response.reminder_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Doctor Appointment\",\n    \"description\": \"Annual checkup with Dr. Smith\",\n    \"start_time\": \"{{$isoTimestamp}}\",\n    \"end_time\": \"{{$isoTimestamp}}\",\n    \"recurrence\": \"monthly\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/reminders",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reminders"
+							]
+						},
+						"description": "Create a new reminder"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Reminders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/reminders",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reminders"
+							],
+							"query": [
+								{
+									"key": "completed",
+									"value": "false",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get all reminders for the user"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Reminder By ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/reminders/{{reminder_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reminders",
+								"{{reminder_id}}"
+							]
+						},
+						"description": "Get a specific reminder by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Reminder",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Updated Doctor Appointment\",\n    \"description\": \"Annual checkup with Dr. Smith - Updated\",\n    \"completed\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/reminders/{{reminder_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reminders",
+								"{{reminder_id}}"
+							]
+						},
+						"description": "Update a reminder"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Reminder",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/reminders/{{reminder_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reminders",
+								"{{reminder_id}}"
+							]
+						},
+						"description": "Delete a reminder"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Today's Reminders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/reminders/today",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reminders",
+								"today"
+							]
+						},
+						"description": "Get reminders for today"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Upcoming Reminders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/reminders/upcoming",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reminders",
+								"upcoming"
+							],
+							"query": [
+								{
+									"key": "days",
+									"value": "14",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get upcoming reminders for the next X days (default: 7)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Reminder Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/reminders/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reminders",
+								"stats"
+							]
+						},
+						"description": "Get reminder statistics (completion rate, today's count, upcoming count)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Detailed Reminder Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/reminders/stats/detailed",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reminders",
+								"stats",
+								"detailed"
+							]
+						},
+						"description": "Get detailed reminder statistics including types, overdue counts, and more"
+					},
+					"response": []
+				}
+			],
+			"description": "Reminder management endpoints"
+		},
+		{
+			"name": "Google Calendar Integration",
+			"item": [
+				{
+					"name": "Connect Google Calendar",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/google/connect",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"google",
+								"connect"
+							]
+						},
+						"description": "Start Google OAuth flow"
+					},
+					"response": []
+				},
+				{
+					"name": "Check Google Connection Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/google/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"google",
+								"status"
+							]
+						},
+						"description": "Check Google Calendar connection status"
+					},
+					"response": []
+				},
+				{
+					"name": "Disconnect Google Calendar",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/google/disconnect",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"google",
+								"disconnect"
+							]
+						},
+						"description": "Disconnect Google Calendar integration"
+					},
+					"response": []
+				}
+			],
+			"description": "Google Calendar integration endpoints"
+		}
+	]
+} 
