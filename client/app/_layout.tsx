@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 import { AuthProvider } from './context/AuthContext';
+import { View, ActivityIndicator } from 'react-native';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -49,7 +50,12 @@ export default function AppLayout() {
   }, [appIsReady]);
 
   if (!appIsReady) {
-    return null;
+    // Show a loading indicator instead of null
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#4285F4" />
+      </View>
+    );
   }
 
   return (
@@ -60,13 +66,12 @@ export default function AppLayout() {
             headerShown: false,
             animation: 'slide_from_right',
           }}
-          initialRouteName="welcome"
         >
           <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
           <Stack.Screen name="index" options={{ gestureEnabled: false }} />
           <Stack.Screen name="auth/signin" />
           <Stack.Screen name="auth/signup" />
-          <Stack.Screen name="onboarding/user-data" />
+          <Stack.Screen name="onboarding/user-data" options={{ gestureEnabled: false }} />
         </Stack>
       </AuthProvider>
     </PaperProvider>

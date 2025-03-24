@@ -47,12 +47,13 @@ export default {
           calendarPermission: "The app needs to access your calendar to add and manage reminders."
         }
       ],
-      [
+      // Commenting out expo-speech due to compatibility issues
+      /*[
         "expo-speech",
         {
           microphonePermission: "The app needs access to your microphone for voice interactions."
         }
-      ]
+      ]*/
     ],
     extra: {
       apiUrl: process.env.API_URL || "http://localhost:5000/api",

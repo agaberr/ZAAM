@@ -80,33 +80,45 @@ export default function SignUpScreen() {
                 label="Full Name"
                 value={name}
                 onChangeText={setName}
-                mode="outlined"
+                mode="flat"
                 style={styles.input}
-                outlineColor="rgba(255,255,255,0.3)"
-                activeOutlineColor="white"
+                underlineColor="rgba(255,255,255,0.3)"
+                activeUnderlineColor="white"
                 textColor="white"
-                theme={{ colors: { onSurfaceVariant: 'white' } }}
+                theme={{ 
+                  colors: { 
+                    onSurfaceVariant: 'white',
+                    text: 'white',
+                    placeholder: 'white' 
+                  } 
+                }}
               />
               
               <TextInput
                 label="Email"
                 value={email}
                 onChangeText={setEmail}
-                mode="outlined"
+                mode="flat"
                 style={styles.input}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                outlineColor="rgba(255,255,255,0.3)"
-                activeOutlineColor="white"
+                underlineColor="rgba(255,255,255,0.3)"
+                activeUnderlineColor="white"
                 textColor="white"
-                theme={{ colors: { onSurfaceVariant: 'white' } }}
+                theme={{ 
+                  colors: { 
+                    onSurfaceVariant: 'white',
+                    text: 'white',
+                    placeholder: 'white' 
+                  } 
+                }}
               />
               
               <TextInput
                 label="Password"
                 value={password}
                 onChangeText={setPassword}
-                mode="outlined"
+                mode="flat"
                 style={styles.input}
                 secureTextEntry={!showPassword}
                 right={
@@ -116,23 +128,35 @@ export default function SignUpScreen() {
                     color="white"
                   />
                 }
-                outlineColor="rgba(255,255,255,0.3)"
-                activeOutlineColor="white"
+                underlineColor="rgba(255,255,255,0.3)"
+                activeUnderlineColor="white"
                 textColor="white"
-                theme={{ colors: { onSurfaceVariant: 'white' } }}
+                theme={{ 
+                  colors: { 
+                    onSurfaceVariant: 'white',
+                    text: 'white',
+                    placeholder: 'white' 
+                  } 
+                }}
               />
               
               <TextInput
                 label="Confirm Password"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                mode="outlined"
+                mode="flat"
                 style={styles.input}
                 secureTextEntry={!showPassword}
-                outlineColor="rgba(255,255,255,0.3)"
-                activeOutlineColor="white"
+                underlineColor="rgba(255,255,255,0.3)"
+                activeUnderlineColor="white"
                 textColor="white"
-                theme={{ colors: { onSurfaceVariant: 'white' } }}
+                theme={{ 
+                  colors: { 
+                    onSurfaceVariant: 'white',
+                    text: 'white',
+                    placeholder: 'white' 
+                  } 
+                }}
               />
               
               <Button
@@ -213,8 +237,10 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    marginBottom: 16,
+    marginBottom: 24,
     backgroundColor: 'transparent',
+    height: 60,
+    paddingBottom: 8,
   },
   button: {
     marginTop: 16,

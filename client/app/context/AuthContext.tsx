@@ -2,6 +2,10 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { router, useSegments, useRootNavigationState } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// API endpoint base URL
+const API_BASE_URL = 'http://localhost:5000'; // For Android emulator pointing to localhost
+// If using a physical device, use your computer's IP address instead, e.g. 'http://192.168.1.100:5000'
+
 // Mock user data
 const MOCK_USERS = [
   {
@@ -24,8 +28,30 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  completeOnboarding: () => Promise<void>;
+  completeOnboarding: (userData: UserDataType) => Promise<void>;
   userData: any | null;
+  tempRegData: TempRegDataType | null;
+};
+
+// Define temp registration data type
+type TempRegDataType = {
+  full_name: string;
+  email: string;
+  password: string;
+};
+
+// Define user data type for onboarding
+type EmergencyContactType = {
+  name: string;
+  relationship: string;
+  phone: string;
+};
+
+type UserDataType = {
+  age: number;
+  gender: string;
+  phone: string;
+  emergency_contacts: EmergencyContactType[];
 };
 
 // Create the context with a default value
@@ -36,6 +62,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   completeOnboarding: async () => {},
   userData: null,
+  tempRegData: null,
 });
 
 // Custom hook to use the auth context
@@ -46,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [userData, setUserData] = useState<any | null>(null);
+  const [tempRegData, setTempRegData] = useState<TempRegDataType | null>(null);
   
   const segments = useSegments();
   const navigationState = useRootNavigationState();
@@ -56,11 +84,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const authToken = await AsyncStorage.getItem('authToken');
         const userDataString = await AsyncStorage.getItem('userData');
+        const tempRegDataString = await AsyncStorage.getItem('tempRegData');
         
         if (authToken && userDataString) {
           const parsedUserData = JSON.parse(userDataString);
           setUserData(parsedUserData);
           setIsAuthenticated(true);
+        }
+        
+        if (tempRegDataString) {
+          setTempRegData(JSON.parse(tempRegDataString));
         }
       } catch (error) {
         console.error('Failed to load auth state:', error);
@@ -74,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Handle routing based on authentication state
   useEffect(() => {
+    // Don't run navigation if the app is still loading or navigation is not ready
     if (isLoading || !navigationState?.key) return;
     
     const inAuthGroup = segments[0] === 'auth';
@@ -81,50 +115,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isWelcomeScreen = segments[0] === 'welcome';
     const isIndexScreen = segments[0] === undefined || segments[0] === '';
     
-    if (isIndexScreen && !isAuthenticated) {
-      // Redirect to welcome screen if on index and not authenticated
-      router.replace('/welcome');
-    } else if (!isAuthenticated && !inAuthGroup && !inOnboardingGroup && !isWelcomeScreen) {
-      // Redirect to the welcome screen if not authenticated and not already on welcome/auth/onboarding
-      router.replace('/welcome');
-    } else if (isAuthenticated && (inAuthGroup || isWelcomeScreen)) {
-      // Redirect to the home screen if authenticated and on auth/welcome screens
-      router.replace('/');
-    }
+    // Use a setTimeout to ensure navigation happens after the layout is fully mounted
+    setTimeout(() => {
+      if (isIndexScreen && !isAuthenticated) {
+        // Redirect to welcome screen if on index and not authenticated
+        router.replace('/welcome');
+      } else if (!isAuthenticated && !inAuthGroup && !inOnboardingGroup && !isWelcomeScreen) {
+        // Redirect to the welcome screen if not authenticated and not already on welcome/auth/onboarding
+        router.replace('/welcome');
+      } else if (isAuthenticated && (inAuthGroup || isWelcomeScreen)) {
+        // Redirect to the home screen if authenticated and on auth/welcome screens
+        router.replace('/');
+      }
+    }, 0);
   }, [isAuthenticated, segments, navigationState?.key, isLoading]);
 
-  // Sign in function with mock data
+  // Sign in function with API integration
   const signIn = async (email: string, password: string) => {
     try {
-      // Check against mock users
-      const user = MOCK_USERS.find(
-        u => (u.email.toLowerCase() === email.toLowerCase() || u.name.toLowerCase() === email.toLowerCase()) && 
-             u.password === password
-      );
-      
-      if (!user) {
-        throw new Error('Invalid credentials');
+      // Prepare data for API request
+      const loginData = {
+        email: email,
+        password: password
+      };
+
+      // Make API request to log in
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(loginData),
+      });
+
+      // Check if request was successful
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Login failed');
       }
+
+      // Extract the response data
+      const responseData = await response.json();
       
-      // Store user data and token
+      // Store token
+      await AsyncStorage.setItem('authToken', responseData.token);
+      
+      // Fetch user data or use what was returned
+      // For now, we'll use what we have
       const userData = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
+        id: responseData.user_id,
+        // The backend doesn't currently return the user's name, 
+        // so we'll need to fetch it separately or handle it differently
+        name: 'User', // Placeholder
+        email: email,
       };
       
-      await AsyncStorage.setItem('authToken', 'mock-auth-token-' + user.id);
       await AsyncStorage.setItem('userData', JSON.stringify(userData));
       
       setUserData(userData);
       setIsAuthenticated(true);
       
-      console.log('Successfully signed in as:', user.name);
+      console.log('Successfully signed in');
       
       // Navigate to the main app
       router.replace('/');
     } catch (error) {
-      console.error('Sign in failed:', error);
+      console.error('Sign in failed:', error instanceof Error ? error.message : String(error));
       throw error;
     }
   };
@@ -132,50 +188,92 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Sign up function
   const signUp = async (name: string, email: string, password: string) => {
     try {
-      // In a real app, you would register the user with your backend
-      // For now, we'll just create a mock user
-      const newUser = {
-        id: String(MOCK_USERS.length + 1),
-        name,
-        email,
-        password,
+      // Store temporary registration data for later use in onboarding
+      const tempData = {
+        full_name: name,
+        email: email,
+        password: password
       };
       
-      // Store user data and token
-      const userData = {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-      };
+      // Store temporary registration data
+      await AsyncStorage.setItem('tempRegData', JSON.stringify(tempData));
+      setTempRegData(tempData);
       
-      await AsyncStorage.setItem('authToken', 'mock-auth-token-' + newUser.id);
-      await AsyncStorage.setItem('userData', JSON.stringify(userData));
+      console.log('Temporary registration data stored, proceeding to onboarding');
       
-      setUserData(userData);
-      setIsAuthenticated(true);
-      
-      console.log('Successfully signed up as:', newUser.name);
-      
-      // Navigate to onboarding
+      // Navigate to onboarding to collect more user data
       router.push('/onboarding/user-data');
     } catch (error) {
-      console.error('Sign up failed:', error);
+      console.error('Sign up failed:', error instanceof Error ? error.message : String(error));
       throw error;
     }
   };
 
   // Complete onboarding function
-  const completeOnboarding = async () => {
+  const completeOnboarding = async (onboardingData: UserDataType) => {
     try {
-      // In a real app, you would save onboarding data to your backend
+      // Check if we have temporary registration data
+      if (!tempRegData) {
+        throw new Error('No registration data found. Please sign up first.');
+      }
+      
+      // Prepare complete user data for registration
+      const userData = {
+        full_name: tempRegData.full_name,
+        age: onboardingData.age,
+        gender: onboardingData.gender,
+        contact_info: {
+          email: tempRegData.email,
+          phone: onboardingData.phone,
+        },
+        password: tempRegData.password,
+        emergency_contacts: onboardingData.emergency_contacts,
+      };
+      
+      console.log('Registering user with complete data');
+      
+      // Make API request to register the user
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      // Check if request was successful
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Registration failed');
+      }
+
+      // Extract the response data
+      const responseData = await response.json();
+      
+      // Store user data for our app
+      const appUserData = {
+        id: responseData.user_id,
+        name: tempRegData.full_name,
+        email: tempRegData.email,
+      };
+      
+      // Clear temporary registration data
+      await AsyncStorage.removeItem('tempRegData');
+      setTempRegData(null);
+      
+      // Store user data and set authenticated
+      await AsyncStorage.setItem('userData', JSON.stringify(appUserData));
       await AsyncStorage.setItem('onboardingCompleted', 'true');
       
-      console.log('Onboarding completed');
+      setUserData(appUserData);
+      setIsAuthenticated(true);
+      
+      console.log('Registration and onboarding completed successfully');
       
       // Navigate to the main app
       router.replace('/');
     } catch (error) {
-      console.error('Onboarding completion failed:', error);
+      console.error('Onboarding completion failed:', error instanceof Error ? error.message : String(error));
       throw error;
     }
   };
@@ -183,6 +281,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Sign out function
   const signOut = async () => {
     try {
+      console.log('Signing out user...');
+      
       // Remove auth token and user data
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('userData');
@@ -196,7 +296,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Navigate to welcome screen
       router.replace('/welcome');
     } catch (error) {
-      console.error('Sign out failed:', error);
+      console.error('Sign out failed:', error instanceof Error ? error.message : String(error));
       throw error;
     }
   };
@@ -208,6 +308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     completeOnboarding,
     userData,
+    tempRegData,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

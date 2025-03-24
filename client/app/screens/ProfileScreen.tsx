@@ -125,7 +125,15 @@ export default function ProfileScreen({ setActiveTab }) {
         },
         { 
           text: "Log Out", 
-          onPress: () => signOut(),
+          onPress: async () => {
+            try {
+              await signOut();
+              console.log("User logged out successfully");
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("Error", "Failed to log out. Please try again.");
+            }
+          },
           style: "destructive"
         }
       ]

@@ -1,4 +1,4 @@
-import * as Speech from 'expo-speech';
+// import * as Speech from 'expo-speech';
 import Voice, { SpeechResultsEvent } from '@react-native-voice/voice';
 
 export const useSpeechRecognition = () => {
@@ -15,16 +15,22 @@ export const useSpeechRecognition = () => {
   };
 
   const speak = (text: string, options = {}) => {
-    return Speech.speak(text, {
-      language: 'en-US',
-      pitch: 1.0,
-      rate: 0.9,
-      ...options,
-    });
+    // Speech functionality commented out due to compatibility issues
+    console.log('Speech disabled:', text);
+    return Promise.resolve();
+    // return Speech.speak(text, {
+    //   language: 'en-US',
+    //   pitch: 1.0,
+    //   rate: 0.9,
+    //   ...options,
+    // });
   };
 
   const stopSpeaking = () => {
-    return Speech.stop();
+    // Speech functionality commented out due to compatibility issues
+    console.log('Stop speaking disabled');
+    return Promise.resolve();
+    // return Speech.stop();
   };
 
   return {
