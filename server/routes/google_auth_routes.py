@@ -1,10 +1,15 @@
-from flask import jsonify, request, redirect, session, url_for
+from flask import jsonify, request, redirect, session, url_for, Blueprint
 from models.google_oauth import GoogleOAuthService
 import jwt
 import os
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
 
 # Load JWT secret from environment variables
 JWT_SECRET = os.getenv("JWT_SECRET")
+
+# Create blueprint
+google_auth_bp = Blueprint('google_auth_routes', __name__)
 
 def register_google_auth_routes(app, mongo):
     oauth_service = GoogleOAuthService()
@@ -23,68 +28,63 @@ def register_google_auth_routes(app, mongo):
         except Exception:
             return None
     
-    @app.route('/api/auth/google/connect', methods=['GET'])
-    def google_connect():
-        """Start Google OAuth flow by redirecting to Google's auth page."""
+    @app.route('/api/google/auth', methods=['GET'])
+    def google_auth():
         try:
-            # Get authenticated user ID
-            user_id = get_authenticated_user_id()
-            if not user_id:
-                return jsonify({"error": "Authentication required"}), 401
-                
-            # Generate authorization URL
-            auth_url, state = oauth_service.get_authorization_url()
+            flow = Flow.from_client_secrets_file(
+                app.config["GOOGLE_CLIENT_SECRETS_FILE"],
+                scopes=app.config["GOOGLE_OAUTH_SCOPES"],
+                redirect_uri=request.args.get('redirect_uri', 'http://localhost:3000/auth/google/callback')
+            )
             
-            # Store state and user_id in session for verification
+            authorization_url, state = flow.authorization_url(
+                access_type='offline',
+                include_granted_scopes='true'
+            )
+            
+            # Store the state in the session
             session['google_auth_state'] = state
-            session['google_auth_user_id'] = user_id
             
-            # Return the URL for frontend to redirect
-            return jsonify({"authorization_url": auth_url})
-            
+            return jsonify({
+                "authorization_url": authorization_url
+            })
         except Exception as e:
+            print(f"Google auth error: {str(e)}")
             return jsonify({"error": str(e)}), 500
     
-    @app.route('/api/auth/google/callback', methods=['GET'])
+    @app.route('/api/google/callback', methods=['POST'])
     def google_callback():
-        """Handle callback from Google OAuth."""
         try:
-            # Get state and code from query parameters
-            state = request.args.get('state')
-            code = request.args.get('code')
-            error = request.args.get('error')
+            data = request.get_json()
+            if not data or 'code' not in data or 'redirect_uri' not in data:
+                return jsonify({"error": "Missing code or redirect_uri"}), 400
             
-            # Check for errors
-            if error:
-                return redirect('/google-connect-failure?error=' + error)
-                
-            # Verify state to prevent CSRF
-            if state != session.get('google_auth_state'):
-                return redirect('/google-connect-failure?error=invalid_state')
-                
-            # Get user_id from session
-            user_id = session.get('google_auth_user_id')
-            if not user_id:
-                return redirect('/google-connect-failure?error=missing_user_id')
-                
-            # Exchange code for tokens
-            tokens = oauth_service.exchange_code_for_tokens(code)
+            flow = Flow.from_client_secrets_file(
+                app.config["GOOGLE_CLIENT_SECRETS_FILE"],
+                scopes=app.config["GOOGLE_OAUTH_SCOPES"],
+                redirect_uri=data['redirect_uri']
+            )
             
-            # Save tokens for user
-            success = oauth_service.save_tokens_for_user(mongo.db, user_id, tokens)
+            # Use the authorization code to get credentials
+            flow.fetch_token(code=data['code'])
+            credentials = flow.credentials
             
-            if not success:
-                return redirect('/google-connect-failure?error=token_save_failed')
-                
-            # Clear session data
-            session.pop('google_auth_state', None)
-            session.pop('google_auth_user_id', None)
+            # Convert credentials to a dict that can be stored and transmitted
+            credentials_dict = {
+                'token': credentials.token,
+                'refresh_token': credentials.refresh_token,
+                'token_uri': credentials.token_uri,
+                'client_id': credentials.client_id,
+                'client_secret': credentials.client_secret,
+                'scopes': credentials.scopes
+            }
             
-            # Redirect to success page
-            return redirect('/google-connect-success')
-            
+            return jsonify({
+                "credentials": credentials_dict
+            })
         except Exception as e:
-            return redirect('/google-connect-failure?error=' + str(e))
+            print(f"Google callback error: {str(e)}")
+            return jsonify({"error": str(e)}), 500
     
     @app.route('/api/auth/google/disconnect', methods=['POST'])
     def google_disconnect():
