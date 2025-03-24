@@ -14,6 +14,7 @@ from routes.auth_routes import register_auth_routes
 from routes.reminder_routes import register_reminder_routes
 from routes.google_auth_routes import register_google_auth_routes
 from routes.ai_routes import register_ai_routes
+from routes.memory_aid_routes import memory_aid_routes
 
 # Load environment variables
 load_dotenv()
@@ -64,6 +65,12 @@ register_auth_routes(app, mongo)
 register_reminder_routes(app, mongo)
 register_google_auth_routes(app, mongo)
 register_ai_routes(app, mongo)
+app.register_blueprint(memory_aid_routes)
+
+# Configure database access for routes that use the Blueprint pattern
+@app.before_request
+def before_request():
+    app.config["DATABASE"] = mongo.db
 
 if __name__ == '__main__':
     print("Starting Flask server...")

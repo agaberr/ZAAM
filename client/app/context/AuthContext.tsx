@@ -4,23 +4,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API endpoint base URL
 const API_BASE_URL = 'http://localhost:5000'; // For Android emulator pointing to localhost
+// const API_BASE_URL = 'http://10.0.2.2:5000'; // For Android emulator pointing to localhost
+
 // If using a physical device, use your computer's IP address instead, e.g. 'http://192.168.1.100:5000'
 
-// Mock user data
-const MOCK_USERS = [
-  {
-    id: '1',
-    name: 'Ahmed',
-    email: 'ahmed',
-    password: 'ahmed',
-  },
-  {
-    id: '2',
-    name: 'Test User',
-    email: 'test@example.com',
-    password: 'password123',
-  }
-];
 
 // Define the shape of the auth context
 type AuthContextType = {
@@ -29,6 +16,12 @@ type AuthContextType = {
   signUp: (name: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   completeOnboarding: (userData: UserDataType) => Promise<void>;
+  fetchUserData: (userId: string) => Promise<any>;
+  updateUserProfile: (userId: string, userData: any) => Promise<void>;
+  fetchMemoryAids: () => Promise<any[]>;
+  createMemoryAid: (memoryAidData: MemoryAidDataType) => Promise<any>;
+  updateMemoryAid: (memoryAidId: string, memoryAidData: Partial<MemoryAidDataType>) => Promise<any>;
+  deleteMemoryAid: (memoryAidId: string) => Promise<boolean>;
   userData: any | null;
   tempRegData: TempRegDataType | null;
 };
@@ -54,6 +47,15 @@ type UserDataType = {
   emergency_contacts: EmergencyContactType[];
 };
 
+// Define memory aid data type
+type MemoryAidDataType = {
+  title: string;
+  description: string;
+  type: 'person' | 'place' | 'event' | 'object';
+  date?: string;
+  image_url?: string;
+};
+
 // Create the context with a default value
 const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
@@ -61,6 +63,12 @@ const AuthContext = createContext<AuthContextType>({
   signUp: async () => {},
   signOut: async () => {},
   completeOnboarding: async () => {},
+  fetchUserData: async () => {},
+  updateUserProfile: async () => {},
+  fetchMemoryAids: async () => [],
+  createMemoryAid: async () => ({}),
+  updateMemoryAid: async () => ({}),
+  deleteMemoryAid: async () => false,
   userData: null,
   tempRegData: null,
 });
@@ -307,6 +315,170 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signOut,
     completeOnboarding,
+    fetchUserData: async (userId: string) => {
+      try {
+        const authToken = await AsyncStorage.getItem('authToken');
+        if (!authToken) {
+          throw new Error("Authentication token not found");
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch user data');
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Error fetching user data:', error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    },
+    updateUserProfile: async (userId: string, userData: any) => {
+      try {
+        const authToken = await AsyncStorage.getItem('authToken');
+        if (!authToken) {
+          throw new Error("Authentication token not found");
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(userData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update user profile');
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Error updating user profile:', error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    },
+    fetchMemoryAids: async () => {
+      try {
+        const authToken = await AsyncStorage.getItem('authToken');
+        if (!authToken) {
+          throw new Error("Authentication token not found");
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/memory-aids`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch memory aids');
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Error fetching memory aids:', error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    },
+    createMemoryAid: async (memoryAidData: MemoryAidDataType) => {
+      try {
+        const authToken = await AsyncStorage.getItem('authToken');
+        if (!authToken) {
+          throw new Error("Authentication token not found");
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/memory-aids`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(memoryAidData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create memory aid');
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Error creating memory aid:', error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    },
+    updateMemoryAid: async (memoryAidId: string, memoryAidData: Partial<MemoryAidDataType>) => {
+      try {
+        const authToken = await AsyncStorage.getItem('authToken');
+        if (!authToken) {
+          throw new Error("Authentication token not found");
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/memory-aids/${memoryAidId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(memoryAidData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update memory aid');
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Error updating memory aid:', error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    },
+    deleteMemoryAid: async (memoryAidId: string) => {
+      try {
+        const authToken = await AsyncStorage.getItem('authToken');
+        if (!authToken) {
+          throw new Error("Authentication token not found");
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/memory-aids/${memoryAidId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete memory aid');
+        }
+
+        return true;
+      } catch (error) {
+        console.error('Error deleting memory aid:', error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    },
     userData,
     tempRegData,
   };

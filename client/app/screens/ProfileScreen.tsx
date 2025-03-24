@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, Image, TouchableOpacity, Switch, Alert } from 'react-native';
-import { Text, Button, Card, Avatar, TextInput, Divider, List, IconButton, Chip } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, ScrollView, Image, TouchableOpacity, Switch, Alert, ActivityIndicator, Modal } from 'react-native';
+import { Text, Button, Card, Avatar, TextInput, Divider, List, IconButton, Chip, Portal, Dialog } from 'react-native-paper';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 
@@ -13,81 +13,56 @@ interface Medication {
 }
 
 interface EmergencyContact {
-  id: string;
   name: string;
   relationship: string;
   phone: string;
-  isCaregiver: boolean;
 }
 
 interface MemoryAid {
-  id: string;
+  _id?: string;
   title: string;
   description: string;
   date: string;
   type: 'person' | 'place' | 'event' | 'object';
+  image_url?: string;
 }
 
-export default function ProfileScreen({ setActiveTab }) {
-  const { userData, signOut } = useAuth();
+export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: string) => void }) {
+  const { userData, signOut, fetchUserData, updateUserProfile, fetchMemoryAids, createMemoryAid, updateMemoryAid, deleteMemoryAid } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
   
   // User profile state
-  const [name, setName] = useState(userData?.name || 'Amit Kumar');
-  const [age, setAge] = useState('75');
-  const [gender, setGender] = useState('Male');
-  const [email, setEmail] = useState(userData?.email || 'amit.kumar@example.com');
-  const [phone, setPhone] = useState('+1 (555) 123-4567');
+  const [name, setName] = useState('');
+  const [age, setAge] = useState('');
+  const [gender, setGender] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   
-  // Preferences state
-  const [voiceType, setVoiceType] = useState('Male');
-  const [language, setLanguage] = useState('English');
-  const [reminderFrequency, setReminderFrequency] = useState('Hourly');
-  const [textSize, setTextSize] = useState('Medium');
-  const [highContrastMode, setHighContrastMode] = useState(false);
-  const [voiceCommandsEnabled, setVoiceCommandsEnabled] = useState(true);
-  const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(true);
-  const [nightModeEnabled, setNightModeEnabled] = useState(false);
-  
-  // Medications state
-  const [medications, setMedications] = useState<Medication[]>([
-    { id: '1', name: 'Aspirin', dosage: '100mg', frequency: 'Daily', time: '9:00 AM' },
-    { id: '2', name: 'Donepezil', dosage: '5mg', frequency: 'Daily', time: '1:00 PM' },
-    { id: '3', name: 'Memantine', dosage: '10mg', frequency: 'Twice daily', time: '9:00 AM, 9:00 PM' }
-  ]);
-  
   // Emergency contacts state
-  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([
-    { id: '1', name: 'Sarah Kumar', relationship: 'Daughter', phone: '+1 (555) 987-6543', isCaregiver: true },
-    { id: '2', name: 'Raj Kumar', relationship: 'Son', phone: '+1 (555) 456-7890', isCaregiver: false },
-    { id: '3', name: 'Dr. Smith', relationship: 'Physician', phone: '+1 (555) 234-5678', isCaregiver: false }
-  ]);
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
+  const [contactDialogVisible, setContactDialogVisible] = useState(false);
+  const [currentContact, setCurrentContact] = useState<EmergencyContact>({
+    name: '',
+    relationship: '',
+    phone: ''
+  });
+  const [editingContactIndex, setEditingContactIndex] = useState<number | null>(null);
   
-  // Memory aids state (creative addition)
-  const [memoryAids, setMemoryAids] = useState<MemoryAid[]>([
-    { 
-      id: '1', 
-      title: 'Sarah', 
-      description: 'Your daughter who visits every Sunday. She has two children named Maya and Rohan.', 
-      date: '2023-05-15',
-      type: 'person'
-    },
-    { 
-      id: '2', 
-      title: 'Home Address', 
-      description: '123 Maple Street, Apt 4B, Springfield, IL 62704', 
-      date: '2023-05-15',
-      type: 'place'
-    },
-    { 
-      id: '3', 
-      title: 'Wedding Anniversary', 
-      description: 'You were married on June 12, 1970 to Priya at the Grand Temple.', 
-      date: '2023-05-20',
-      type: 'event'
-    }
-  ]);
+  // Memory aids state
+  const [memoryAids, setMemoryAids] = useState<MemoryAid[]>([]);
+  const [memoryAidsLoading, setMemoryAidsLoading] = useState(false);
+  const [memoryAidDialogVisible, setMemoryAidDialogVisible] = useState(false);
+  const [currentMemoryAid, setCurrentMemoryAid] = useState<MemoryAid>({
+    title: '',
+    description: '',
+    date: new Date().toISOString().split('T')[0],
+    type: 'person'
+  });
+  const [editingMemoryAidId, setEditingMemoryAidId] = useState<string | null>(null);
   
   // Activity stats (creative addition)
   const [activityStats, setActivityStats] = useState({
@@ -100,18 +75,102 @@ export default function ProfileScreen({ setActiveTab }) {
   // Sections expanded state
   const [expandedSections, setExpandedSections] = useState({
     personalInfo: true,
-    preferences: false,
     medications: false,
     emergencyContacts: false,
     memoryAids: false,
     account: false
   });
   
+  // Fetch user data from the backend
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      if (!userData?.id) {
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        setIsLoading(true);
+        const userProfileData = await fetchUserData(userData.id);
+        setUserProfile(userProfileData);
+        
+        // Update state with fetched data
+        setName(userProfileData.full_name || '');
+        setAge(userProfileData.age ? String(userProfileData.age) : '');
+        setGender(userProfileData.gender || '');
+        
+        if (userProfileData.contact_info) {
+          setEmail(userProfileData.contact_info.email || '');
+          setPhone(userProfileData.contact_info.phone || '');
+        }
+        
+        if (userProfileData.emergency_contacts) {
+          setEmergencyContacts(userProfileData.emergency_contacts || []);
+        }
+        
+      } catch (error) {
+        console.error('Failed to load user profile:', error);
+        Alert.alert('Error', 'Failed to load user profile. Please try again later.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadUserProfile();
+  }, [userData?.id]);
+  
+  // Fetch memory aids from the backend
+  useEffect(() => {
+    const loadMemoryAids = async () => {
+      try {
+        setMemoryAidsLoading(true);
+        const data = await fetchMemoryAids();
+        setMemoryAids(data);
+      } catch (error) {
+        console.error('Failed to load memory aids:', error);
+        Alert.alert('Error', 'Failed to load memory aids. Please try again later.');
+      } finally {
+        setMemoryAidsLoading(false);
+      }
+    };
+    
+    if (userData?.id) {
+      loadMemoryAids();
+    }
+  }, [userData?.id]);
+  
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections({
       ...expandedSections,
       [section]: !expandedSections[section]
     });
+  };
+  
+  const handleSaveProfile = async () => {
+    try {
+      setIsSaving(true);
+      
+      const updatedUserData = {
+        full_name: name,
+        age: parseInt(age),
+        gender: gender,
+        contact_info: {
+          email: email,
+          phone: phone
+        },
+        emergency_contacts: emergencyContacts
+      };
+      
+      await updateUserProfile(userData.id, updatedUserData);
+      
+      setEditMode(false);
+      Alert.alert('Success', 'Profile updated successfully');
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      Alert.alert('Error', 'Failed to update profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
   
   const handleLogout = () => {
@@ -155,536 +214,700 @@ export default function ProfileScreen({ setActiveTab }) {
     }
   };
   
+  // Emergency contact functions
+  const openAddContactDialog = () => {
+    setCurrentContact({ name: '', relationship: '', phone: '' });
+    setEditingContactIndex(null);
+    setContactDialogVisible(true);
+  };
+
+  const openEditContactDialog = (contact: EmergencyContact, index: number) => {
+    setCurrentContact({ ...contact });
+    setEditingContactIndex(index);
+    setContactDialogVisible(true);
+  };
+
+  const handleDeleteContact = (index: number) => {
+    Alert.alert(
+      "Delete Contact",
+      "Are you sure you want to delete this emergency contact?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          onPress: async () => {
+            const updatedContacts = [...emergencyContacts];
+            updatedContacts.splice(index, 1);
+            setEmergencyContacts(updatedContacts);
+            
+            // Save the updated profile with the contact removed
+            try {
+              setIsSaving(true);
+              
+              const updatedUserData = {
+                full_name: name,
+                age: parseInt(age) || 0,
+                gender: gender,
+                contact_info: {
+                  email: email,
+                  phone: phone
+                },
+                emergency_contacts: updatedContacts
+              };
+              
+              await updateUserProfile(userData.id, updatedUserData);
+              Alert.alert('Success', 'Emergency contact deleted successfully');
+            } catch (error) {
+              console.error('Failed to delete emergency contact:', error);
+              Alert.alert('Error', 'Failed to delete emergency contact. Please try again.');
+            } finally {
+              setIsSaving(false);
+            }
+          },
+          style: "destructive"
+        }
+      ]
+    );
+  };
+
+  const handleSaveContact = async () => {
+    // Validate contact data
+    if (!currentContact.name || !currentContact.phone) {
+      Alert.alert("Error", "Name and phone number are required.");
+      return;
+    }
+
+    const updatedContacts = [...emergencyContacts];
+    
+    if (editingContactIndex !== null) {
+      // Update existing contact
+      updatedContacts[editingContactIndex] = currentContact;
+    } else {
+      // Add new contact
+      updatedContacts.push(currentContact);
+    }
+    
+    setEmergencyContacts(updatedContacts);
+    setContactDialogVisible(false);
+    
+    // Save the updated profile with the new emergency contacts
+    try {
+      setIsSaving(true);
+      
+      const updatedUserData = {
+        full_name: name,
+        age: parseInt(age) || 0,
+        gender: gender,
+        contact_info: {
+          email: email,
+          phone: phone
+        },
+        emergency_contacts: updatedContacts
+      };
+      
+      await updateUserProfile(userData.id, updatedUserData);
+      Alert.alert('Success', 'Emergency contact saved successfully');
+    } catch (error) {
+      console.error('Failed to save emergency contact:', error);
+      Alert.alert('Error', 'Failed to save emergency contact. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
+  // Memory Aid functions
+  const openAddMemoryAidDialog = () => {
+    setCurrentMemoryAid({
+      title: '',
+      description: '',
+      date: new Date().toISOString().split('T')[0],
+      type: 'person'
+    });
+    setEditingMemoryAidId(null);
+    setMemoryAidDialogVisible(true);
+  };
+
+  const openEditMemoryAidDialog = (memoryAid: MemoryAid) => {
+    setCurrentMemoryAid({
+      title: memoryAid.title,
+      description: memoryAid.description,
+      date: memoryAid.date,
+      type: memoryAid.type,
+      image_url: memoryAid.image_url
+    });
+    setEditingMemoryAidId(memoryAid._id || null);
+    setMemoryAidDialogVisible(true);
+  };
+
+  const handleDeleteMemoryAid = (memoryAidId: string) => {
+    Alert.alert(
+      "Delete Memory Aid",
+      "Are you sure you want to delete this memory aid?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          onPress: async () => {
+            try {
+              setMemoryAidsLoading(true);
+              await deleteMemoryAid(memoryAidId);
+              // Update the local state after successful deletion
+              setMemoryAids(memoryAids.filter(aid => aid._id !== memoryAidId));
+              Alert.alert('Success', 'Memory aid deleted successfully');
+            } catch (error) {
+              console.error('Failed to delete memory aid:', error);
+              Alert.alert('Error', 'Failed to delete memory aid. Please try again.');
+            } finally {
+              setMemoryAidsLoading(false);
+            }
+          },
+          style: "destructive"
+        }
+      ]
+    );
+  };
+
+  const handleSaveMemoryAid = async () => {
+    // Validate memory aid data
+    if (!currentMemoryAid.title || !currentMemoryAid.type) {
+      Alert.alert("Error", "Title and type are required.");
+      return;
+    }
+
+    try {
+      setMemoryAidsLoading(true);
+      
+      // Make sure date is set
+      if (!currentMemoryAid.date) {
+        currentMemoryAid.date = new Date().toISOString().split('T')[0];
+      }
+      
+      if (editingMemoryAidId) {
+        // Update existing memory aid
+        const updatedMemoryAid = await updateMemoryAid(editingMemoryAidId, currentMemoryAid);
+        
+        // Update the local state
+        setMemoryAids(memoryAids.map(aid => 
+          aid._id === editingMemoryAidId ? updatedMemoryAid : aid
+        ));
+      } else {
+        // Create new memory aid
+        const newMemoryAid = await createMemoryAid(currentMemoryAid);
+        
+        // Add to the local state
+        setMemoryAids([...memoryAids, newMemoryAid]);
+      }
+      
+      setMemoryAidDialogVisible(false);
+      Alert.alert('Success', editingMemoryAidId ? 'Memory aid updated successfully' : 'Memory aid added successfully');
+    } catch (error) {
+      console.error('Failed to save memory aid:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      Alert.alert('Error', `Failed to save memory aid: ${errorMessage}`);
+    } finally {
+      setMemoryAidsLoading(false);
+    }
+  };
+  
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4285F4" />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    );
+  }
+  
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profile</Text>
-        <Button 
-          mode="text" 
-          onPress={() => setEditMode(!editMode)}
-          labelStyle={{color: '#4285F4'}}
-        >
-          {editMode ? 'Save' : 'Edit'}
-        </Button>
-      </View>
-      
       <ScrollView style={styles.scrollView}>
-        {/* Profile Header */}
-        <View style={styles.profileHeader}>
-          <TouchableOpacity style={styles.avatarContainer}>
+        <View style={styles.header}>
+          <View style={styles.profileImageContainer}>
             {profileImage ? (
-              <Avatar.Image 
-                size={100} 
-                source={{ uri: profileImage }} 
-              />
+              <Image source={{ uri: profileImage }} style={styles.profileImage} />
             ) : (
               <Avatar.Text 
-                size={100} 
+                size={80} 
                 label={name.split(' ').map(n => n[0]).join('')} 
-                backgroundColor="#4285F4" 
+                style={styles.avatar}
               />
             )}
-            {editMode && (
-              <View style={styles.editAvatarButton}>
-                <Ionicons name="camera" size={20} color="white" />
-              </View>
-            )}
-          </TouchableOpacity>
+          </View>
           
-          <View style={styles.profileInfo}>
-            {editMode ? (
-              <TextInput
-                label="Name"
-                value={name}
-                onChangeText={setName}
-                style={styles.input}
-                mode="outlined"
-              />
-            ) : (
-              <Text style={styles.nameText}>{name}</Text>
-            )}
-            <Text style={styles.emailText}>{email}</Text>
-            
+          <View style={styles.profileNameContainer}>
+            <Text style={styles.profileName}>{name}</Text>
+            <Text style={styles.profileEmail}>{email}</Text>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.editButton}
+            onPress={() => setEditMode(!editMode)}
+          >
+            <Text style={styles.editButtonText}>{editMode ? 'Cancel' : 'Edit'}</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Activity Stats */}
+        <Card style={styles.statsCard}>
+          <Card.Content>
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{activityStats.daysActive}</Text>
                 <Text style={styles.statLabel}>Days Active</Text>
               </View>
+              
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{activityStats.medicationAdherence}%</Text>
-                <Text style={styles.statLabel}>Med. Adherence</Text>
+                <Text style={styles.statLabel}>Medication</Text>
               </View>
+              
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{activityStats.aiInteractions}</Text>
-                <Text style={styles.statLabel}>AI Interactions</Text>
+                <Text style={styles.statLabel}>AI Chats</Text>
+              </View>
+              
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{activityStats.reminderCompletion}%</Text>
+                <Text style={styles.statLabel}>Reminders</Text>
               </View>
             </View>
-          </View>
-        </View>
+          </Card.Content>
+        </Card>
         
         {/* Personal Information Section */}
-        <Card style={styles.sectionCard}>
-          <List.Accordion
-            title="Personal Information"
-            expanded={expandedSections.personalInfo}
-            onPress={() => toggleSection('personalInfo')}
-            left={props => <List.Icon {...props} icon="account" color="#4285F4" />}
-            titleStyle={styles.sectionTitle}
-          >
-            <View style={styles.sectionContent}>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Age:</Text>
-                {editMode ? (
-                  <TextInput
-                    value={age}
-                    onChangeText={setAge}
-                    style={styles.infoInput}
-                    keyboardType="number-pad"
-                    mode="outlined"
-                  />
-                ) : (
-                  <Text style={styles.infoValue}>{age}</Text>
-                )}
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Gender:</Text>
-                {editMode ? (
-                  <TextInput
-                    value={gender}
-                    onChangeText={setGender}
-                    style={styles.infoInput}
-                    mode="outlined"
-                  />
-                ) : (
-                  <Text style={styles.infoValue}>{gender}</Text>
-                )}
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Phone:</Text>
-                {editMode ? (
-                  <TextInput
-                    value={phone}
-                    onChangeText={setPhone}
-                    style={styles.infoInput}
-                    keyboardType="phone-pad"
-                    mode="outlined"
-                  />
-                ) : (
-                  <Text style={styles.infoValue}>{phone}</Text>
-                )}
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Email:</Text>
-                {editMode ? (
-                  <TextInput
-                    value={email}
-                    onChangeText={setEmail}
-                    style={styles.infoInput}
-                    keyboardType="email-address"
-                    mode="outlined"
-                  />
-                ) : (
-                  <Text style={styles.infoValue}>{email}</Text>
-                )}
-              </View>
-            </View>
-          </List.Accordion>
-        </Card>
-        
-        {/* Medications Section */}
-        <Card style={styles.sectionCard}>
-          <List.Accordion
-            title="Medications"
-            expanded={expandedSections.medications}
-            onPress={() => toggleSection('medications')}
-            left={props => <List.Icon {...props} icon="pill" color="#FF9500" />}
-            titleStyle={styles.sectionTitle}
-          >
-            <View style={styles.sectionContent}>
-              {medications.map((medication, index) => (
-                <View key={medication.id} style={styles.medicationItem}>
-                  <View style={styles.medicationHeader}>
-                    <View style={styles.medicationTitleContainer}>
-                      <Text style={styles.medicationName}>{medication.name}</Text>
-                      <Text style={styles.medicationDosage}>{medication.dosage}</Text>
-                    </View>
-                    {editMode && (
-                      <IconButton
-                        icon="pencil"
-                        size={20}
-                        color="#4285F4"
-                        onPress={() => console.log('Edit medication')}
-                      />
-                    )}
-                  </View>
-                  <View style={styles.medicationDetails}>
-                    <View style={styles.medicationDetail}>
-                      <Ionicons name="time-outline" size={16} color="#777" />
-                      <Text style={styles.medicationDetailText}>{medication.time}</Text>
-                    </View>
-                    <View style={styles.medicationDetail}>
-                      <Ionicons name="repeat" size={16} color="#777" />
-                      <Text style={styles.medicationDetailText}>{medication.frequency}</Text>
-                    </View>
-                  </View>
-                  {index < medications.length - 1 && <Divider style={styles.divider} />}
-                </View>
-              ))}
-              
-              {editMode && (
+        <List.Accordion
+          title="Personal Information"
+          expanded={expandedSections.personalInfo}
+          onPress={() => toggleSection('personalInfo')}
+          style={styles.accordion}
+          titleStyle={styles.accordionTitle}
+          left={props => <List.Icon {...props} icon="account" color="#4285F4" />}
+        >
+          <View style={styles.accordionContent}>
+            {editMode ? (
+              <>
+                <TextInput
+                  label="Full Name"
+                  value={name}
+                  onChangeText={setName}
+                  mode="flat"
+                  style={styles.input}
+                />
+                
+                <TextInput
+                  label="Age"
+                  value={age}
+                  onChangeText={setAge}
+                  mode="flat"
+                  keyboardType="number-pad"
+                  style={styles.input}
+                />
+                
+                <TextInput
+                  label="Gender"
+                  value={gender}
+                  onChangeText={setGender}
+                  mode="flat"
+                  style={styles.input}
+                />
+                
+                <TextInput
+                  label="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  mode="flat"
+                  keyboardType="email-address"
+                  style={styles.input}
+                />
+                
+                <TextInput
+                  label="Phone"
+                  value={phone}
+                  onChangeText={setPhone}
+                  mode="flat"
+                  keyboardType="phone-pad"
+                  style={styles.input}
+                />
+                
                 <Button 
-                  mode="outlined" 
-                  icon="plus" 
-                  onPress={() => console.log('Add medication')}
-                  style={styles.addButton}
+                  mode="contained" 
+                  onPress={handleSaveProfile}
+                  style={styles.saveButton}
+                  loading={isSaving}
+                  disabled={isSaving}
                 >
-                  Add Medication
+                  Save Changes
                 </Button>
-              )}
-            </View>
-          </List.Accordion>
-        </Card>
+              </>
+            ) : (
+              <>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Full Name:</Text>
+                  <Text style={styles.infoValue}>{name}</Text>
+                </View>
+                
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Age:</Text>
+                  <Text style={styles.infoValue}>{age}</Text>
+                </View>
+                
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Gender:</Text>
+                  <Text style={styles.infoValue}>{gender}</Text>
+                </View>
+                
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Email:</Text>
+                  <Text style={styles.infoValue}>{email}</Text>
+                </View>
+                
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Phone:</Text>
+                  <Text style={styles.infoValue}>{phone}</Text>
+                </View>
+              </>
+            )}
+          </View>
+        </List.Accordion>
         
         {/* Emergency Contacts Section */}
-        <Card style={styles.sectionCard}>
-          <List.Accordion
-            title="Emergency Contacts"
-            expanded={expandedSections.emergencyContacts}
-            onPress={() => toggleSection('emergencyContacts')}
-            left={props => <List.Icon {...props} icon="phone-alert" color="#FF3B30" />}
-            titleStyle={styles.sectionTitle}
-          >
-            <View style={styles.sectionContent}>
-              {emergencyContacts.map((contact, index) => (
-                <View key={contact.id} style={styles.contactItem}>
+        <List.Accordion
+          title="Emergency Contacts"
+          expanded={expandedSections.emergencyContacts}
+          onPress={() => toggleSection('emergencyContacts')}
+          style={styles.accordion}
+          titleStyle={styles.accordionTitle}
+          left={props => <List.Icon {...props} icon="contacts" color="#FF9500" />}
+        >
+          <View style={styles.accordionContent}>
+            {emergencyContacts.map((contact, index) => (
+              <Card key={index} style={styles.contactCard}>
+                <Card.Content>
                   <View style={styles.contactHeader}>
-                    <View style={styles.contactInfo}>
+                    <View>
                       <Text style={styles.contactName}>{contact.name}</Text>
-                      <View style={styles.contactRelationshipContainer}>
-                        <Text style={styles.contactRelationship}>{contact.relationship}</Text>
-                        {contact.isCaregiver && (
-                          <Chip style={styles.caregiverChip} textStyle={styles.caregiverChipText}>
-                            Caregiver
-                          </Chip>
-                        )}
-                      </View>
+                      <Text style={styles.contactDetail}>{contact.relationship}</Text>
+                      <Text style={styles.contactDetail}>{contact.phone}</Text>
                     </View>
                     <View style={styles.contactActions}>
                       <IconButton
-                        icon="phone"
+                        icon="pencil"
+                        iconColor="#4285F4"
                         size={20}
-                        color="#4285F4"
-                        onPress={() => console.log('Call contact')}
+                        onPress={() => openEditContactDialog(contact, index)}
                       />
-                      {editMode && (
-                        <IconButton
-                          icon="pencil"
-                          size={20}
-                          color="#4285F4"
-                          onPress={() => console.log('Edit contact')}
-                        />
-                      )}
+                      <IconButton
+                        icon="delete"
+                        iconColor="#FF3B30"
+                        size={20}
+                        onPress={() => handleDeleteContact(index)}
+                      />
                     </View>
                   </View>
-                  <Text style={styles.contactPhone}>{contact.phone}</Text>
-                  {index < emergencyContacts.length - 1 && <Divider style={styles.divider} />}
-                </View>
-              ))}
-              
-              {editMode && (
-                <Button 
-                  mode="outlined" 
-                  icon="plus" 
-                  onPress={() => console.log('Add contact')}
-                  style={styles.addButton}
-                >
-                  Add Contact
-                </Button>
-              )}
-            </View>
-          </List.Accordion>
-        </Card>
+                </Card.Content>
+              </Card>
+            ))}
+            
+            {emergencyContacts.length === 0 && (
+              <Text style={styles.emptyListText}>No emergency contacts added yet.</Text>
+            )}
+            
+            <Button 
+              mode="outlined" 
+              icon="plus" 
+              onPress={openAddContactDialog}
+              style={styles.addButton}
+            >
+              Add Emergency Contact
+            </Button>
+          </View>
+        </List.Accordion>
         
         {/* Memory Aids Section */}
-        <Card style={styles.sectionCard}>
-          <List.Accordion
-            title="Memory Aids"
-            expanded={expandedSections.memoryAids}
-            onPress={() => toggleSection('memoryAids')}
-            left={props => <List.Icon {...props} icon="brain" color="#34C759" />}
-            titleStyle={styles.sectionTitle}
-          >
-            <View style={styles.sectionContent}>
-              {memoryAids.map((memoryAid, index) => (
-                <View key={memoryAid.id} style={styles.memoryAidItem}>
-                  <View style={styles.memoryAidHeader}>
-                    <View style={styles.memoryAidIconContainer}>
-                      {renderMemoryAidIcon(memoryAid.type)}
-                    </View>
-                    <View style={styles.memoryAidInfo}>
-                      <Text style={styles.memoryAidTitle}>{memoryAid.title}</Text>
-                      <Text style={styles.memoryAidDate}>Added on {new Date(memoryAid.date).toLocaleDateString()}</Text>
-                    </View>
-                    {editMode && (
-                      <IconButton
-                        icon="pencil"
-                        size={20}
-                        color="#4285F4"
-                        onPress={() => console.log('Edit memory aid')}
-                      />
-                    )}
-                  </View>
-                  <Text style={styles.memoryAidDescription}>{memoryAid.description}</Text>
-                  {index < memoryAids.length - 1 && <Divider style={styles.divider} />}
-                </View>
-              ))}
-              
-              {editMode && (
+        <List.Accordion
+          title="Memory Aids"
+          expanded={expandedSections.memoryAids}
+          onPress={() => toggleSection('memoryAids')}
+          style={styles.accordion}
+          titleStyle={styles.accordionTitle}
+          left={props => <List.Icon {...props} icon="brain" color="#34A853" />}
+        >
+          <View style={styles.accordionContent}>
+            {memoryAidsLoading ? (
+              <ActivityIndicator size="small" color="#4285F4" style={styles.loader} />
+            ) : (
+              <>
+                {memoryAids.map((aid, index) => (
+                  <Card key={aid._id || index} style={styles.memoryCard}>
+                    <Card.Content>
+                      <View style={styles.memoryHeader}>
+                        <View style={styles.memoryLeft}>
+                          {renderMemoryAidIcon(aid.type)}
+                          <Text style={styles.memoryTitle}>{aid.title}</Text>
+                        </View>
+                        <View style={styles.memoryActions}>
+                          <IconButton
+                            icon="pencil"
+                            iconColor="#4285F4"
+                            size={20}
+                            onPress={() => openEditMemoryAidDialog(aid)}
+                          />
+                          <IconButton
+                            icon="delete"
+                            iconColor="#FF3B30"
+                            size={20}
+                            onPress={() => aid._id && handleDeleteMemoryAid(aid._id)}
+                          />
+                        </View>
+                      </View>
+                      <Text style={styles.memoryDescription}>{aid.description}</Text>
+                      <Text style={styles.memoryDate}>Added: {aid.date}</Text>
+                    </Card.Content>
+                  </Card>
+                ))}
+                
+                {memoryAids.length === 0 && (
+                  <Text style={styles.emptyListText}>No memory aids added yet.</Text>
+                )}
+                
                 <Button 
                   mode="outlined" 
                   icon="plus" 
-                  onPress={() => console.log('Add memory aid')}
+                  onPress={openAddMemoryAidDialog}
                   style={styles.addButton}
                 >
                   Add Memory Aid
                 </Button>
-              )}
-            </View>
-          </List.Accordion>
-        </Card>
-        
-        {/* Preferences Section */}
-        <Card style={styles.sectionCard}>
-          <List.Accordion
-            title="Preferences"
-            expanded={expandedSections.preferences}
-            onPress={() => toggleSection('preferences')}
-            left={props => <List.Icon {...props} icon="cog" color="#8E8E93" />}
-            titleStyle={styles.sectionTitle}
-          >
-            <View style={styles.sectionContent}>
-              <View style={styles.preferenceItem}>
-                <Text style={styles.preferenceLabel}>Text Size</Text>
-                <View style={styles.textSizeOptions}>
-                  <TouchableOpacity 
-                    style={[
-                      styles.textSizeOption, 
-                      textSize === 'Small' && styles.selectedTextSize
-                    ]}
-                    onPress={() => setTextSize('Small')}
-                  >
-                    <Text style={[
-                      styles.textSizeOptionText,
-                      { fontSize: 12 },
-                      textSize === 'Small' && styles.selectedTextSizeText
-                    ]}>
-                      Small
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[
-                      styles.textSizeOption, 
-                      textSize === 'Medium' && styles.selectedTextSize
-                    ]}
-                    onPress={() => setTextSize('Medium')}
-                  >
-                    <Text style={[
-                      styles.textSizeOptionText,
-                      { fontSize: 14 },
-                      textSize === 'Medium' && styles.selectedTextSizeText
-                    ]}>
-                      Medium
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[
-                      styles.textSizeOption, 
-                      textSize === 'Large' && styles.selectedTextSize
-                    ]}
-                    onPress={() => setTextSize('Large')}
-                  >
-                    <Text style={[
-                      styles.textSizeOptionText,
-                      { fontSize: 16 },
-                      textSize === 'Large' && styles.selectedTextSizeText
-                    ]}>
-                      Large
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              
-              <Divider style={styles.divider} />
-              
-              <View style={styles.preferenceItem}>
-                <Text style={styles.preferenceLabel}>Voice Type</Text>
-                <View style={styles.voiceTypeOptions}>
-                  <TouchableOpacity 
-                    style={[
-                      styles.voiceTypeOption, 
-                      voiceType === 'Male' && styles.selectedVoiceType
-                    ]}
-                    onPress={() => setVoiceType('Male')}
-                  >
-                    <Ionicons 
-                      name="man" 
-                      size={24} 
-                      color={voiceType === 'Male' ? 'white' : '#4285F4'} 
-                    />
-                    <Text style={[
-                      styles.voiceTypeText,
-                      voiceType === 'Male' && styles.selectedVoiceTypeText
-                    ]}>
-                      Male
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[
-                      styles.voiceTypeOption, 
-                      voiceType === 'Female' && styles.selectedVoiceType
-                    ]}
-                    onPress={() => setVoiceType('Female')}
-                  >
-                    <Ionicons 
-                      name="woman" 
-                      size={24} 
-                      color={voiceType === 'Female' ? 'white' : '#4285F4'} 
-                    />
-                    <Text style={[
-                      styles.voiceTypeText,
-                      voiceType === 'Female' && styles.selectedVoiceTypeText
-                    ]}>
-                      Female
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              
-              <Divider style={styles.divider} />
-              
-              <View style={styles.switchPreferenceItem}>
-                <View style={styles.switchPreferenceInfo}>
-                  <Ionicons name="contrast" size={24} color="#4285F4" style={styles.switchPreferenceIcon} />
-                  <Text style={styles.switchPreferenceLabel}>High Contrast Mode</Text>
-                </View>
-                <Switch
-                  value={highContrastMode}
-                  onValueChange={setHighContrastMode}
-                  trackColor={{ false: '#D1D1D6', true: '#4285F4' }}
-                  thumbColor="white"
-                />
-              </View>
-              
-              <Divider style={styles.divider} />
-              
-              <View style={styles.switchPreferenceItem}>
-                <View style={styles.switchPreferenceInfo}>
-                  <Ionicons name="mic" size={24} color="#4285F4" style={styles.switchPreferenceIcon} />
-                  <Text style={styles.switchPreferenceLabel}>Voice Commands</Text>
-                </View>
-                <Switch
-                  value={voiceCommandsEnabled}
-                  onValueChange={setVoiceCommandsEnabled}
-                  trackColor={{ false: '#D1D1D6', true: '#4285F4' }}
-                  thumbColor="white"
-                />
-              </View>
-              
-              <Divider style={styles.divider} />
-              
-              <View style={styles.switchPreferenceItem}>
-                <View style={styles.switchPreferenceInfo}>
-                  <Ionicons name="location" size={24} color="#4285F4" style={styles.switchPreferenceIcon} />
-                  <Text style={styles.switchPreferenceLabel}>Location Tracking</Text>
-                </View>
-                <Switch
-                  value={locationTrackingEnabled}
-                  onValueChange={setLocationTrackingEnabled}
-                  trackColor={{ false: '#D1D1D6', true: '#4285F4' }}
-                  thumbColor="white"
-                />
-              </View>
-              
-              <Divider style={styles.divider} />
-              
-              <View style={styles.switchPreferenceItem}>
-                <View style={styles.switchPreferenceInfo}>
-                  <Ionicons name="moon" size={24} color="#4285F4" style={styles.switchPreferenceIcon} />
-                  <Text style={styles.switchPreferenceLabel}>Night Mode</Text>
-                </View>
-                <Switch
-                  value={nightModeEnabled}
-                  onValueChange={setNightModeEnabled}
-                  trackColor={{ false: '#D1D1D6', true: '#4285F4' }}
-                  thumbColor="white"
-                />
-              </View>
-            </View>
-          </List.Accordion>
-        </Card>
+              </>
+            )}
+          </View>
+        </List.Accordion>
         
         {/* Account Section */}
-        <Card style={styles.sectionCard}>
-          <List.Accordion
-            title="Account"
-            expanded={expandedSections.account}
-            onPress={() => toggleSection('account')}
-            left={props => <List.Icon {...props} icon="shield-account" color="#8E8E93" />}
-            titleStyle={styles.sectionTitle}
-          >
-            <View style={styles.sectionContent}>
-              <TouchableOpacity style={styles.accountOption}>
-                <View style={styles.accountOptionInfo}>
-                  <Ionicons name="lock-closed" size={24} color="#4285F4" style={styles.accountOptionIcon} />
-                  <Text style={styles.accountOptionLabel}>Change Password</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
+        <List.Accordion
+          title="Account"
+          expanded={expandedSections.account}
+          onPress={() => toggleSection('account')}
+          style={styles.accordion}
+          titleStyle={styles.accordionTitle}
+          left={props => <List.Icon {...props} icon="cog" color="#8E8E93" />}
+        >
+          <View style={styles.accordionContent}>
+            <TouchableOpacity 
+              style={styles.accountOption}
+              onPress={handleLogout}
+            >
+              <View style={styles.accountOptionInfo}>
+                <Ionicons name="log-out" size={24} color="#FF3B30" style={styles.accountOptionIcon} />
+                <Text style={[styles.accountOptionLabel, styles.logoutText]}>Log Out</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
+            </TouchableOpacity>
+          </View>
+        </List.Accordion>
+      </ScrollView>
+
+      {/* Emergency Contact Dialog */}
+      <Modal
+        visible={contactDialogVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setContactDialogVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {editingContactIndex !== null ? 'Edit Contact' : 'Add Contact'}
+            </Text>
+            
+            <TextInput
+              label="Name"
+              value={currentContact.name}
+              onChangeText={(text) => setCurrentContact({...currentContact, name: text})}
+              style={styles.modalInput}
+              mode="outlined"
+            />
+            
+            <TextInput
+              label="Relationship"
+              value={currentContact.relationship}
+              onChangeText={(text) => setCurrentContact({...currentContact, relationship: text})}
+              style={styles.modalInput}
+              mode="outlined"
+            />
+            
+            <TextInput
+              label="Phone Number"
+              value={currentContact.phone}
+              onChangeText={(text) => setCurrentContact({...currentContact, phone: text})}
+              keyboardType="phone-pad"
+              style={styles.modalInput}
+              mode="outlined"
+            />
+            
+            <View style={styles.modalButtons}>
+              <Button 
+                mode="outlined" 
+                onPress={() => setContactDialogVisible(false)}
+                style={styles.modalButton}
+              >
+                Cancel
+              </Button>
+              
+              <Button 
+                mode="contained" 
+                onPress={handleSaveContact}
+                style={styles.modalButton}
+              >
+                Save
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Memory Aid Dialog */}
+      <Modal
+        visible={memoryAidDialogVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setMemoryAidDialogVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {editingMemoryAidId ? 'Edit Memory Aid' : 'Add Memory Aid'}
+            </Text>
+            
+            <TextInput
+              label="Title"
+              value={currentMemoryAid.title}
+              onChangeText={(text) => setCurrentMemoryAid({...currentMemoryAid, title: text})}
+              style={styles.modalInput}
+              mode="outlined"
+            />
+            
+            <TextInput
+              label="Description"
+              value={currentMemoryAid.description}
+              onChangeText={(text) => setCurrentMemoryAid({...currentMemoryAid, description: text})}
+              style={styles.modalInput}
+              mode="outlined"
+              multiline
+              numberOfLines={3}
+            />
+            
+            <Text style={styles.inputLabel}>Type</Text>
+            <View style={styles.typeContainer}>
+              <TouchableOpacity 
+                style={[
+                  styles.typeButton, 
+                  currentMemoryAid.type === 'person' && styles.selectedTypeButton
+                ]}
+                onPress={() => setCurrentMemoryAid({...currentMemoryAid, type: 'person'})}
+              >
+                <Ionicons 
+                  name="person" 
+                  size={24} 
+                  color={currentMemoryAid.type === 'person' ? 'white' : '#4285F4'} 
+                />
+                <Text style={[
+                  styles.typeButtonText,
+                  currentMemoryAid.type === 'person' && styles.selectedTypeButtonText
+                ]}>
+                  Person
+                </Text>
               </TouchableOpacity>
-              
-              <Divider style={styles.divider} />
-              
-              <TouchableOpacity style={styles.accountOption}>
-                <View style={styles.accountOptionInfo}>
-                  <Ionicons name="cloud-download" size={24} color="#4285F4" style={styles.accountOptionIcon} />
-                  <Text style={styles.accountOptionLabel}>Export Data</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
-              </TouchableOpacity>
-              
-              <Divider style={styles.divider} />
-              
-              <TouchableOpacity style={styles.accountOption}>
-                <View style={styles.accountOptionInfo}>
-                  <Ionicons name="help-circle" size={24} color="#4285F4" style={styles.accountOptionIcon} />
-                  <Text style={styles.accountOptionLabel}>Help & Support</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
-              </TouchableOpacity>
-              
-              <Divider style={styles.divider} />
               
               <TouchableOpacity 
-                style={styles.accountOption}
-                onPress={handleLogout}
+                style={[
+                  styles.typeButton, 
+                  currentMemoryAid.type === 'place' && styles.selectedTypeButton
+                ]}
+                onPress={() => setCurrentMemoryAid({...currentMemoryAid, type: 'place'})}
               >
-                <View style={styles.accountOptionInfo}>
-                  <Ionicons name="log-out" size={24} color="#FF3B30" style={styles.accountOptionIcon} />
-                  <Text style={[styles.accountOptionLabel, styles.logoutText]}>Log Out</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
+                <Ionicons 
+                  name="location" 
+                  size={24} 
+                  color={currentMemoryAid.type === 'place' ? 'white' : '#FF9500'} 
+                />
+                <Text style={[
+                  styles.typeButtonText,
+                  currentMemoryAid.type === 'place' && styles.selectedTypeButtonText
+                ]}>
+                  Place
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.typeButton, 
+                  currentMemoryAid.type === 'event' && styles.selectedTypeButton
+                ]}
+                onPress={() => setCurrentMemoryAid({...currentMemoryAid, type: 'event'})}
+              >
+                <Ionicons 
+                  name="calendar" 
+                  size={24} 
+                  color={currentMemoryAid.type === 'event' ? 'white' : '#34C759'} 
+                />
+                <Text style={[
+                  styles.typeButtonText,
+                  currentMemoryAid.type === 'event' && styles.selectedTypeButtonText
+                ]}>
+                  Event
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.typeButton, 
+                  currentMemoryAid.type === 'object' && styles.selectedTypeButton
+                ]}
+                onPress={() => setCurrentMemoryAid({...currentMemoryAid, type: 'object'})}
+              >
+                <Ionicons 
+                  name="cube" 
+                  size={24} 
+                  color={currentMemoryAid.type === 'object' ? 'white' : '#FF3B30'} 
+                />
+                <Text style={[
+                  styles.typeButtonText,
+                  currentMemoryAid.type === 'object' && styles.selectedTypeButtonText
+                ]}>
+                  Object
+                </Text>
               </TouchableOpacity>
             </View>
-          </List.Accordion>
-        </Card>
-        
-        <View style={styles.footer}>
-          <Text style={styles.versionText}>Version 1.0.0</Text>
-          <Text style={styles.copyrightText}>© 2023 MemoryCare</Text>
+            
+            <View style={styles.modalButtons}>
+              <Button 
+                mode="outlined" 
+                onPress={() => setMemoryAidDialogVisible(false)}
+                style={styles.modalButton}
+              >
+                Cancel
+              </Button>
+              
+              <Button 
+                mode="contained" 
+                onPress={handleSaveMemoryAid}
+                style={styles.modalButton}
+                loading={memoryAidsLoading}
+                disabled={memoryAidsLoading}
+              >
+                Save
+              </Button>
+            </View>
+          </View>
         </View>
-      </ScrollView>
+      </Modal>
     </View>
   );
 }
@@ -692,7 +915,7 @@ export default function ProfileScreen({ setActiveTab }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: '#F5F5F5',
   },
   header: {
     flexDirection: 'row',
@@ -700,289 +923,212 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 10,
+    paddingBottom: 15,
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E1E1E1',
   },
-  headerTitle: {
-    fontSize: 20,
+  profileImageContainer: {
+    position: 'relative',
+    marginRight: 20,
+  },
+  profileImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  avatar: {
+    backgroundColor: '#4285F4',
+  },
+  profileNameContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  profileName: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  profileEmail: {
+    fontSize: 14,
+    color: '#666',
+  },
+  editButton: {
+    padding: 10,
+    backgroundColor: '#4285F4',
+    borderRadius: 5,
+  },
+  editButtonText: {
+    color: 'white',
     fontWeight: 'bold',
   },
   scrollView: {
     flex: 1,
   },
-  profileHeader: {
-    flexDirection: 'row',
-    padding: 20,
-    backgroundColor: 'white',
-    marginBottom: 10,
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 20,
-  },
-  editAvatarButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#4285F4',
-    borderRadius: 15,
-    width: 30,
-    height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profileInfo: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  nameText: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  emailText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 15,
+  statsCard: {
+    marginHorizontal: 10,
+    marginVertical: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
+    alignItems: 'center',
   },
   statItem: {
     alignItems: 'center',
+    paddingVertical: 10,
   },
   statValue: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#4285F4',
+    marginBottom: 5,
   },
   statLabel: {
     fontSize: 12,
     color: '#666',
   },
-  sectionCard: {
+  accordion: {
     marginHorizontal: 10,
     marginBottom: 10,
     borderRadius: 10,
     overflow: 'hidden',
+    backgroundColor: 'white',
   },
-  sectionTitle: {
+  accordionTitle: {
     fontSize: 16,
     fontWeight: '500',
   },
-  sectionContent: {
+  accordionContent: {
     padding: 15,
+  },
+  input: {
+    marginBottom: 10,
+    backgroundColor: 'white',
+  },
+  saveButton: {
+    marginTop: 10,
+    borderRadius: 5,
+    backgroundColor: '#4285F4',
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
   infoLabel: {
     fontSize: 16,
-    color: '#666',
-    width: '30%',
+    color: '#333',
+    fontWeight: '500',
   },
   infoValue: {
     fontSize: 16,
-    flex: 1,
+    color: '#666',
     textAlign: 'right',
   },
-  infoInput: {
-    flex: 1,
-    height: 40,
-    fontSize: 16,
-  },
-  input: {
+  contactCard: {
     marginBottom: 10,
-  },
-  divider: {
-    marginVertical: 10,
-  },
-  medicationItem: {
-    marginBottom: 15,
-  },
-  medicationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  medicationTitleContainer: {
-    flex: 1,
-  },
-  medicationName: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  medicationDosage: {
-    fontSize: 14,
-    color: '#666',
-  },
-  medicationDetails: {
-    flexDirection: 'row',
-    marginTop: 5,
-  },
-  medicationDetail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  medicationDetailText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 5,
-  },
-  contactItem: {
-    marginBottom: 15,
+    borderRadius: 8,
+    backgroundColor: 'white',
+    elevation: 2,
   },
   contactHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  contactInfo: {
-    flex: 1,
-  },
-  contactName: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  contactRelationshipContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  contactRelationship: {
-    fontSize: 14,
-    color: '#666',
-    marginRight: 10,
-  },
-  contactPhone: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 5,
+    alignItems: 'flex-start',
   },
   contactActions: {
     flexDirection: 'row',
   },
-  caregiverChip: {
-    backgroundColor: '#E8F1FF',
-    height: 24,
-  },
-  caregiverChipText: {
-    fontSize: 12,
-    color: '#4285F4',
-  },
-  memoryAidItem: {
-    marginBottom: 15,
-  },
-  memoryAidHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  memoryAidIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E8F1FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  memoryAidInfo: {
-    flex: 1,
-  },
-  memoryAidTitle: {
+  contactName: {
     fontSize: 16,
     fontWeight: '500',
+    marginBottom: 5,
   },
-  memoryAidDate: {
-    fontSize: 12,
-    color: '#666',
-  },
-  memoryAidDescription: {
+  contactDetail: {
     fontSize: 14,
-    color: '#333',
-    marginTop: 10,
-    marginLeft: 55,
+    color: '#666',
+    marginBottom: 2,
   },
-  preferenceItem: {
-    marginBottom: 15,
+  emptyListText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
-  preferenceLabel: {
-    fontSize: 16,
+  memoryCard: {
+    marginBottom: 10,
+    borderRadius: 8,
+    backgroundColor: 'white',
+    elevation: 2,
+  },
+  memoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 10,
   },
-  textSizeOptions: {
+  memoryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  memoryActions: {
+    flexDirection: 'row',
+  },
+  memoryTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 10,
+  },
+  memoryDescription: {
+    fontSize: 14,
+    color: '#333',
+    marginTop: 5,
+  },
+  memoryDate: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+  },
+  inputLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+    marginTop: 8,
+    color: '#666',
+  },
+  typeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 20,
   },
-  textSizeOption: {
-    flex: 1,
-    padding: 10,
+  typeButton: {
+    flexDirection: 'column',
     alignItems: 'center',
+    padding: 10,
     borderWidth: 1,
     borderColor: '#E1E1E1',
-    borderRadius: 5,
-    marginHorizontal: 5,
+    borderRadius: 8,
+    width: '22%',
   },
-  selectedTextSize: {
+  selectedTypeButton: {
+    backgroundColor: '#4285F4',
     borderColor: '#4285F4',
-    backgroundColor: '#E8F1FF',
   },
-  textSizeOptionText: {
+  typeButtonText: {
+    fontSize: 12,
+    marginTop: 5,
     color: '#333',
   },
-  selectedTextSizeText: {
-    color: '#4285F4',
-    fontWeight: '500',
-  },
-  voiceTypeOptions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  voiceTypeOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#E1E1E1',
-    borderRadius: 20,
-    width: '45%',
-    justifyContent: 'center',
-  },
-  selectedVoiceType: {
-    borderColor: '#4285F4',
-    backgroundColor: '#4285F4',
-  },
-  voiceTypeText: {
-    marginLeft: 10,
-    fontSize: 16,
-    color: '#4285F4',
-  },
-  selectedVoiceTypeText: {
+  selectedTypeButtonText: {
     color: 'white',
   },
-  switchPreferenceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 10,
-  },
-  switchPreferenceInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  switchPreferenceIcon: {
-    marginRight: 15,
-  },
-  switchPreferenceLabel: {
-    fontSize: 16,
+  loader: {
+    margin: 20,
   },
   accountOption: {
     flexDirection: 'row',
@@ -1003,21 +1149,52 @@ const styles = StyleSheet.create({
   logoutText: {
     color: '#FF3B30',
   },
-  addButton: {
-    marginTop: 10,
-    borderColor: '#4285F4',
+  divider: {
+    marginVertical: 10,
   },
-  footer: {
-    padding: 20,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  versionText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 5,
+  loadingText: {
+    fontSize: 16,
+    color: '#4285F4',
+    marginTop: 10,
   },
-  copyrightText: {
-    fontSize: 12,
-    color: '#8E8E93',
+  addButton: {
+    marginTop: 15,
+    borderColor: '#4285F4',
+    borderRadius: 5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '85%',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  modalInput: {
+    marginBottom: 12,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  modalButton: {
+    width: '48%',
   },
 }); 

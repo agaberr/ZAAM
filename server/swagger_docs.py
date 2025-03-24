@@ -20,6 +20,7 @@ api = Api(
 auth_ns = Namespace('Authentication', description='Authentication operations', path='/api/auth')
 user_ns = Namespace('Users', description='User operations', path='/api/users')
 reminder_ns = Namespace('Reminders', description='Reminder operations', path='/api/reminders')
+memory_aid_ns = Namespace('Memory Aids', description='Memory aid operations', path='/api/memory-aids')
 google_ns = Namespace('Google Integration', description='Google Calendar integration', path='/api/auth/google')
 ai_ns = Namespace('AI Assistant', description='AI natural language processing', path='/api/ai')
 
@@ -27,6 +28,7 @@ ai_ns = Namespace('AI Assistant', description='AI natural language processing', 
 api.add_namespace(auth_ns)
 api.add_namespace(user_ns)
 api.add_namespace(reminder_ns)
+api.add_namespace(memory_aid_ns)
 api.add_namespace(google_ns)
 api.add_namespace(ai_ns)
 
@@ -172,6 +174,32 @@ category_response_model = ai_ns.model('CategoryResponse', {
     'response': fields.String(description='Category-specific response'),
     'category': fields.String(description='Category of the processed text', enum=['news', 'reminder', 'weather']),
     'success': fields.Boolean(description='Whether the request was successful', example=True)
+})
+
+# Memory Aid models
+memory_aid_input_model = memory_aid_ns.model('MemoryAidInput', {
+    'title': fields.String(required=True, description='Memory aid title', example='Sarah'),
+    'description': fields.String(description='Memory aid description', 
+                               example='My daughter who visits every Sunday. She has two children named Maya and Rohan.'),
+    'type': fields.String(required=True, description='Memory aid type', 
+                        enum=['person', 'place', 'event', 'object'], example='person'),
+    'date': fields.String(description='Date associated with the memory aid', example='2023-05-15'),
+    'image_url': fields.String(description='URL to an image for the memory aid', 
+                             example='https://example.com/images/sarah.jpg')
+})
+
+memory_aid_output_model = memory_aid_ns.model('MemoryAidOutput', {
+    '_id': fields.String(description='Memory aid ID', example='60d6ec9f2a57c123456789ab'),
+    'user_id': fields.String(description='User ID', example='60d6ec9f2a57c123456789ab'),
+    'title': fields.String(description='Memory aid title', example='Sarah'),
+    'description': fields.String(description='Memory aid description', 
+                               example='My daughter who visits every Sunday. She has two children named Maya and Rohan.'),
+    'type': fields.String(description='Memory aid type', example='person'),
+    'date': fields.String(description='Date associated with the memory aid', example='2023-05-15'),
+    'image_url': fields.String(description='URL to an image for the memory aid', 
+                             example='https://example.com/images/sarah.jpg'),
+    'created_at': fields.DateTime(description='Creation timestamp', example='2023-06-10T09:30:00Z'),
+    'updated_at': fields.DateTime(description='Last update timestamp', example='2023-06-10T09:30:00Z')
 })
 
 # Authentication routes
@@ -412,6 +440,57 @@ class AIWeather(Resource):
     def post(self):
         """Process weather-specific requests"""
         return {'message': 'This is a documentation endpoint. See the actual implementation in ai_routes.py'}
+
+# Memory Aid routes
+@memory_aid_ns.route('')
+class MemoryAidList(Resource):
+    @memory_aid_ns.doc('list_memory_aids', security='apiKey')
+    @memory_aid_ns.response(200, 'Success', [memory_aid_output_model])
+    @memory_aid_ns.response(401, 'Authentication required')
+    def get(self):
+        """Get all memory aids for the authenticated user"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in memory_aid_routes.py'}
+    
+    @memory_aid_ns.doc('create_memory_aid', security='apiKey')
+    @memory_aid_ns.expect(memory_aid_input_model)
+    @memory_aid_ns.response(201, 'Memory aid created')
+    @memory_aid_ns.response(400, 'Validation error')
+    @memory_aid_ns.response(401, 'Authentication required')
+    def post(self):
+        """Create a new memory aid"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in memory_aid_routes.py'}
+
+@memory_aid_ns.route('/<memory_aid_id>')
+@memory_aid_ns.param('memory_aid_id', 'The memory aid identifier')
+class MemoryAidResource(Resource):
+    @memory_aid_ns.doc('get_memory_aid', security='apiKey')
+    @memory_aid_ns.response(200, 'Success', memory_aid_output_model)
+    @memory_aid_ns.response(401, 'Authentication required')
+    @memory_aid_ns.response(403, 'Unauthorized')
+    @memory_aid_ns.response(404, 'Memory aid not found')
+    def get(self, memory_aid_id):
+        """Get a specific memory aid by ID"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in memory_aid_routes.py'}
+    
+    @memory_aid_ns.doc('update_memory_aid', security='apiKey')
+    @memory_aid_ns.expect(memory_aid_input_model)
+    @memory_aid_ns.response(200, 'Memory aid updated')
+    @memory_aid_ns.response(400, 'Validation error')
+    @memory_aid_ns.response(401, 'Authentication required')
+    @memory_aid_ns.response(403, 'Unauthorized')
+    @memory_aid_ns.response(404, 'Memory aid not found')
+    def put(self, memory_aid_id):
+        """Update a memory aid"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in memory_aid_routes.py'}
+    
+    @memory_aid_ns.doc('delete_memory_aid', security='apiKey')
+    @memory_aid_ns.response(200, 'Memory aid deleted')
+    @memory_aid_ns.response(401, 'Authentication required')
+    @memory_aid_ns.response(403, 'Unauthorized')
+    @memory_aid_ns.response(404, 'Memory aid not found')
+    def delete(self, memory_aid_id):
+        """Delete a memory aid"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in memory_aid_routes.py'}
 
 # Security definitions
 authorizations = {
