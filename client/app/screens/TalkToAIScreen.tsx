@@ -1,32 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Modal, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
-import { Button, Surface, ActivityIndicator, Chip, Avatar, TextInput, IconButton } from 'react-native-paper';
-import { Audio } from 'expo-av';
-import * as Speech from 'expo-speech';
-import { useAuth } from '../context/AuthContext';
-
-interface Message {
-  id: string;
-  text: string;
-  sender: 'user' | 'ai';
-  timestamp: Date;
-}
+import React, { useState, useRef } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Modal, ScrollView } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Button, Surface, ActivityIndicator, Chip } from 'react-native-paper';
 
 export default function TalkToAIScreen({ setActiveTab }) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: "Hello! I'm your AI assistant. How can I help you today? You can ask me about your medication, set reminders, or just chat.",
-      sender: 'ai',
-      timestamp: new Date(),
-    },
-  ]);
-  const [inputText, setInputText] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [userMessage, setUserMessage] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
   const [showControls, setShowControls] = useState(true);
   const [castModalVisible, setCastModalVisible] = useState(false);
   const [castingActive, setCastingActive] = useState(false);
@@ -34,8 +15,6 @@ export default function TalkToAIScreen({ setActiveTab }) {
   const [moodModalVisible, setMoodModalVisible] = useState(false);
   const [aiMood, setAiMood] = useState('friendly');
   const [showTips, setShowTips] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
-  const { createCalendarEvent, googleCredentials, processNaturalLanguageReminder } = useAuth();
 
   // Animation values
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -57,282 +36,55 @@ export default function TalkToAIScreen({ setActiveTab }) {
     "Help me remember where I put my glasses"
   ];
 
-  // Request audio permissions
-  useEffect(() => {
-    const getPermissions = async () => {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Please allow microphone access to use voice features.');
-      }
-    };
-
-    getPermissions();
-  }, []);
-
-  // Detect reminder creation intents
-  const detectReminderIntent = (text: string) => {
-    const lowerText = text.toLowerCase();
-    
-    // Check if this is a reminder creation request
-    if (
-      lowerText.includes('remind me') || 
-      lowerText.includes('set a reminder') || 
-      lowerText.includes('create a reminder') ||
-      lowerText.includes('add reminder') ||
-      lowerText.includes('set reminder')
-    ) {
-      return true;
-    }
-    
-    return false;
-  };
-  
-  // Extract reminder details from text
-  const extractReminderDetails = (text: string) => {
-    const lowerText = text.toLowerCase();
-    
-    // Default values
-    let title = "New Reminder";
-    let description = "";
-    let dateTime = new Date();
-    dateTime.setMinutes(dateTime.getMinutes() + 30); // Default to 30 minutes from now
-    
-    // Extract title (text after "to" or "about" or after reminder keywords)
-    const titleMatches = text.match(/remind me (?:to|about) (.*?)(?:on|at|tomorrow|next|$)/i) || 
-                         text.match(/set a reminder (?:to|for|about) (.*?)(?:on|at|tomorrow|next|$)/i) ||
-                         text.match(/create a reminder (?:to|for|about) (.*?)(?:on|at|tomorrow|next|$)/i);
-    
-    if (titleMatches && titleMatches[1]) {
-      title = titleMatches[1].trim();
-      description = "Voice reminder: " + title;
-    }
-    
-    // Extract time
-    if (lowerText.includes('at ')) {
-      const timeMatches = lowerText.match(/at (\d+)(?::(\d+))?\s*(am|pm)?/i);
-      if (timeMatches) {
-        let hours = parseInt(timeMatches[1]);
-        const minutes = timeMatches[2] ? parseInt(timeMatches[2]) : 0;
-        const period = timeMatches[3]?.toLowerCase();
-        
-        // Adjust hours for PM
-        if (period === 'pm' && hours < 12) {
-          hours += 12;
-        } else if (period === 'am' && hours === 12) {
-          hours = 0;
-        }
-        
-        dateTime.setHours(hours, minutes, 0, 0);
-      }
-    }
-    
-    // Extract date
-    if (lowerText.includes('tomorrow')) {
-      dateTime.setDate(dateTime.getDate() + 1);
-      dateTime.setHours(9, 0, 0, 0); // Default to 9 AM if only day is specified
-    } else if (lowerText.includes('next week')) {
-      dateTime.setDate(dateTime.getDate() + 7);
-      dateTime.setHours(9, 0, 0, 0);
-    } else if (lowerText.match(/on (monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i)) {
-      const dayMatch = lowerText.match(/on (monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i);
-      if (dayMatch) {
-        const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-          .indexOf(dayMatch[1].toLowerCase());
-        
-        const today = dateTime.getDay();
-        let daysToAdd = (dayOfWeek - today) % 7;
-        if (daysToAdd <= 0) daysToAdd += 7; // Next week if day has passed
-        
-        dateTime.setDate(dateTime.getDate() + daysToAdd);
-        dateTime.setHours(9, 0, 0, 0);
-      }
-    }
-    
-    return { title, description, dateTime };
-  };
-  
-  // Create a reminder in Google Calendar
-  const createReminderFromVoice = async (text: string) => {
-    try {
-      if (!googleCredentials) {
-        const aiResponse = "I need access to your Google Calendar to set reminders. Please sign in with Google in the Reminders tab.";
-        addMessage(aiResponse, 'ai');
-        speakMessage(aiResponse);
-        return;
-      }
-      
-      // Extract details
-      const { title, description, dateTime } = extractReminderDetails(text);
-      
-      // Create event
-      await createCalendarEvent(title, description, dateTime);
-      
-      // Format confirmation message
-      const timeString = dateTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      const dateString = dateTime.toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'});
-      const confirmationMsg = `I've set a reminder for "${title}" on ${dateString} at ${timeString}.`;
-      
-      // Add AI response
-      addMessage(confirmationMsg, 'ai');
-      speakMessage(confirmationMsg);
-      
-    } catch (error) {
-      console.error('Failed to create reminder:', error);
-      const errorMsg = "I'm sorry, I couldn't create your reminder. Please try again.";
-      addMessage(errorMsg, 'ai');
-      speakMessage(errorMsg);
-    }
-  };
-
-  const startRecording = async () => {
-    try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-      
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      
-      setRecording(recording);
-      setIsRecording(true);
-    } catch (err) {
-      console.error('Failed to start recording', err);
-      Alert.alert('Error', 'Failed to start recording. Please try again.');
-    }
-  };
-
-  const stopRecording = async () => {
-    if (!recording) return;
-    
-    setIsRecording(false);
-    setIsProcessing(true);
-    
-    try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      setRecording(null);
-      
-      if (uri) {
-        // In a real app, you would send this audio file to a speech-to-text service
-        // For this demo, we'll simulate a response after a short delay
-        setTimeout(() => {
-          // For testing, simulate receiving transcribed text
-          const simulatedText = "Remind me to take my medication tomorrow at 9 AM";
-          setInputText(simulatedText);
-          handleSendMessage(simulatedText);
-        }, 1500);
-      }
-    } catch (err) {
-      console.error('Failed to stop recording', err);
-      setIsProcessing(false);
-      const errorMsg = "I'm sorry, there was a problem with the recording. Please try again.";
-      addMessage(errorMsg, 'ai');
-    }
-  };
-
-  const handleSendMessage = async (text: string = inputText) => {
-    if (!text.trim()) return;
-    
-    // Add user message
-    addMessage(text, 'user');
-    setInputText('');
-    setIsProcessing(true);
-    
-    try {
-      // Check if this is a reminder request
-      if (detectReminderIntent(text)) {
-        // Use the NLP processor to handle this reminder request
-        const result = await processNaturalLanguageReminder(text);
-        
-        // Get the intent and slots
-        const { intent, slots } = result;
-        
-        if (intent === 'create_event' && slots.action) {
-          const timeStr = slots.time || 'now';
-          const confirmationMsg = `I've set a reminder for "${slots.action}" at ${timeStr}.`;
-          addMessage(confirmationMsg, 'ai');
-          speakMessage(confirmationMsg);
-        } else {
-          const response = "I'm not sure what kind of reminder you want to set. Please try again with more details.";
-          addMessage(response, 'ai');
-          speakMessage(response);
-        }
-      } else {
-        // Handle other types of messages normally
-        processUserMessage(text);
-      }
-    } catch (error) {
-      console.error('Error processing message:', error);
-      const errorMsg = "I'm sorry, I couldn't process your request. Please try again.";
-      addMessage(errorMsg, 'ai');
-      speakMessage(errorMsg);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const processUserMessage = async (text: string) => {
-    // Handle other types of queries (simplified for this demo)
-    let response = '';
-    
-    const lowerText = text.toLowerCase();
-    if (lowerText.includes('hello') || lowerText.includes('hi')) {
-      response = 'Hello! How can I help you today?';
-    } else if (lowerText.includes('how are you')) {
-      response = "I'm just a digital assistant, but I'm functioning well! How can I assist you?";
-    } else if (lowerText.includes('medication') || lowerText.includes('medicine') || lowerText.includes('pill')) {
-      response = 'Would you like me to remind you about your medication? I can set up a calendar reminder for you.';
-    } else if (lowerText.includes('reminder') || lowerText.includes('calendar')) {
-      response = 'I can help you set reminders. Just say something like "Remind me to take my medicine at 9 AM" or "Set a reminder for my doctor appointment on Friday at 3 PM."';
-    } else if (lowerText.includes('thank you') || lowerText.includes('thanks')) {
-      response = "You're welcome! I'm here to help anytime.";
-    } else {
-      response = "I'm not sure how to respond to that. I can help you set reminders or answer questions about using the app. Just let me know what you need.";
-    }
-    
-    // Add AI response with a slight delay to appear more natural
+  const startListening = () => {
+    setIsListening(true);
+    // Simulate speech recognition
     setTimeout(() => {
-      addMessage(response, 'ai');
-      speakMessage(response);
-    }, 500);
+      const randomPhrase = quickPhrases[Math.floor(Math.random() * quickPhrases.length)];
+      setUserMessage(randomPhrase);
+      setIsListening(false);
+      processUserInput(randomPhrase);
+    }, 2000);
   };
 
-  const addMessage = (text: string, sender: 'user' | 'ai') => {
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text,
-      sender,
-      timestamp: new Date(),
-    };
-    
-    setMessages(prevMessages => [...prevMessages, newMessage]);
-    
-    // Scroll to bottom with a slight delay to ensure the message is rendered
+  const processUserInput = (input) => {
+    // Simulate AI thinking
     setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  };
-
-  const speakMessage = async (text: string) => {
-    if (isSpeaking) {
-      Speech.stop();
-    }
-    
-    setIsSpeaking(true);
-    
-    try {
-      await Speech.speak(text, {
-        language: 'en',
-        rate: 0.9,
-        onDone: () => setIsSpeaking(false),
-        onError: () => setIsSpeaking(false),
-      });
-    } catch (error) {
-      console.error('Speech error:', error);
-      setIsSpeaking(false);
-    }
+      let response = '';
+      
+      // Simple response logic based on input
+      if (input.toLowerCase().includes('day')) {
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const today = days[new Date().getDay()];
+        response = `Today is ${today}, ${new Date().toLocaleDateString()}.`;
+      } 
+      else if (input.toLowerCase().includes('medicine') || input.toLowerCase().includes('medication')) {
+        response = "You need to take your Aspirin at 9:00 AM and Donepezil at 1:00 PM. Would you like me to set a reminder?";
+      }
+      else if (input.toLowerCase().includes('schedule')) {
+        response = "You have a doctor's appointment at 11:30 AM today, and memory exercises scheduled for 3:00 PM.";
+      }
+      else if (input.toLowerCase().includes('call')) {
+        response = "I'll call your caregiver Jane for you. Connecting now...";
+      }
+      else if (input.toLowerCase().includes('family')) {
+        response = "Your daughter Sarah is coming to visit this weekend. Would you like to see some family photos?";
+      }
+      else if (input.toLowerCase().includes('glasses')) {
+        response = "According to your last interaction, you left your glasses on the coffee table in the living room.";
+      }
+      else {
+        response = "I'm here to help you. Would you like to know about your medications, schedule, or would you like me to call someone for you?";
+      }
+      
+      setAiResponse(response);
+      setIsSpeaking(true);
+      
+      // Simulate speaking
+      setTimeout(() => {
+        setIsSpeaking(false);
+      }, 3000);
+    }, 1500);
   };
 
   const handleCastPress = () => {
@@ -356,197 +108,267 @@ export default function TalkToAIScreen({ setActiveTab }) {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={80}
-    >
-      <View style={styles.header}>
-        <Avatar.Icon size={40} icon="robot" style={styles.avatar} />
-        <View>
-          <Text style={styles.headerTitle}>AI Assistant</Text>
-          <Text style={styles.headerSubtitle}>Your personal health companion</Text>
-        </View>
-      </View>
-      
-      <ScrollView
-        style={styles.messagesContainer}
-        ref={scrollViewRef}
-        contentContainerStyle={styles.messagesContent}
+    <View style={styles.container}>
+      <TouchableOpacity 
+        activeOpacity={1} 
+        style={styles.fullScreenTouch}
+        onPress={() => setShowControls(true)}
       >
-        {messages.map((message) => (
-          <View
-            key={message.id}
+        {/* 3D AI Avatar */}
+        <View style={styles.avatarContainer}>
+          <Animated.View 
             style={[
-              styles.messageBubble,
-              message.sender === 'user' ? styles.userBubble : styles.aiBubble,
+              styles.avatarWrapper,
+              { transform: [{ scale: pulseAnim }] }
             ]}
           >
-            <Text style={styles.messageText}>{message.text}</Text>
-            <Text style={styles.timestampText}>
-              {message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-            </Text>
-          </View>
-        ))}
+            <Image 
+              source={require('../assets/ai-avatar.png')} 
+              style={styles.avatarImage} 
+              resizeMode="contain"
+            />
+            {isSpeaking && (
+              <View style={styles.speakingIndicator}>
+                <View style={[styles.soundWave, styles.wave1]} />
+                <View style={[styles.soundWave, styles.wave2]} />
+                <View style={[styles.soundWave, styles.wave3]} />
+              </View>
+            )}
+          </Animated.View>
+          <Chip 
+            style={styles.moodChip} 
+            icon={() => {
+              switch(aiMood) {
+                case 'friendly': return <Ionicons name="happy" size={16} color="#4285F4" />;
+                case 'professional': return <Ionicons name="briefcase" size={16} color="#4285F4" />;
+                case 'calm': return <Ionicons name="water" size={16} color="#4285F4" />;
+                case 'cheerful': return <Ionicons name="sunny" size={16} color="#4285F4" />;
+                default: return <Ionicons name="happy" size={16} color="#4285F4" />;
+              }
+            }}
+          >
+            {aiMood.charAt(0).toUpperCase() + aiMood.slice(1)} Mode
+          </Chip>
+        </View>
         
-        {isProcessing && (
-          <View style={styles.processingContainer}>
-            <ActivityIndicator size="small" color="#4285F4" />
-            <Text style={styles.processingText}>Processing your request...</Text>
+        {/* Conversation bubble for latest AI response */}
+        {aiResponse && (
+          <View style={styles.responseBubble}>
+            <Text style={styles.responseText}>{aiResponse}</Text>
           </View>
         )}
-      </ScrollView>
-      
-      <Surface style={styles.inputContainer} elevation={4}>
-        <View style={styles.suggestedPrompts}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <Chip 
-              style={styles.promptChip} 
-              onPress={() => setInputText('Remind me to take my medication at 9 AM')}>
-              Medication reminder
-            </Chip>
-            <Chip 
-              style={styles.promptChip} 
-              onPress={() => setInputText('Set a reminder for my doctor appointment next Monday')}>
-              Doctor appointment
-            </Chip>
-            <Chip 
-              style={styles.promptChip} 
-              onPress={() => setInputText('Remind me to drink water every 2 hours')}>
-              Hydration reminder
-            </Chip>
-            <Chip 
-              style={styles.promptChip} 
-              onPress={() => setInputText('How do I use the memory aids?')}>
-              Help with app
-            </Chip>
-          </ScrollView>
-        </View>
         
-        <View style={styles.inputRow}>
-          <TextInput
-            mode="outlined"
-            placeholder="Type a message..."
-            value={inputText}
-            onChangeText={setInputText}
-            style={styles.textInput}
-            right={
-              inputText ? 
-              <TextInput.Icon icon="close" onPress={() => setInputText('')} /> : 
-              undefined
-            }
-          />
-          
-          {inputText ? (
-            <IconButton
-              icon="send"
-              size={24}
-              onPress={() => handleSendMessage()}
-              style={styles.sendButton}
-            />
-          ) : (
-            <TouchableOpacity
-              style={styles.micButton}
-              onPress={isRecording ? stopRecording : startRecording}
-            >
-              <FontAwesome5
-                name={isRecording ? "stop" : "microphone"}
-                size={20}
-                color="#FFF"
-              />
-            </TouchableOpacity>
-          )}
-        </View>
-      </Surface>
-
-      {/* Cast Modal */}
-      <Modal
-        visible={castModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setCastModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Cast to Device</Text>
-            <View style={styles.castDevicesList}>
-              {castDevices.map(device => (
+        {/* Controls overlay */}
+        {showControls && (
+          <View style={styles.controlsOverlay}>
+            {/* Header with options */}
+            <View style={styles.header}>
+              <View style={styles.headerActions}>
+                {castingActive ? (
+                  <Chip 
+                    icon="cast-connected" 
+                    onPress={stopCasting}
+                    style={styles.castingChip}
+                  >
+                    Casting to {castDevice}
+                  </Chip>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.castButton}
+                    onPress={handleCastPress}
+                  >
+                    <Ionicons name="tv-outline" size={24} color="#4285F4" />
+                    <Text style={styles.castText}>Cast to TV</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
-                  key={device.id}
-                  style={styles.castDeviceItem}
-                  onPress={() => startCasting(device.id, device.name)}
+                  onPress={() => setMoodModalVisible(true)}
                 >
-                  <Ionicons name="tv" size={24} color="#4285F4" style={styles.castDeviceIcon} />
-                  <View style={styles.castDeviceInfo}>
-                    <Text style={styles.castDeviceName}>{device.name}</Text>
-                    <Text style={styles.castDeviceType}>{device.type}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color="#777" />
+                  <Ionicons name="options-outline" size={24} color="#4285F4" />
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            {/* Microphone button and status */}
+            <View style={styles.microphoneContainer}>
+              <TouchableOpacity 
+                style={[
+                  styles.micButton,
+                  isListening ? styles.listeningButton : {}
+                ]}
+                onPress={isListening ? () => setIsListening(false) : startListening}
+                disabled={isSpeaking}
+              >
+                {isListening ? (
+                  <ActivityIndicator size={30} color="white" />
+                ) : (
+                  <Ionicons name="mic" size={30} color="white" />
+                )}
+              </TouchableOpacity>
+              <Text style={styles.helpText}>
+                {isListening ? 'Listening...' : 'Tap to speak with your AI companion'}
+              </Text>
+            </View>
+
+            {/* Quick phrases */}
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.quickPhrasesContainer}
+              contentContainerStyle={styles.quickPhrasesContent}
+            >
+              {quickPhrases.map((phrase, index) => (
+                <TouchableOpacity 
+                  key={index}
+                  style={styles.quickPhraseButton}
+                  onPress={() => {
+                    setUserMessage(phrase);
+                    processUserInput(phrase);
+                  }}
+                  disabled={isListening || isSpeaking}
+                >
+                  <Text style={styles.quickPhraseText}>{phrase}</Text>
                 </TouchableOpacity>
               ))}
-            </View>
-            <Button 
-              mode="text" 
-              onPress={() => setCastModalVisible(false)}
-              style={styles.cancelButton}
-            >
-              Cancel
-            </Button>
-          </View>
-        </View>
-      </Modal>
+            </ScrollView>
 
-      {/* Mood Selection Modal */}
-      <Modal
-        visible={moodModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setMoodModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Change AI Personality</Text>
-            <View style={styles.moodOptionsList}>
-              <TouchableOpacity
-                style={[styles.moodOption, aiMood === 'friendly' ? styles.selectedMood : {}]}
-                onPress={() => changeMood('friendly')}
-              >
-                <Ionicons name="happy" size={24} color="#4285F4" />
-                <Text style={styles.moodOptionText}>Friendly</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.moodOption, aiMood === 'professional' ? styles.selectedMood : {}]}
-                onPress={() => changeMood('professional')}
-              >
-                <Ionicons name="briefcase" size={24} color="#4285F4" />
-                <Text style={styles.moodOptionText}>Professional</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.moodOption, aiMood === 'calm' ? styles.selectedMood : {}]}
-                onPress={() => changeMood('calm')}
-              >
-                <Ionicons name="water" size={24} color="#4285F4" />
-                <Text style={styles.moodOptionText}>Calm</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.moodOption, aiMood === 'cheerful' ? styles.selectedMood : {}]}
-                onPress={() => changeMood('cheerful')}
-              >
-                <Ionicons name="sunny" size={24} color="#4285F4" />
-                <Text style={styles.moodOptionText}>Cheerful</Text>
+            {/* Tips button */}
+            <TouchableOpacity 
+              style={styles.tipsButton}
+              onPress={() => setShowTips(!showTips)}
+            >
+              <Ionicons name="information-circle-outline" size={24} color="#4285F4" />
+              <Text style={styles.tipsText}>
+                {showTips ? 'Hide Tips' : 'Show Tips'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Tips panel */}
+        {showTips && (
+          <Surface style={styles.tipsPanel}>
+            <View style={styles.tipsPanelHeader}>
+              <Text style={styles.tipsPanelTitle}>Tips for talking to your AI</Text>
+              <TouchableOpacity onPress={() => setShowTips(false)}>
+                <Ionicons name="close" size={24} color="#4285F4" />
               </TouchableOpacity>
             </View>
-            <Button 
-              mode="text" 
-              onPress={() => setMoodModalVisible(false)}
-              style={styles.cancelButton}
-            >
-              Cancel
-            </Button>
+            <ScrollView style={styles.tipsScrollView}>
+              <View style={styles.tipItem}>
+                <Ionicons name="calendar" size={24} color="#4285F4" style={styles.tipIcon} />
+                <View style={styles.tipContent}>
+                  <Text style={styles.tipTitle}>Ask about your schedule</Text>
+                  <Text style={styles.tipDescription}>Try "What's on my calendar today?"</Text>
+                </View>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="medical" size={24} color="#4285F4" style={styles.tipIcon} />
+                <View style={styles.tipContent}>
+                  <Text style={styles.tipTitle}>Medication reminders</Text>
+                  <Text style={styles.tipDescription}>Try "When do I need to take my medicine?"</Text>
+                </View>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="people" size={24} color="#4285F4" style={styles.tipIcon} />
+                <View style={styles.tipContent}>
+                  <Text style={styles.tipTitle}>Contact family</Text>
+                  <Text style={styles.tipDescription}>Try "Call my daughter" or "Show me family photos"</Text>
+                </View>
+              </View>
+            </ScrollView>
+          </Surface>
+        )}
+
+        {/* Cast Modal */}
+        <Modal
+          visible={castModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setCastModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Cast to Device</Text>
+              <View style={styles.castDevicesList}>
+                {castDevices.map(device => (
+                  <TouchableOpacity
+                    key={device.id}
+                    style={styles.castDeviceItem}
+                    onPress={() => startCasting(device.id, device.name)}
+                  >
+                    <Ionicons name="tv" size={24} color="#4285F4" style={styles.castDeviceIcon} />
+                    <View style={styles.castDeviceInfo}>
+                      <Text style={styles.castDeviceName}>{device.name}</Text>
+                      <Text style={styles.castDeviceType}>{device.type}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#777" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Button 
+                mode="text" 
+                onPress={() => setCastModalVisible(false)}
+                style={styles.cancelButton}
+              >
+                Cancel
+              </Button>
+            </View>
           </View>
-        </View>
-      </Modal>
-    </KeyboardAvoidingView>
+        </Modal>
+
+        {/* Mood Selection Modal */}
+        <Modal
+          visible={moodModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setMoodModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Change AI Personality</Text>
+              <View style={styles.moodOptionsList}>
+                <TouchableOpacity
+                  style={[styles.moodOption, aiMood === 'friendly' ? styles.selectedMood : {}]}
+                  onPress={() => changeMood('friendly')}
+                >
+                  <Ionicons name="happy" size={24} color="#4285F4" />
+                  <Text style={styles.moodOptionText}>Friendly</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.moodOption, aiMood === 'professional' ? styles.selectedMood : {}]}
+                  onPress={() => changeMood('professional')}
+                >
+                  <Ionicons name="briefcase" size={24} color="#4285F4" />
+                  <Text style={styles.moodOptionText}>Professional</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.moodOption, aiMood === 'calm' ? styles.selectedMood : {}]}
+                  onPress={() => changeMood('calm')}
+                >
+                  <Ionicons name="water" size={24} color="#4285F4" />
+                  <Text style={styles.moodOptionText}>Calm</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.moodOption, aiMood === 'cheerful' ? styles.selectedMood : {}]}
+                  onPress={() => changeMood('cheerful')}
+                >
+                  <Ionicons name="sunny" size={24} color="#4285F4" />
+                  <Text style={styles.moodOptionText}>Cheerful</Text>
+                </TouchableOpacity>
+              </View>
+              <Button 
+                mode="text" 
+                onPress={() => setMoodModalVisible(false)}
+                style={styles.cancelButton}
+              >
+                Cancel
+              </Button>
+            </View>
+          </View>
+        </Modal>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -557,88 +379,218 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F5F7FA',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-  },
-  avatar: {
-    backgroundColor: '#4285F4',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#777',
-  },
-  messagesContainer: {
+  fullScreenTouch: {
     flex: 1,
     width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  messagesContent: {
-    padding: 10,
-    gap: 10,
+  avatarContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  messageBubble: {
+  avatarWrapper: {
+    position: 'relative',
+  },
+  avatarImage: {
+    width: 300,
+    height: 300,
+  },
+  speakingIndicator: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  soundWave: {
+    width: 8,
+    height: 20,
+    borderRadius: 4,
+    marginHorizontal: 2,
+  },
+  wave1: {
+    height: 15,
+    backgroundColor: '#4285F4',
+  },
+  wave2: {
+    height: 25,
+    backgroundColor: '#FF9500',
+  },
+  wave3: {
+    height: 10,
+    backgroundColor: '#FF3B30',
+  },
+  moodChip: {
+    backgroundColor: '#E8F1FF',
+    marginTop: 10,
+  },
+  responseBubble: {
+    backgroundColor: 'white',
+    padding: 15,
+    borderRadius: 20,
+    maxWidth: '80%',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  responseText: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  controlsOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'space-between',
+    padding: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    width: '100%',
+    paddingTop: 20,
+  },
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
-    borderRadius: 10,
+  },
+  castButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  castText: {
+    marginLeft: 8,
+    color: '#4285F4',
+    fontWeight: '500',
+  },
+  castingChip: {
+    backgroundColor: '#E8F1FF',
+    marginRight: 15,
+  },
+  microphoneContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  micButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#4285F4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  listeningButton: {
+    backgroundColor: '#FF3B30',
+  },
+  helpText: {
+    fontSize: 16,
+    color: '#333',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  quickPhrasesContainer: {
+    maxHeight: 60,
+    marginBottom: 20,
+  },
+  quickPhrasesContent: {
+    paddingHorizontal: 10,
+    gap: 10,
+  },
+  quickPhraseButton: {
     backgroundColor: 'white',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
   },
-  userBubble: {
-    backgroundColor: '#E8F1FF',
+  quickPhraseText: {
+    fontSize: 14,
+    color: '#4285F4',
   },
-  aiBubble: {
-    backgroundColor: '#F5F5F5',
-  },
-  messageText: {
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  timestampText: {
-    fontSize: 12,
-    color: '#777',
-  },
-  inputContainer: {
-    width: '100%',
-    padding: 10,
-  },
-  suggestedPrompts: {
-    marginBottom: 10,
-  },
-  promptChip: {
-    backgroundColor: '#F5F5F5',
-    padding: 10,
-    borderRadius: 10,
-    marginRight: 10,
-  },
-  inputRow: {
+  tipsButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 20,
   },
-  textInput: {
+  tipsText: {
+    marginLeft: 8,
+    color: '#4285F4',
+    fontWeight: '500',
+  },
+  tipsPanel: {
+    position: 'absolute',
+    bottom: 80,
+    left: 20,
+    right: 20,
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 15,
+    maxHeight: 300,
+    elevation: 5,
+  },
+  tipsPanelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  tipsPanelTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  tipsScrollView: {
+    maxHeight: 220,
+  },
+  tipItem: {
+    flexDirection: 'row',
+    marginBottom: 15,
+    alignItems: 'center',
+  },
+  tipIcon: {
+    marginRight: 15,
+  },
+  tipContent: {
     flex: 1,
   },
-  sendButton: {
-    marginLeft: 10,
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
   },
-  micButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#4285F4',
-    justifyContent: 'center',
-    alignItems: 'center',
+  tipDescription: {
+    fontSize: 14,
+    color: '#777',
   },
   modalOverlay: {
     flex: 1,
@@ -710,15 +662,5 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     alignSelf: 'center',
-  },
-  processingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-  },
-  processingText: {
-    marginLeft: 10,
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 }); 
