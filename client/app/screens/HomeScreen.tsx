@@ -48,32 +48,6 @@ export default function HomeScreen({ setActiveTab }) {
           />
         </View>
 
-        {/* Membership card */}
-        <Card style={styles.membershipCard}>
-          <Card.Content style={styles.membershipContent}>
-            <View style={styles.membershipTextContainer}>
-              <Text style={styles.membershipTitle}>Buy your Plus membership</Text>
-              <View style={styles.priceContainer}>
-                <Text style={styles.originalPrice}>₹1399</Text>
-                <Text style={styles.discountedPrice}>₹699</Text>
-              </View>
-              <Button 
-                mode="contained" 
-                style={styles.buyButton}
-                labelStyle={styles.buyButtonLabel}
-                onPress={() => {}}>
-                Buy now
-              </Button>
-            </View>
-            <View style={styles.membershipImageContainer}>
-              <View style={styles.discountBadge}>
-                <Text style={styles.discountText}>50% off</Text>
-              </View>
-              <MaterialCommunityIcons name="shield-plus" size={50} color="#4285F4" style={styles.shieldIcon} />
-            </View>
-          </Card.Content>
-        </Card>
-
         {/* Quick action buttons */}
         <View style={styles.quickActionsContainer}>
           <TouchableOpacity style={styles.quickActionItem} onPress={() => setActiveTab('ai')}>
@@ -280,74 +254,6 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     backgroundColor: 'white',
     elevation: 0,
-  },
-  membershipCard: {
-    marginHorizontal: 20,
-    marginBottom: 15,
-    borderRadius: 15,
-    backgroundColor: '#E8F1FF',
-    elevation: 2,
-  },
-  membershipContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  membershipTextContainer: {
-    flex: 2,
-  },
-  membershipTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  originalPrice: {
-    fontSize: 16,
-    textDecorationLine: 'line-through',
-    color: '#777',
-    marginRight: 8,
-  },
-  discountedPrice: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  buyButton: {
-    backgroundColor: '#0A2540',
-    borderRadius: 20,
-    width: 100,
-    height: 36,
-    justifyContent: 'center',
-  },
-  buyButtonLabel: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  membershipImageContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  discountBadge: {
-    position: 'absolute',
-    top: -10,
-    right: -10,
-    backgroundColor: '#777',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  discountText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  shieldIcon: {
-    marginTop: 5,
   },
   quickActionsContainer: {
     flexDirection: 'row',

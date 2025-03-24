@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, FlatList } from 'react-native';
-import { Text, Button, Card, FAB, Chip, Avatar, IconButton, Divider, Menu } from 'react-native-paper';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, View, ScrollView, TouchableOpacity, FlatList, Alert } from 'react-native';
+import { Text, Button, Card, FAB, Chip, Avatar, IconButton, Divider, Menu, Dialog, Portal, TextInput } from 'react-native-paper';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useAuth } from '../context/AuthContext';
+import { useFocusEffect } from '@react-navigation/native';
 
 type ReminderType = 'medication' | 'appointment' | 'activity' | 'hydration';
 
@@ -19,103 +22,192 @@ interface Reminder {
   recurrencePattern?: string;
 }
 
+// Google Calendar Event interface
+interface CalendarEvent {
+  id: string;
+  summary: string;
+  description?: string;
+  start: {
+    dateTime: string;
+    timeZone: string;
+  };
+  end: {
+    dateTime: string;
+    timeZone: string;
+  };
+  location?: string;
+}
+
 export default function RemindersScreen({ setActiveTab }) {
+  const { googleCredentials, googleSignIn, googleSignOut, createCalendarEvent, getCalendarEvents, user } = useAuth();
+  
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [markedDates, setMarkedDates] = useState({
     [selectedDate]: { selected: true, selectedColor: '#4285F4' },
-    '2023-06-15': { marked: true, dotColor: '#FF9500' },
-    '2023-06-18': { marked: true, dotColor: '#FF3B30' },
-    '2023-06-20': { marked: true, dotColor: '#34C759' },
-    '2023-06-22': { marked: true, dotColor: '#4285F4' },
   });
-  const [filterVisible, setFilterVisible] = useState(false);
+  
   const [activeFilter, setActiveFilter] = useState<ReminderType | 'all'>('all');
   const [menuVisible, setMenuVisible] = useState(false);
+  const [googleEvents, setGoogleEvents] = useState<CalendarEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('Not synced');
+  
+  // New reminder dialog
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [newReminderTitle, setNewReminderTitle] = useState('');
+  const [newReminderDesc, setNewReminderDesc] = useState('');
+  const [newReminderDate, setNewReminderDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [newReminderType, setNewReminderType] = useState<ReminderType>('appointment');
 
-  // Sample reminders data
-  const reminders: Reminder[] = [
-    {
-      id: '1',
-      title: 'Take Aspirin',
-      time: '09:00 AM',
-      date: selectedDate,
-      type: 'medication',
-      description: '100mg - 1 tablet with water',
-      completed: false,
-      recurring: true,
-      recurrencePattern: 'Daily'
-    },
-    {
-      id: '2',
-      title: 'Doctor Appointment',
-      time: '11:30 AM',
-      date: selectedDate,
-      type: 'appointment',
-      description: 'Follow-up with Dr. Smith',
-      location: 'Memorial Hospital, Room 302',
-      completed: false
-    },
-    {
-      id: '3',
-      title: 'Take Donepezil',
-      time: '01:00 PM',
-      date: selectedDate,
-      type: 'medication',
-      description: '5mg - 1 tablet after lunch',
-      completed: false,
-      recurring: true,
-      recurrencePattern: 'Daily'
-    },
-    {
-      id: '4',
-      title: 'Memory Exercise',
-      time: '03:00 PM',
-      date: selectedDate,
-      type: 'activity',
-      description: 'Complete the daily memory puzzle in the app',
-      completed: false,
-      recurring: true,
-      recurrencePattern: 'Weekdays'
-    },
-    {
-      id: '5',
-      title: 'Drink Water',
-      time: '04:00 PM',
-      date: selectedDate,
-      type: 'hydration',
-      description: '1 glass of water',
-      completed: false,
-      recurring: true,
-      recurrencePattern: 'Every 2 hours'
+  // Fetch events when the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (googleCredentials) {
+        fetchCalendarEvents();
+      }
+    }, [googleCredentials, selectedDate])
+  );
+  
+  // Convert Google Calendar events to app reminders
+  const convertEventsToReminders = (events: CalendarEvent[]): Reminder[] => {
+    return events.map(event => {
+      const startDate = new Date(event.start.dateTime);
+      return {
+        id: event.id,
+        title: event.summary,
+        time: startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date: startDate.toISOString().split('T')[0],
+        type: determineEventType(event.description || ''),
+        description: event.description || '',
+        location: event.location,
+        completed: false,
+      };
+    });
+  };
+  
+  // Determine event type based on description (could be improved with AI)
+  const determineEventType = (description: string): ReminderType => {
+    const desc = description.toLowerCase();
+    if (desc.includes('medication') || desc.includes('pill') || desc.includes('medicine')) {
+      return 'medication';
+    } else if (desc.includes('doctor') || desc.includes('hospital') || desc.includes('clinic')) {
+      return 'appointment';
+    } else if (desc.includes('exercise') || desc.includes('activity') || desc.includes('training')) {
+      return 'activity';
+    } else if (desc.includes('water') || desc.includes('drink')) {
+      return 'hydration';
     }
-  ];
-
-  const filteredReminders = activeFilter === 'all' 
-    ? reminders 
-    : reminders.filter(reminder => reminder.type === activeFilter);
-
-  const getTypeIcon = (type: ReminderType) => {
-    switch (type) {
-      case 'medication':
-        return <MaterialCommunityIcons name="pill" size={24} color="#FF9500" />;
-      case 'appointment':
-        return <FontAwesome5 name="stethoscope" size={20} color="#FF3B30" />;
-      case 'activity':
-        return <MaterialCommunityIcons name="brain" size={24} color="#34C759" />;
-      case 'hydration':
-        return <Ionicons name="water" size={24} color="#4285F4" />;
-      default:
-        return <Ionicons name="calendar" size={24} color="#4285F4" />;
+    return 'appointment'; // Default
+  };
+  
+  // Fetch Google Calendar events
+  const fetchCalendarEvents = async () => {
+    if (!googleCredentials) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Get start and end of the selected month
+      const date = new Date(selectedDate);
+      const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+      const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      
+      const events = await getCalendarEvents(startOfMonth, endOfMonth);
+      setGoogleEvents(events);
+      
+      // Update marked dates
+      const newMarkedDates = { ...markedDates };
+      events.forEach(event => {
+        const eventDate = new Date(event.start.dateTime).toISOString().split('T')[0];
+        if (newMarkedDates[eventDate]) {
+          newMarkedDates[eventDate] = { 
+            ...newMarkedDates[eventDate], 
+            marked: true, 
+            dotColor: '#4285F4' 
+          };
+        } else {
+          newMarkedDates[eventDate] = { marked: true, dotColor: '#4285F4' };
+        }
+      });
+      
+      // Ensure selected date is still marked as selected
+      if (newMarkedDates[selectedDate]) {
+        newMarkedDates[selectedDate] = {
+          ...newMarkedDates[selectedDate],
+          selected: true,
+          selectedColor: '#4285F4'
+        };
+      } else {
+        newMarkedDates[selectedDate] = { selected: true, selectedColor: '#4285F4' };
+      }
+      
+      setMarkedDates(newMarkedDates);
+      setSyncStatus('Synced');
+    } catch (error) {
+      console.error('Error fetching calendar events:', error);
+      Alert.alert('Error', 'Failed to fetch calendar events. Please try again.');
+      setSyncStatus('Sync failed');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getTypeColor = (type: ReminderType) => {
-    switch (type) {
-      case 'medication': return '#FFF5E6';
-      case 'appointment': return '#FFE5E5';
-      case 'activity': return '#E6F9ED';
-      case 'hydration': return '#E8F1FF';
-      default: return '#F5F5F5';
+  // Handle Google Sign In
+  const handleGoogleSignIn = async () => {
+    try {
+      await googleSignIn();
+      fetchCalendarEvents();
+    } catch (error) {
+      console.error('Google sign in error:', error);
+      Alert.alert('Error', 'Failed to sign in with Google. Please try again.');
+    }
+  };
+  
+  // Handle Google Sign Out
+  const handleGoogleSignOut = async () => {
+    try {
+      await googleSignOut();
+      setGoogleEvents([]);
+      setSyncStatus('Not synced');
+    } catch (error) {
+      console.error('Google sign out error:', error);
+      Alert.alert('Error', 'Failed to sign out from Google. Please try again.');
+    }
+  };
+  
+  // Create a new reminder in Google Calendar
+  const handleAddReminder = async () => {
+    if (!newReminderTitle) {
+      Alert.alert('Error', 'Please enter a title for the reminder');
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      
+      // Create calendar event
+      await createCalendarEvent(
+        newReminderTitle,
+        `Type: ${newReminderType}\n${newReminderDesc}`,
+        newReminderDate
+      );
+      
+      // Reset form and close dialog
+      setNewReminderTitle('');
+      setNewReminderDesc('');
+      setNewReminderDate(new Date());
+      setDialogVisible(false);
+      
+      // Refresh calendar events
+      await fetchCalendarEvents();
+      
+      Alert.alert('Success', 'Reminder added successfully');
+    } catch (error) {
+      console.error('Error adding reminder:', error);
+      Alert.alert('Error', 'Failed to add reminder. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -147,6 +239,56 @@ export default function RemindersScreen({ setActiveTab }) {
     
     setMarkedDates(updatedMarkedDates);
     setSelectedDate(selectedDay);
+  };
+
+  const handleDateChange = (event, selectedDate) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setNewReminderDate(selectedDate);
+    }
+  };
+  
+  // Get reminders for selected date
+  const getSelectedDateReminders = () => {
+    // Convert Google Calendar events for the selected date to reminders
+    const selectedDateEvents = googleEvents.filter(event => {
+      const eventDate = new Date(event.start.dateTime).toISOString().split('T')[0];
+      return eventDate === selectedDate;
+    });
+    
+    const reminders = convertEventsToReminders(selectedDateEvents);
+    
+    // Apply filter if needed
+    if (activeFilter !== 'all') {
+      return reminders.filter(reminder => reminder.type === activeFilter);
+    }
+    
+    return reminders;
+  };
+
+  const getTypeIcon = (type: ReminderType) => {
+    switch (type) {
+      case 'medication':
+        return <MaterialCommunityIcons name="pill" size={24} color="#FF9500" />;
+      case 'appointment':
+        return <FontAwesome5 name="stethoscope" size={20} color="#FF3B30" />;
+      case 'activity':
+        return <MaterialCommunityIcons name="brain" size={24} color="#34C759" />;
+      case 'hydration':
+        return <Ionicons name="water" size={24} color="#4285F4" />;
+      default:
+        return <Ionicons name="calendar" size={24} color="#4285F4" />;
+    }
+  };
+
+  const getTypeColor = (type: ReminderType) => {
+    switch (type) {
+      case 'medication': return '#FFF5E6';
+      case 'appointment': return '#FFE5E5';
+      case 'activity': return '#E6F9ED';
+      case 'hydration': return '#E8F1FF';
+      default: return '#F5F5F5';
+    }
   };
 
   const toggleReminderCompletion = (id: string) => {
@@ -214,6 +356,9 @@ export default function RemindersScreen({ setActiveTab }) {
     </Card>
   );
 
+  // List of reminders for the selected date
+  const selectedDateReminders = getSelectedDateReminders();
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -230,30 +375,35 @@ export default function RemindersScreen({ setActiveTab }) {
           }
           contentStyle={styles.menuContent}
         >
-          <Menu.Item 
-            onPress={() => {
-              console.log('Sync with Google Calendar');
-              setMenuVisible(false);
-            }} 
-            title="Sync with Google Calendar" 
-            leadingIcon="sync"
-          />
-          <Menu.Item 
-            onPress={() => {
-              console.log('Import events');
-              setMenuVisible(false);
-            }} 
-            title="Import events" 
-            leadingIcon="import"
-          />
-          <Menu.Item 
-            onPress={() => {
-              console.log('Export events');
-              setMenuVisible(false);
-            }} 
-            title="Export events" 
-            leadingIcon="export"
-          />
+          {googleCredentials ? (
+            <Menu.Item 
+              onPress={() => {
+                fetchCalendarEvents();
+                setMenuVisible(false);
+              }} 
+              title="Sync with Google Calendar" 
+              leadingIcon="sync"
+            />
+          ) : (
+            <Menu.Item 
+              onPress={() => {
+                handleGoogleSignIn();
+                setMenuVisible(false);
+              }} 
+              title="Sign in with Google" 
+              leadingIcon="google"
+            />
+          )}
+          {googleCredentials && (
+            <Menu.Item 
+              onPress={() => {
+                handleGoogleSignOut();
+                setMenuVisible(false);
+              }} 
+              title="Sign out from Google" 
+              leadingIcon="logout"
+            />
+          )}
           <Divider />
           <Menu.Item 
             onPress={() => {
@@ -272,13 +422,23 @@ export default function RemindersScreen({ setActiveTab }) {
           <Card.Content>
             <View style={styles.calendarHeader}>
               <Text style={styles.calendarTitle}>Google Calendar</Text>
-              <Chip 
-                icon="sync" 
-                mode="outlined" 
-                style={styles.syncChip}
-                onPress={() => console.log('Syncing with Google Calendar')}>
-                Synced
-              </Chip>
+              {googleCredentials ? (
+                <Chip 
+                  icon="sync" 
+                  mode="outlined" 
+                  style={styles.syncChip}
+                  onPress={fetchCalendarEvents}>
+                  {syncStatus}
+                </Chip>
+              ) : (
+                <Button 
+                  mode="contained" 
+                  icon="google" 
+                  onPress={handleGoogleSignIn}
+                  style={styles.googleSignInButton}>
+                  Sign in
+                </Button>
+              )}
             </View>
             <Calendar
               markedDates={markedDates}
@@ -339,12 +499,12 @@ export default function RemindersScreen({ setActiveTab }) {
         {/* Reminders list */}
         <View style={styles.remindersSection}>
           <Text style={styles.sectionTitle}>
-            Upcoming Reminders for {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            Reminders for {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </Text>
           
-          {filteredReminders.length > 0 ? (
+          {selectedDateReminders.length > 0 ? (
             <FlatList
-              data={filteredReminders}
+              data={selectedDateReminders}
               renderItem={renderReminderItem}
               keyExtractor={item => item.id}
               scrollEnabled={false}
@@ -357,7 +517,7 @@ export default function RemindersScreen({ setActiveTab }) {
                 <Text style={styles.emptyStateText}>No reminders for this day</Text>
                 <Button 
                   mode="contained" 
-                  onPress={() => console.log('Add reminder')}
+                  onPress={() => setDialogVisible(true)}
                   style={styles.emptyStateButton}>
                   Add Reminder
                 </Button>
@@ -390,39 +550,96 @@ export default function RemindersScreen({ setActiveTab }) {
           </Card.Content>
         </Card>
 
-        {/* Reminder statistics */}
-        <Card style={styles.statsCard}>
-          <Card.Content>
-            <Text style={styles.statsTitle}>Reminder Statistics</Text>
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>85%</Text>
-                <Text style={styles.statLabel}>Completion Rate</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>12</Text>
-                <Text style={styles.statLabel}>Today's Reminders</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>5</Text>
-                <Text style={styles.statLabel}>Upcoming</Text>
-              </View>
-            </View>
-          </Card.Content>
-        </Card>
-
         {/* Bottom spacer */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Add Reminder Dialog */}
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
+          <Dialog.Title>Add New Reminder</Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              label="Title"
+              value={newReminderTitle}
+              onChangeText={setNewReminderTitle}
+              mode="outlined"
+              style={styles.input}
+            />
+            
+            <TextInput
+              label="Description"
+              value={newReminderDesc}
+              onChangeText={setNewReminderDesc}
+              mode="outlined"
+              multiline
+              numberOfLines={3}
+              style={styles.input}
+            />
+            
+            <Text style={styles.inputLabel}>Reminder Type:</Text>
+            <View style={styles.typeChipsContainer}>
+              <Chip 
+                selected={newReminderType === 'medication'}
+                onPress={() => setNewReminderType('medication')}
+                style={styles.typeChip}
+                selectedColor="#FF9500">
+                Medication
+              </Chip>
+              <Chip 
+                selected={newReminderType === 'appointment'}
+                onPress={() => setNewReminderType('appointment')}
+                style={styles.typeChip}
+                selectedColor="#FF3B30">
+                Appointment
+              </Chip>
+              <Chip 
+                selected={newReminderType === 'activity'}
+                onPress={() => setNewReminderType('activity')}
+                style={styles.typeChip}
+                selectedColor="#34C759">
+                Activity
+              </Chip>
+              <Chip 
+                selected={newReminderType === 'hydration'}
+                onPress={() => setNewReminderType('hydration')}
+                style={styles.typeChip}
+                selectedColor="#4285F4">
+                Hydration
+              </Chip>
+            </View>
+            
+            <Text style={styles.inputLabel}>Date and Time:</Text>
+            <Button 
+              mode="outlined" 
+              onPress={() => setShowDatePicker(true)}
+              style={styles.datePickerButton}>
+              {newReminderDate.toLocaleString()}
+            </Button>
+            
+            {showDatePicker && (
+              <DateTimePicker
+                value={newReminderDate}
+                mode="datetime"
+                is24Hour={false}
+                onChange={handleDateChange}
+              />
+            )}
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setDialogVisible(false)}>Cancel</Button>
+            <Button onPress={handleAddReminder} loading={isLoading}>Add</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
 
       {/* FAB for adding new reminders */}
       <FAB
         icon="plus"
         style={styles.fab}
-        onPress={() => console.log('Add new reminder')}
+        onPress={() => setDialogVisible(true)}
         color="white"
+        loading={isLoading}
       />
     </View>
   );
@@ -470,6 +687,9 @@ const styles = StyleSheet.create({
   },
   syncChip: {
     backgroundColor: '#E8F1FF',
+  },
+  googleSignInButton: {
+    backgroundColor: '#4285F4',
   },
   calendar: {
     borderRadius: 10,
@@ -629,41 +849,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statsCard: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 12,
-  },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#4285F4',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#777',
-    textAlign: 'center',
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#E1E1E1',
-  },
   bottomSpacer: {
     height: 80,
   },
@@ -673,5 +858,24 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 80,
     backgroundColor: '#4285F4',
+  },
+  input: {
+    marginBottom: 12,
+  },
+  inputLabel: {
+    fontSize: 16,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  typeChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 12,
+  },
+  typeChip: {
+    margin: 4,
+  },
+  datePickerButton: {
+    marginBottom: 12,
   },
 }); 

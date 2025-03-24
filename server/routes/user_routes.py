@@ -1,7 +1,10 @@
-from flask import jsonify, request
+from flask import jsonify, request, Blueprint
 from bson.objectid import ObjectId
 from models.user import User
 from datetime import datetime
+
+# Create blueprint
+user_bp = Blueprint('user_routes', __name__)
 
 def register_user_routes(app, mongo):
     @app.route('/api/users', methods=['POST'])
