@@ -295,4 +295,108 @@ class Reminder:
             }
         except Exception as e:
             print(f"Error getting detailed stats: {str(e)}")
-            return {} 
+            return {}
+
+    @classmethod
+    def find_by_user_and_timerange(cls, db, user_id, start_time, end_time):
+        """Find reminders by user within a time range."""
+        if not db:
+            return []
+            
+        try:
+            query = {
+                "user_id": user_id,
+                "start_time": {
+                    "$gte": start_time,
+                    "$lte": end_time
+                }
+            }
+                
+            reminders_data = db.reminders.find(query).sort("start_time", 1)
+            return [cls.from_dict(data) for data in reminders_data]
+        except Exception as e:
+            print(f"Error finding reminders by time range: {str(e)}")
+            return []
+
+    @classmethod
+    def from_google_event(cls, user_id, event):
+        """Create a Reminder object from a Google Calendar event."""
+        if not event or not user_id:
+            return None
+            
+        try:
+            # Extract event details
+            title = event.get('summary', 'Untitled Event')
+            description = event.get('description', '')
+            
+            # Parse start and end times
+            start_time = None
+            if 'dateTime' in event.get('start', {}):
+                start_time = datetime.fromisoformat(event['start']['dateTime'].replace('Z', '+00:00'))
+            elif 'date' in event.get('start', {}):
+                # All-day event, use start of day
+                start_time = datetime.fromisoformat(event['start']['date'] + 'T00:00:00')
+                
+            end_time = None    
+            if 'dateTime' in event.get('end', {}):
+                end_time = datetime.fromisoformat(event['end']['dateTime'].replace('Z', '+00:00'))
+            elif 'date' in event.get('end', {}):
+                # All-day event, use end of day
+                end_time = datetime.fromisoformat(event['end']['date'] + 'T23:59:59')
+                
+            # Determine recurrence
+            recurrence = None
+            if 'recurrence' in event:
+                for rule in event['recurrence']:
+                    if rule.startswith('RRULE:'):
+                        if 'FREQ=DAILY' in rule:
+                            recurrence = 'daily'
+                        elif 'FREQ=WEEKLY' in rule:
+                            recurrence = 'weekly'
+                        elif 'FREQ=MONTHLY' in rule:
+                            recurrence = 'monthly'
+                        elif 'FREQ=YEARLY' in rule:
+                            recurrence = 'yearly'
+                        break
+            
+            # Create reminder
+            reminder = cls(
+                user_id=user_id,
+                title=title,
+                description=description,
+                start_time=start_time,
+                end_time=end_time,
+                recurrence=recurrence,
+                completed=False,
+                google_event_id=event.get('id')
+            )
+            
+            return reminder
+        except Exception as e:
+            print(f"Error creating reminder from Google event: {str(e)}")
+            return None
+
+    @classmethod
+    def from_dict(cls, data):
+        """Create a Reminder from a dictionary representation."""
+        if not data:
+            return None
+            
+        reminder = cls(
+            user_id=data.get("user_id"),
+            title=data.get("title"),
+            description=data.get("description", ""),
+            start_time=data.get("start_time"),
+            end_time=data.get("end_time"),
+            recurrence=data.get("recurrence"),
+            completed=data.get("completed", False),
+            google_event_id=data.get("google_event_id")
+        )
+        if "_id" in data:
+            reminder._id = data["_id"]
+        if "created_at" in data:
+            reminder.created_at = data.get("created_at")
+        if "updated_at" in data:
+            reminder.updated_at = data.get("updated_at")
+            
+        return reminder 

@@ -4,11 +4,15 @@ import * as SplashScreen from 'expo-splash-screen';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 import { AuthProvider } from './context/AuthContext';
 import { View, ActivityIndicator } from 'react-native';
+import * as Linking from 'expo-linking';
 
-// Prevent the splash screen from auto-hiding
+// Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync().catch(() => {
-  /* ignore error */
+  /* reloading the app might trigger this, ignore if it does */
 });
+
+// Define URL scheme for our app
+const prefix = Linking.createURL('/');
 
 // Define theme
 const theme = {
@@ -27,8 +31,20 @@ export default function AppLayout() {
     // Perform any initialization tasks here
     async function prepare() {
       try {
+        // Set up deep link handling
+        const initialURL = await Linking.getInitialURL();
+        console.log('Initial URL:', initialURL);
+        
+        // Listen for incoming links (while app is running)
+        const subscription = Linking.addEventListener('url', handleDeepLink);
+        
         // Artificial delay to ensure everything is ready
         await new Promise(resolve => setTimeout(resolve, 500));
+        
+        return () => {
+          // Clean up subscription when component unmounts
+          subscription.remove();
+        };
       } catch (e) {
         console.warn(e);
       } finally {
@@ -39,6 +55,12 @@ export default function AppLayout() {
 
     prepare();
   }, []);
+  
+  // Handle deep links
+  const handleDeepLink = (event: { url: string }) => {
+    console.log('Received deep link:', event.url);
+    // URL will be handled in the AuthContext
+  };
 
   useEffect(() => {
     if (appIsReady) {

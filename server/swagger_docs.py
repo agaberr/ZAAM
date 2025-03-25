@@ -23,6 +23,7 @@ reminder_ns = Namespace('Reminders', description='Reminder operations', path='/a
 memory_aid_ns = Namespace('Memory Aids', description='Memory aid operations', path='/api/memory-aids')
 google_ns = Namespace('Google Integration', description='Google Calendar integration', path='/api/auth/google')
 ai_ns = Namespace('AI Assistant', description='AI natural language processing', path='/api/ai')
+sync_ns = Namespace('Calendar Sync', description='Google Calendar synchronization', path='/api/reminders')
 
 # Add namespaces to API
 api.add_namespace(auth_ns)
@@ -31,6 +32,7 @@ api.add_namespace(reminder_ns)
 api.add_namespace(memory_aid_ns)
 api.add_namespace(google_ns)
 api.add_namespace(ai_ns)
+api.add_namespace(sync_ns)
 
 # Define models for documentation
 # Authentication models
@@ -491,6 +493,54 @@ class MemoryAidResource(Resource):
     def delete(self, memory_aid_id):
         """Delete a memory aid"""
         return {'message': 'This is a documentation endpoint. See the actual implementation in memory_aid_routes.py'}
+
+# Reminder Sync models
+sync_response_model = sync_ns.model('SyncResponse', {
+    'success': fields.Boolean(description='Whether the operation was successful', example=True),
+    'message': fields.String(description='Status message', example='Synced 5 of 7 reminders with Google Calendar. Created 3 new events. Updated 2 existing events. Failed to sync 2 reminders.'),
+    'stats': fields.Raw(description='Sync statistics', example={
+        'total': 7,
+        'created': 3,
+        'updated': 2,
+        'failed': 2
+    })
+})
+
+import_response_model = sync_ns.model('ImportResponse', {
+    'success': fields.Boolean(description='Whether the operation was successful', example=True),
+    'message': fields.String(description='Status message', example='Imported 8 of 10 events from Google Calendar. Skipped 2 events that were already imported or couldn\'t be processed.'),
+    'stats': fields.Raw(description='Import statistics', example={
+        'total': 10,
+        'imported': 8,
+        'skipped': 2
+    })
+})
+
+import_request_model = sync_ns.model('ImportRequest', {
+    'days': fields.Integer(description='Number of days to import events for', example=30)
+})
+
+# Reminder Sync Routes
+@sync_ns.route('/sync')
+class ReminderSync(Resource):
+    @sync_ns.doc('sync_reminders', security='apiKey')
+    @sync_ns.response(200, 'Sync successful', sync_response_model)
+    @sync_ns.response(401, 'Authentication required')
+    @sync_ns.response(400, 'Google Calendar not connected')
+    def post(self):
+        """Synchronize all user's reminders with Google Calendar"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in reminder_sync_routes.py'}
+
+@sync_ns.route('/import-from-google')
+class ReminderImport(Resource):
+    @sync_ns.doc('import_from_google', security='apiKey')
+    @sync_ns.expect(import_request_model)
+    @sync_ns.response(200, 'Import successful', import_response_model)
+    @sync_ns.response(401, 'Authentication required')
+    @sync_ns.response(400, 'Google Calendar not connected')
+    def post(self):
+        """Import events from Google Calendar as reminders"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in reminder_sync_routes.py'}
 
 # Security definitions
 authorizations = {

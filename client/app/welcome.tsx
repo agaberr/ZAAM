@@ -1,16 +1,23 @@
 import React from 'react';
-import { StyleSheet, View, Dimensions, Pressable } from 'react-native';
+import { StyleSheet, View, Dimensions, Pressable, Alert } from 'react-native';
 import { Button, Text } from 'react-native-paper';
 import { Link, Stack } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from './context/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
-  const handleGoogleAuth = () => {
-    // TODO: Implement Google authentication
-    console.log('Google auth pressed');
+  const { signInWithGoogle } = useAuth();
+
+  const handleGoogleAuth = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      console.error('Google auth error:', error);
+      Alert.alert('Authentication Error', 'Failed to sign in with Google. Please try again.');
+    }
   };
 
   return (

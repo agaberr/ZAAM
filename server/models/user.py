@@ -55,7 +55,8 @@ class User:
             return False, errors
             
         # Check if email is already registered
-        if self._id is None and User.find_by_email(db, self.contact_info.get("email")) is not None:
+        existing_user = User.find_by_email(db, self.contact_info.get("email"))
+        if self._id is None and existing_user is not None:
             return False, ["Email is already registered"]
             
         user_data = {
@@ -101,8 +102,10 @@ class User:
             
         try:
             data = db.users.find_one({"contact_info.email": email})
-            return User.from_mongo(data) if data else None
-        except Exception:
+            # Check if data exists, not if data is truthy
+            return User.from_mongo(data) if data is not None else None
+        except Exception as e:
+            print(f"Error finding user by email: {str(e)}")
             return None
 
     @staticmethod
@@ -113,8 +116,10 @@ class User:
             
         try:
             data = db.users.find_one({"_id": ObjectId(user_id)})
-            return User.from_mongo(data) if data else None
-        except Exception:
+            # Check if data exists, not if data is truthy
+            return User.from_mongo(data) if data is not None else None
+        except Exception as e:
+            print(f"Error finding user by ID: {str(e)}")
             return None
 
     @staticmethod

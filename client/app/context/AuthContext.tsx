@@ -1,9 +1,11 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { router, useSegments, useRootNavigationState } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Linking from 'expo-linking';
+import axios from 'axios';
 
 // API endpoint base URL
-const API_BASE_URL = 'http://localhost:5000'; // For Android emulator pointing to localhost
+const API_BASE_URL = 'http://192.168.1.2:5000'; // For Android emulator pointing to localhost
 // const API_BASE_URL = 'http://10.0.2.2:5000'; // For Android emulator pointing to localhost
 
 // If using a physical device, use your computer's IP address instead, e.g. 'http://192.168.1.100:5000'
@@ -15,6 +17,7 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   completeOnboarding: (userData: UserDataType) => Promise<void>;
   fetchUserData: (userId: string) => Promise<any>;
   updateUserProfile: (userId: string, userData: any) => Promise<void>;
@@ -62,6 +65,7 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => {},
   signUp: async () => {},
   signOut: async () => {},
+  signInWithGoogle: async () => {},
   completeOnboarding: async () => {},
   fetchUserData: async () => {},
   updateUserProfile: async () => {},
@@ -82,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [userData, setUserData] = useState<any | null>(null);
   const [tempRegData, setTempRegData] = useState<TempRegDataType | null>(null);
+  const [googleAuthPending, setGoogleAuthPending] = useState(false);
   
   const segments = useSegments();
   const navigationState = useRootNavigationState();
@@ -96,8 +101,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (authToken && userDataString) {
           const parsedUserData = JSON.parse(userDataString);
-          setUserData(parsedUserData);
-          setIsAuthenticated(true);
+          
+          // Validate token by making a simple API request
+          try {
+            const response = await fetch(`${API_BASE_URL}/api/users/${parsedUserData.id}`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+              }
+            });
+            
+            if (response.ok) {
+              console.log('Token validated successfully');
+              setUserData(parsedUserData);
+              setIsAuthenticated(true);
+            } else {
+              console.log('Token validation failed, logging out');
+              // Clear invalid token
+              await AsyncStorage.removeItem('authToken');
+              await AsyncStorage.removeItem('userData');
+              setIsAuthenticated(false);
+            }
+          } catch (error) {
+            console.error('Error validating token:', error);
+            // Keep user signed in for offline usage, but they might encounter API errors
+            setUserData(parsedUserData);
+            setIsAuthenticated(true);
+          }
         }
         
         if (tempRegDataString) {
@@ -105,6 +136,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.error('Failed to load auth state:', error);
+        // Clear potentially corrupted data
+        AsyncStorage.removeItem('authToken');
+        AsyncStorage.removeItem('userData');
+        setIsAuthenticated(false);
       } finally {
         setIsLoading(false);
       }
@@ -137,6 +172,109 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }, 0);
   }, [isAuthenticated, segments, navigationState?.key, isLoading]);
+
+  // Function to handle Google OAuth redirects
+  const handleGoogleRedirect = async (url: string) => {
+    try {
+      console.log('Handling Google redirect:', url);
+      setGoogleAuthPending(false);
+      
+      // Parse the URL to get query parameters
+      const urlObj = new URL(url);
+      const params = new URLSearchParams(urlObj.search);
+      
+      // Check if this is a failure redirect
+      if (url.includes('google-connect-failure')) {
+        const error = params.get('error');
+        console.error('Google authentication failed:', error);
+        return;
+      }
+      
+      // If it's a success URL for Google sign-in
+      if (url.includes('google-auth-success')) {
+        const token = params.get('token');
+        const user_id = params.get('user_id');
+        const is_new = params.get('is_new');
+        
+        if (!token || !user_id) {
+          console.error('Invalid redirect - missing token or user_id');
+          return;
+        }
+        
+        // Store the token
+        await AsyncStorage.setItem('authToken', token);
+        
+        // Fetch additional user data
+        const userData = {
+          id: user_id,
+          name: 'Google User', // Placeholder until we fetch more details
+          email: '', // Will be filled when we fetch user data
+        };
+        
+        // Store the user data
+        await AsyncStorage.setItem('userData', JSON.stringify(userData));
+        
+        setUserData(userData);
+        setIsAuthenticated(true);
+        
+        console.log('Successfully signed in with Google');
+        
+        // If this is a new user, redirect to onboarding
+        if (is_new === 'true') {
+          // Navigate to onboarding
+          console.log('New Google user - redirecting to onboarding');
+          router.replace('/onboarding/user-data');
+        } else {
+          // Navigate to the main app
+          router.replace('/');
+        }
+      }
+      
+      // If it's a success URL for Google connection
+      if (url.includes('google-connect-success')) {
+        console.log('Successfully connected Google account');
+        // This is for existing users linking their Google account
+        // Could trigger a refresh of user data here
+      }
+      
+    } catch (error) {
+      console.error('Error handling Google redirect:', error);
+    }
+  };
+
+  // Handle deep links for Google auth callback
+  useEffect(() => {
+    // Set up URL listener for all deep links, not just when googleAuthPending
+    const subscription = Linking.addEventListener('url', (event) => {
+      console.log('Received deep link in AuthContext:', event.url);
+      
+      // Handle Google auth redirects
+      if (event.url.includes('google-auth-success') || 
+          event.url.includes('google-connect-success') || 
+          event.url.includes('google-connect-failure')) {
+        handleGoogleRedirect(event.url);
+      }
+    });
+    
+    // Check for initial URL that might have launched the app
+    const checkInitialURL = async () => {
+      const url = await Linking.getInitialURL();
+      if (url) {
+        console.log('App was launched with URL:', url);
+        if (url.includes('google-auth-success') || 
+            url.includes('google-connect-success') || 
+            url.includes('google-connect-failure')) {
+          handleGoogleRedirect(url);
+        }
+      }
+    };
+    
+    checkInitialURL();
+    
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   // Sign in function with API integration
   const signIn = async (email: string, password: string) => {
@@ -309,11 +447,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Add Google sign-in function
+  const signInWithGoogle = async () => {
+    try {
+      setGoogleAuthPending(true);
+      
+      // Request OAuth authorization URL from our backend
+      const response = await axios.get(`${API_BASE_URL}/api/auth/google/connect`);
+      const { authorization_url, state } = response.data;
+      
+      // Store the state in AsyncStorage for verification later
+      await AsyncStorage.setItem('google_auth_state', state);
+      
+      console.log(`Opening Google auth URL: ${authorization_url}`);
+      await Linking.openURL(authorization_url);
+    } catch (error) {
+      setGoogleAuthPending(false);
+      console.error('Error signing in with Google:', error);
+      // Replace showToast with an error log since we don't have that function
+      console.error('Failed to connect with Google');
+    }
+  };
+
   const value = {
     isAuthenticated,
     signIn,
     signUp,
     signOut,
+    signInWithGoogle,
     completeOnboarding,
     fetchUserData: async (userId: string) => {
       try {

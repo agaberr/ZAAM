@@ -56,7 +56,7 @@ export default {
       ]*/
     ],
     extra: {
-      apiUrl: process.env.API_URL || "http://localhost:5000/api",
+      apiUrl: process.env.API_URL || "http://192.168.1.2:5000/api",
       eas: {
         projectId: "your-project-id"
       }
