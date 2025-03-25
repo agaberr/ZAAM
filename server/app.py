@@ -302,5 +302,8 @@ def main_home():
     """
 
 if __name__ == '__main__':
-    print("Starting Flask server...")
+
+    # from waitress import serve
+    # serve(app, host="0.0.0.0", port=5000)
+
     app.run(host="0.0.0.0", port=5000, debug=True)
