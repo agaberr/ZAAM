@@ -184,7 +184,7 @@ def generate_dashboard(stats):
 
 def main():
     parser = argparse.ArgumentParser(description='Reminder Statistics Visualization')
-    parser.add_argument('--url', default='http://192.168.1.2:5000', help='Base URL of the API')
+    parser.add_argument('--url', default='https://zaam-mj7u.onrender.com', help='Base URL of the API')
     parser.add_argument('--email', required=True, help='User email for authentication')
     parser.add_argument('--password', required=True, help='User password for authentication')
     parser.add_argument('--output', default='all', choices=['all', 'dashboard', 'completion', 'types', 'timeline', 'today', 'recent'],

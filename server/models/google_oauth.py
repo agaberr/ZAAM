@@ -16,7 +16,7 @@ class GoogleOAuthService:
         self.client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
         
         # Use the first redirect URI from credentials file by default
-        self.redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://192.168.1.2:5000/callback")
+        self.redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "https://zaam-mj7u.onrender.com/callback")
         
         # Define paths to potential credentials files
         server_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

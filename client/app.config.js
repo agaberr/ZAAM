@@ -56,7 +56,7 @@ export default {
       ]*/
     ],
     extra: {
-      apiUrl: process.env.API_URL || "http://192.168.1.2:5000/api",
+      apiUrl: process.env.API_URL || "https://zaam-mj7u.onrender.com/api",
       eas: {
         projectId: "your-project-id"
       }
