@@ -24,6 +24,7 @@ memory_aid_ns = Namespace('Memory Aids', description='Memory aid operations', pa
 google_ns = Namespace('Google Integration', description='Google Calendar integration', path='/api/auth/google')
 ai_ns = Namespace('AI Assistant', description='AI natural language processing', path='/api/ai')
 sync_ns = Namespace('Calendar Sync', description='Google Calendar synchronization', path='/api/reminders')
+qa_ns = api.namespace('api/qa', description='Conversational QA operations')
 
 # Add namespaces to API
 api.add_namespace(auth_ns)
@@ -33,6 +34,7 @@ api.add_namespace(memory_aid_ns)
 api.add_namespace(google_ns)
 api.add_namespace(ai_ns)
 api.add_namespace(sync_ns)
+api.add_namespace(qa_ns)
 
 # Define models for documentation
 # Authentication models
@@ -443,6 +445,27 @@ class AIWeather(Resource):
         """Process weather-specific requests"""
         return {'message': 'This is a documentation endpoint. See the actual implementation in ai_routes.py'}
 
+@ai_ns.route('/news/article')
+class NewsArticleAPI(Resource):
+    @ai_ns.doc('upload_news_article')
+    @ai_ns.expect(api.model('NewsArticleInput', {
+        'text': fields.String(required=True, description='The full text of the news article'),
+        'title': fields.String(description='Optional title for the article')
+    }))
+    @ai_ns.response(200, 'Success', api.model('NewsArticleResponse', {
+        'success': fields.Boolean(description='Whether the operation was successful'),
+        'message': fields.String(description='A message describing the result'),
+        'title': fields.String(description='The title of the processed article'),
+        'summary': fields.String(description='A summary of the article'),
+        'article_length': fields.Integer(description='The length of the processed article'),
+        'context_set': fields.Boolean(description='Whether the article was set as context for future queries')
+    }))
+    @ai_ns.response(400, 'Invalid input')
+    @ai_ns.response(500, 'Processing error')
+    def post(self):
+        """Upload a news article to be used as context for future news queries"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in ai_routes.py'}
+
 # Memory Aid routes
 @memory_aid_ns.route('')
 class MemoryAidList(Resource):
@@ -553,6 +576,64 @@ authorizations = {
 }
 
 api.authorizations = authorizations
+
+# Define the models for QA requests and responses
+query_input_model = api.model('QueryInput', {
+    'query': fields.String(required=True, description='The user query to process')
+})
+
+passage_input_model = api.model('PassageInput', {
+    'passage': fields.String(required=True, description='The passage to be loaded into the QA system')
+})
+
+text_input_model = api.model('TextInput', {
+    'text': fields.String(required=True, description='The text to be summarized')
+})
+
+qa_response_model = api.model('QAResponse', {
+    'answer': fields.String(description='The answer to the query'),
+    'confidence': fields.Float(description='Confidence score for the answer'),
+    'success': fields.Boolean(description='Whether the request was successful'),
+    'debug': fields.Raw(description='Debug information about the query processing')
+})
+
+summarize_response_model = api.model('SummarizeResponse', {
+    'summary': fields.String(description='The generated summary'),
+    'success': fields.Boolean(description='Whether the request was successful')
+})
+
+@qa_ns.route('/query')
+class QueryAPI(Resource):
+    @qa_ns.doc('process_qa_query')
+    @qa_ns.expect(query_input_model)
+    @qa_ns.response(200, 'Success', qa_response_model)
+    @qa_ns.response(400, 'Invalid input')
+    @qa_ns.response(500, 'Processing error')
+    def post(self):
+        """Process a query using the conversational QA system"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in conversation_qa_routes.py'}
+
+@qa_ns.route('/set_passage')
+class SetPassageAPI(Resource):
+    @qa_ns.doc('set_qa_passage')
+    @qa_ns.expect(passage_input_model)
+    @qa_ns.response(200, 'Success')
+    @qa_ns.response(400, 'Invalid input')
+    @qa_ns.response(500, 'Processing error')
+    def post(self):
+        """Set a new passage for the QA system"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in conversation_qa_routes.py'}
+
+@qa_ns.route('/summarize')
+class SummarizeAPI(Resource):
+    @qa_ns.doc('summarize_article')
+    @qa_ns.expect(text_input_model)
+    @qa_ns.response(200, 'Success', summarize_response_model)
+    @qa_ns.response(400, 'Invalid input')
+    @qa_ns.response(500, 'Processing error')
+    def post(self):
+        """Summarize an article using the text summarization functionality"""
+        return {'message': 'This is a documentation endpoint. See the actual implementation in conversation_qa_routes.py'}
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001) 

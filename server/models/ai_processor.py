@@ -78,10 +78,11 @@ class AIProcessor:
         segments = defaultdict(list)
         
         # If no model is loaded, use simple keyword matching
-        if not self.model_loaded:
+        # if not self.model_loaded:
+        if True :
             keywords = {
                 "news": ["news", "report", "headline", "breaking", "article", "story", "journalist", 
-                         "media", "press", "announce", "publish"],
+                         "media", "press", "announce", "publish", "tell me", "who is", "what is"],
                 "reminders": ["remind", "remember", "appointment", "schedule", "meeting", "event", 
                              "task", "deadline", "todo", "don't forget", "call", "email", "calendar"],
                 "weather": ["weather", "temperature", "forecast", "rain", "snow", "sunny", "cloudy", 
@@ -162,9 +163,29 @@ class AIProcessor:
     
     def process_news(self, sentences):
         """Process news-related sentences."""
-        # This would be replaced with a model call in production
+        # If we receive a list of sentences, join them
+        if isinstance(sentences, list):
+            # Join the sentences for a coherent paragraph
+            combined_text = " ".join(sentences)
+            
+            # For longer news text, we might want to add some formatting
+            if len(combined_text) > 100:
+                newline = '\n'
+                formatted = f"NEWS: Here's what I found about your news query:{newline}{combined_text}"
+                return formatted
+            else:
+                return f"NEWS: {combined_text}"
+        
+        # If we already have a processed string (e.g., from ConversationQA)
+        elif isinstance(sentences, str):
+            # Return the pre-processed response
+            if not sentences.upper().startswith("NEWS:"):
+                return f"NEWS: {sentences}"
+            return sentences
+        
+        # Fallback for unexpected input
         newline = '\n'
-        return f"NEWS: I found news information in your request:{newline}- {newline}- ".join(sentences)
+        return f"NEWS: I found news information in your request:{newline}- {newline}- ".join(str(s) for s in sentences if s)
     
     def process_reminders(self, sentences):
         """Process reminder-related sentences."""
