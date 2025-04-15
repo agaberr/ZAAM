@@ -68,7 +68,7 @@ if os.path.exists(credentials_dest):
                         print(f"Set GOOGLE_REDIRECT_URI to {os.environ['GOOGLE_REDIRECT_URI']} from credentials file")
                     else:
                         # Set default redirect URI
-                        os.environ["GOOGLE_REDIRECT_URI"] = "https://zaam-mj7u.onrender.com/callback"
+                        os.environ["GOOGLE_REDIRECT_URI"] = "http://192.168.1.7:5000/callback"
                         print(f"Set default GOOGLE_REDIRECT_URI")
     except Exception as e:
         print(f"Error extracting credentials from file: {str(e)}")
@@ -76,7 +76,7 @@ if os.path.exists(credentials_dest):
 # Get credentials from environment or use defaults from Reminder-v2
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://zaam-mj7u.onrender.com/callback")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://192.168.1.7:5000/callback")
 
 # Set default secret key from Reminder-v2 if not provided
 if not os.getenv("JWT_SECRET"):

@@ -19,7 +19,7 @@ export default {
       bundleIdentifier: "com.yourcompany.alzheimerai",
       config: {
         googleSignIn: {
-          reservedClientId: "your-ios-client-id"
+          reservedClientId: "com.googleusercontent.apps.485643114726-0joadin731ltorui0db3v6dma86rjbvb"
         }
       }
     },
@@ -46,21 +46,16 @@ export default {
         {
           calendarPermission: "The app needs to access your calendar to add and manage reminders."
         }
-      ],
-      // Commenting out expo-speech due to compatibility issues
-      /*[
-        "expo-speech",
-        {
-          microphonePermission: "The app needs access to your microphone for voice interactions."
-        }
-      ]*/
+      ]
     ],
     extra: {
-      // apiUrl: process.env.API_URL || "https://zaam-mj7u.onrender.com/api",
-      apiUrl: process.env.API_URL || "http://localhost:5000/api",
+      apiUrl: "http://192.168.1.7:5000/api",
+      googleWebClientId: "485643114726-0joadin731ltorui0db3v6dma86rjbvb.apps.googleusercontent.com",
       eas: {
         projectId: "your-project-id"
       }
-    }
+    },
+    scheme: "alzheimer-ai-companion",
+    owner: "zaam"
   }
 };

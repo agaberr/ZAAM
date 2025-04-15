@@ -74,112 +74,30 @@ def register_google_auth_routes(app, mongo):
             session.modified = True
             
             # Return the URL for frontend to redirect
-            return jsonify({"authorization_url": auth_url, "state": state})
+            return jsonify({
+                "authorization_url": auth_url,
+                "state": state,
+                "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+                "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI")
+            })
             
         except Exception as e:
             print(f"Error in Google connect: {str(e)}")
             return jsonify({"error": str(e)}), 500
     
-    @app.route('/api/auth/google/callback', methods=['GET'])
+    @app.route('/api/auth/google/callback', methods=['POST'])
     def google_callback():
         """Handle callback from Google OAuth."""
         try:
-            # Get state and code from query parameters
-            state = request.args.get('state')
-            code = request.args.get('code')
-            error = request.args.get('error')
+            data = request.get_json()
+            code = data.get('code')
+            state = data.get('state')
             
-            # Debug session state
-            print(f"Session state: {session.get('google_auth_state')}")
-            print(f"Received state: {state}")
-            
-            # Prepare HTML template for redirecting to the app
-            html_redirect_template = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Authentication Completed</title>
-                <script>
-                    // Store auth data in localStorage for the web app to use
-                    function storeAuthData(authToken, userId, isNew) {
-                        if (authToken) {
-                            localStorage.setItem('authToken', authToken);
-                            localStorage.setItem('userId', userId);
-                            if (isNew) {
-                                localStorage.setItem('isNewUser', 'true');
-                            }
-                            console.log('Auth data stored in localStorage');
-                        }
-                    }
-                
-                    window.onload = function() {
-                        // Parse URL params
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const authToken = urlParams.get('token');
-                        const userId = urlParams.get('user_id');
-                        const isNew = urlParams.get('is_new') === 'true';
-                        
-                        // Store auth data if available
-                        if (authToken && userId) {
-                            storeAuthData(authToken, userId, isNew);
-                        }
-                    
-                        // Try to use the deep link
-                        window.location.replace("%s");
-                        
-                        // Fallback message in case deep link doesn't work
-                        setTimeout(function() {
-                            document.getElementById('message').style.display = 'block';
-                        }, 2000);
-                    }
-                    
-                    function goToHomePage() {
-                        // Redirect to the frontend home page
-                        window.location.href = "/";
-                    }
-                </script>
-                <style>
-                    body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-                    #message { display: none; margin-top: 20px; }
-                    .button {
-                        background-color: #4CAF50;
-                        border: none;
-                        color: white;
-                        padding: 15px 32px;
-                        text-align: center;
-                        text-decoration: none;
-                        display: inline-block;
-                        font-size: 16px;
-                        margin: 4px 2px;
-                        cursor: pointer;
-                        border-radius: 8px;
-                    }
-                </style>
-            </head>
-            <body>
-                <h2>Authentication Completed</h2>
-                <p>Redirecting you back to the ZAAM app...</p>
-                <div id="message">
-                    <p>If the app doesn't open automatically, you can:</p>
-                    <button class="button" onclick="goToHomePage()">Go to Home Page</button>
-                </div>
-            </body>
-            </html>
-            """
-            
-            # Check for errors
-            if error:
-                print(f"OAuth error: {error}")
-                # Return HTML page that redirects to app with error
-                deep_link = f'zaam://google-connect-failure?error={error}'
-                return html_redirect_template % deep_link, 200, {'Content-Type': 'text/html'}
-                
             # Verify state to prevent CSRF
             stored_state = session.get('google_auth_state')
             if not stored_state or state != stored_state:
                 print(f"Invalid state in OAuth callback: stored={stored_state}, received={state}")
-                deep_link = 'zaam://google-connect-failure?error=invalid_state'
-                return html_redirect_template % deep_link, 200, {'Content-Type': 'text/html'}
+                return jsonify({"error": "invalid_state"}), 400
                 
             # Get OAuth mode (link or signin)
             auth_mode = session.get('google_auth_mode', 'signin')
@@ -193,8 +111,7 @@ def register_google_auth_routes(app, mongo):
                 user_id = session.get('google_auth_user_id')
                 if not user_id:
                     print("Missing user_id in OAuth callback for account linking")
-                    deep_link = 'zaam://google-connect-failure?error=missing_user_id'
-                    return html_redirect_template % deep_link, 200, {'Content-Type': 'text/html'}
+                    return jsonify({"error": "missing_user_id"}), 400
                 
                 # Ensure user_id is a string
                 user_id_str = str(user_id)
@@ -205,13 +122,9 @@ def register_google_auth_routes(app, mongo):
                 
                 if not success:
                     print(f"Failed to save tokens for user {user_id_str}")
-                    deep_link = 'zaam://google-connect-failure?error=token_save_failed'
-                    return html_redirect_template % deep_link, 200, {'Content-Type': 'text/html'}
+                    return jsonify({"error": "token_save_failed"}), 500
                     
-                # Redirect to success page for linking
-                print("Successfully linked Google account")
-                deep_link = 'zaam://google-connect-success'
-                return html_redirect_template % deep_link, 200, {'Content-Type': 'text/html'}
+                return jsonify({"success": True, "message": "Google account linked successfully"})
             else:
                 # Handle sign-in flow
                 # Get user info from Google using the access token
@@ -219,8 +132,7 @@ def register_google_auth_routes(app, mongo):
                 
                 if not user_info:
                     print("Failed to get user info from Google")
-                    deep_link = 'zaam://google-connect-failure?error=failed_to_get_user_info'
-                    return html_redirect_template % deep_link, 200, {'Content-Type': 'text/html'}
+                    return jsonify({"error": "failed_to_get_user_info"}), 500
                 
                 print(f"Got user info from Google: {user_info.get('name')}, {user_info.get('email')}")
                 
@@ -236,77 +148,51 @@ def register_google_auth_routes(app, mongo):
                     
                     if not success:
                         print(f"Failed to save tokens for user {user_id_str}")
-                        deep_link = 'zaam://google-connect-failure?error=token_save_failed'
-                        return html_redirect_template % deep_link, 200, {'Content-Type': 'text/html'}
+                        return jsonify({"error": "token_save_failed"}), 500
                     
                     # Generate JWT for the user
                     auth_token = existing_user.generate_auth_token()
                     
-                    # Add the auth token and user_id to the URL params
-                    params = f"token={auth_token}&user_id={str(existing_user._id)}"
-                    
-                    # Redirect to success page with token
-                    print("Generated auth token for existing user")
-                    deep_link = f'zaam://google-auth-success?{params}'
-                    return html_redirect_template % deep_link, 200, {'Content-Type': 'text/html'}
+                    return jsonify({
+                        "success": True,
+                        "token": auth_token,
+                        "user_id": str(existing_user._id),
+                        "is_new": False
+                    })
                 else:
-                    # Create a new user
-                    print("Creating new user from Google login")
-                    # Extract name parts
-                    name_parts = user_info.get('name', '').split(' ', 1)
-                    first_name = name_parts[0] if name_parts else ''
-                    last_name = name_parts[1] if len(name_parts) > 1 else ''
-                    
-                    # Create user with minimal info
+                    # Create new user
                     new_user = User(
-                        full_name=user_info.get('name', 'Google User'),
-                        age=0,  # Default age
-                        gender='', # Empty gender
-                        contact_info={
-                            'email': user_info.get('email', ''),
-                            'phone': '',
-                        },
-                        password='',  # Empty password for Google users
-                        emergency_contacts=[]
+                        name=user_info.get('name'),
+                        email=user_info.get('email'),
+                        google_id=user_info.get('id'),
+                        profile_picture=user_info.get('picture')
                     )
                     
-                    # Set password hash directly to avoid hashing an empty string
-                    new_user.password_hash = 'google_oauth_user'
-                    new_user.created_at = datetime.utcnow()
-                    new_user.updated_at = datetime.utcnow()
+                    # Save new user
+                    user_id = new_user.save(mongo.db)
+                    if not user_id:
+                        print("Failed to save new user")
+                        return jsonify({"error": "user_save_failed"}), 500
                     
-                    # Save the user
-                    success, errors = new_user.save(mongo.db)
-                    
+                    # Save Google tokens for the new user
+                    success = oauth_service.save_tokens_for_user(mongo.db, str(user_id), tokens)
                     if not success:
-                        print(f"Failed to create new user: {errors}")
-                        deep_link = f'zaam://google-connect-failure?error=user_creation_failed&details={",".join(errors)}'
-                        return html_redirect_template % deep_link, 200, {'Content-Type': 'text/html'}
-                    
-                    # Save the Google tokens for the new user
-                    oauth_service.save_tokens_for_user(mongo.db, str(new_user._id), tokens)
+                        print(f"Failed to save tokens for new user {user_id}")
+                        return jsonify({"error": "token_save_failed"}), 500
                     
                     # Generate JWT for the new user
                     auth_token = new_user.generate_auth_token()
                     
-                    # Add the auth token and user_id to the URL params
-                    params = f"token={auth_token}&user_id={str(new_user._id)}&is_new=true"
+                    return jsonify({
+                        "success": True,
+                        "token": auth_token,
+                        "user_id": str(user_id),
+                        "is_new": True
+                    })
                     
-                    # Redirect to success page with token and indication this is a new user
-                    print(f"Created new user: {new_user._id}")
-                    deep_link = f'zaam://google-auth-success?{params}'
-                    return html_redirect_template % deep_link, 200, {'Content-Type': 'text/html'}
-            
-            # Clear session data in any case
-            session.pop('google_auth_state', None)
-            session.pop('google_auth_user_id', None)
-            session.pop('google_auth_mode', None)
-            session.pop('google_auth_temp_id', None)
-            
         except Exception as e:
-            print(f"Exception in OAuth callback: {str(e)}")
-            deep_link = f'zaam://google-connect-failure?error={str(e)}'
-            return html_redirect_template % deep_link, 200, {'Content-Type': 'text/html'}
+            print(f"Error in Google callback: {str(e)}")
+            return jsonify({"error": str(e)}), 500
     
     @app.route('/api/auth/google/disconnect', methods=['POST'])
     def google_disconnect():

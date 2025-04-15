@@ -3,10 +3,11 @@ import { router, useSegments, useRootNavigationState } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import axios from 'axios';
+import { useGoogleAuth, getCurrentUser } from '../services/authService';
 
 // API endpoint base URL
 // const API_BASE_URL = 'https://zaam-mj7u.onrender.com'; // For Android emulator pointing to localhost
-const API_BASE_URL = 'http://localhost:5000'; // For Android emulator pointing to localhost
+const API_BASE_URL = 'http://192.168.1.7:5000'; // For Android emulator pointing to localhost
 
 // If using a physical device, use your computer's IP address instead, e.g. 'http://192.168.1.100:5000'
 
@@ -91,20 +92,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const navigationState = useRootNavigationState();
 
+  // Add our Google Auth hook
+  const { handleGoogleSignIn } = useGoogleAuth();
+
   // Check if the user is authenticated on initial load
   useEffect(() => {
     const loadAuthState = async () => {
       try {
+        console.log('Loading authentication state...');
         const authToken = await AsyncStorage.getItem('authToken');
         const userDataString = await AsyncStorage.getItem('userData');
         const tempRegDataString = await AsyncStorage.getItem('tempRegData');
         
         if (authToken && userDataString) {
+          // Parse the user data
           const parsedUserData = JSON.parse(userDataString);
+          console.log('Found stored user data:', parsedUserData?.id);
           
           // Validate token by making a simple API request
           try {
-            const response = await fetch(`${API_BASE_URL}/api/users/${parsedUserData.id}`, {
+            let isValid = false;
+            const endpoint = `${API_BASE_URL}/api/users/${parsedUserData.id}`;
+            
+            console.log('Validating token with endpoint:', endpoint);
+            const response = await fetch(endpoint, {
               method: 'GET',
               headers: {
                 'Content-Type': 'application/json',
@@ -114,21 +125,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             if (response.ok) {
               console.log('Token validated successfully');
-              setUserData(parsedUserData);
-              setIsAuthenticated(true);
+              isValid = true;
+              
+              // Update user data with response if available
+              try {
+                const userData = await response.json();
+                if (userData) {
+                  // Merge with existing data, keeping all fields
+                  const mergedData = {
+                    ...parsedUserData,
+                    ...userData,
+                    // Ensure these important fields aren't overwritten
+                    id: parsedUserData.id,
+                    token: authToken
+                  };
+                  
+                  // Save the updated data
+                  await AsyncStorage.setItem('userData', JSON.stringify(mergedData));
+                  setUserData(mergedData);
+                } else {
+                  setUserData(parsedUserData);
+                }
+              } catch (parseError) {
+                console.error('Error parsing user data response:', parseError);
+                setUserData(parsedUserData);
+              }
             } else {
-              console.log('Token validation failed, logging out');
+              console.log('Token validation failed, response:', response.status);
+              isValid = false;
+            }
+            
+            setIsAuthenticated(isValid);
+            
+            if (!isValid) {
               // Clear invalid token
               await AsyncStorage.removeItem('authToken');
               await AsyncStorage.removeItem('userData');
-              setIsAuthenticated(false);
+              setUserData(null);
             }
           } catch (error) {
             console.error('Error validating token:', error);
             // Keep user signed in for offline usage, but they might encounter API errors
+            console.log('Keeping user signed in for offline usage');
             setUserData(parsedUserData);
             setIsAuthenticated(true);
           }
+        } else {
+          console.log('No valid auth data found');
+          setIsAuthenticated(false);
+          setUserData(null);
         }
         
         if (tempRegDataString) {
@@ -140,6 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.removeItem('authToken');
         AsyncStorage.removeItem('userData');
         setIsAuthenticated(false);
+        setUserData(null);
       } finally {
         setIsLoading(false);
       }
@@ -447,25 +493,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Add Google sign-in function
+  // Update the signInWithGoogle function
   const signInWithGoogle = async () => {
     try {
       setGoogleAuthPending(true);
       
-      // Request OAuth authorization URL from our backend
-      const response = await axios.get(`${API_BASE_URL}/api/auth/google/connect`);
-      const { authorization_url, state } = response.data;
+      console.log('Starting Google sign-in flow');
+      const result = await handleGoogleSignIn();
       
-      // Store the state in AsyncStorage for verification later
-      await AsyncStorage.setItem('google_auth_state', state);
-      
-      console.log(`Opening Google auth URL: ${authorization_url}`);
-      await Linking.openURL(authorization_url);
+      if (result.success) {
+        console.log('Google sign-in successful, setting auth state');
+        
+        // We don't need to store user data here since it's already 
+        // handled by the authService.js saveAuthData function
+        
+        // Fetch user data to get the full profile
+        try {
+          const userDataString = await AsyncStorage.getItem('userData');
+          if (userDataString) {
+            const parsedUserData = JSON.parse(userDataString);
+            setUserData(parsedUserData);
+            setIsAuthenticated(true);
+            
+            console.log('Auth state updated in context', parsedUserData);
+          }
+        } catch (error) {
+          console.error('Error parsing saved user data:', error);
+        }
+        
+        if (result.isNew) {
+          // Redirect to onboarding for new users
+          console.log('New user - redirecting to onboarding');
+          router.replace('/onboarding/user-data');
+        } else {
+          // Navigate to the main app
+          console.log('Existing user - redirecting to home');
+          router.replace('/');
+        }
+      } else {
+        console.error('Google sign-in failed:', result.error);
+      }
     } catch (error) {
+      console.error('Error during Google sign-in:', error);
+    } finally {
       setGoogleAuthPending(false);
-      console.error('Error signing in with Google:', error);
-      // Replace showToast with an error log since we don't have that function
-      console.error('Failed to connect with Google');
     }
   };
 

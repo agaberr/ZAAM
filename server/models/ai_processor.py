@@ -79,6 +79,7 @@ class AIProcessor:
         
         # If no model is loaded, use simple keyword matching
         # if not self.model_loaded:
+        ##########################TODO:
         if True :
             keywords = {
                 "news": ["news", "report", "headline", "breaking", "article", "story", "journalist", 
