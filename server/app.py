@@ -1,10 +1,268 @@
+#!/usr/bin/env python3
+
+# ==== Model Verification and Download - RUN FIRST ====
+import os
+import sys
+import importlib
+import subprocess
+
+# Ensure required packages are installed
+required_packages = ["gdown", "requests"]
+for package in required_packages:
+    try:
+        importlib.import_module(package)
+    except ImportError:
+        print(f"Installing required package: {package}")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+# Function to check for models
+def verify_models():
+    """Check if all required models are available"""
+    models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ConversationQA', 'Models')
+    if not os.path.exists(models_dir):
+        os.makedirs(models_dir, exist_ok=True)
+        
+    required_models = [
+        "bert_seq2seq_ner.pt",
+        "pronoun_resolution_model_full.pt",
+        "extractiveQA.pt",
+        "vectorizer.pkl",
+        "classifier_model.pkl"
+    ]
+    
+    missing_models = []
+    for model_name in required_models:
+        model_path = os.path.join(models_dir, model_name)
+        if not os.path.exists(model_path):
+            missing_models.append(model_name)
+    
+    if missing_models:
+        print("\nWARNING: The following models are missing:")
+        for model in missing_models:
+            print(f"  - {model}")
+        print("The ConversationQA functionality may not work correctly.\n")
+        return False, missing_models
+    else:
+        print("\nAll required AI models are available.\n")
+        return True, []
+
+# Function to download models
+def download_models(missing_models):
+    """Download missing model files"""
+    import tempfile
+    import gdown
+    import zipfile
+    import requests
+    
+    print("\nDownloading missing models...")
+    
+    models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ConversationQA', 'Models')
+    
+    # Direct download URLs (not through Google Drive API)
+    direct_urls = {
+        "bert_seq2seq_ner.zip": "https://drive.google.com/uc?id=1lOSkIPGU4TX7L727OmkBL3f0Fh_W3_Fv&export=download",
+        "pronoun_resolution_model_full.zip": "https://drive.google.com/uc?id=1DhlkILm1kzD8gPbEU0NlTUGeDA_uGisk&export=download",
+        "extractiveQA.zip": "https://drive.google.com/uc?id=1ph3yhuAz7fmTv8lat8fbdwzlHYSa4y4U&export=download",
+        "vectorizer.zip": "https://drive.google.com/uc?id=1QqxFX0VhLYKdgWWJBYnE9YVnEP6bZKcY&export=download"
+    }
+    
+    # Map models to their containing archives
+    model_to_archive = {
+        "bert_seq2seq_ner.pt": "bert_seq2seq_ner.zip",
+        "pronoun_resolution_model_full.pt": "pronoun_resolution_model_full.zip",
+        "extractiveQA.pt": "extractiveQA.zip",
+        "vectorizer.pkl": "vectorizer.zip",
+        "classifier_model.pkl": "vectorizer.zip"
+    }
+    
+    # Determine which archives to download
+    archives_to_download = set()
+    for model in missing_models:
+        if model in model_to_archive:
+            archives_to_download.add(model_to_archive[model])
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for archive in archives_to_download:
+            archive_path = os.path.join(temp_dir, archive)
+            url = direct_urls.get(archive)
+            
+            if not url:
+                print(f"No URL found for {archive}")
+                continue
+            
+            print(f"Downloading {archive}...")
+            
+            # First try gdown
+            try:
+                gdown.download(url, archive_path, quiet=False)
+                
+                # Check if downloaded successfully
+                if os.path.exists(archive_path) and os.path.getsize(archive_path) > 0:
+                    print(f"Successfully downloaded {archive}")
+                    
+                    # Extract the file
+                    try:
+                        print(f"Extracting {archive}...")
+                        
+                        # Handle ZIP extraction
+                        try:
+                            with zipfile.ZipFile(archive_path) as zf:
+                                zf.extractall(models_dir)
+                            print(f"Extracted {archive} using zipfile")
+                        except Exception as e:
+                            print(f"zipfile extraction failed: {e}")
+                            
+                            # Try with subprocess
+                            try:
+                                subprocess.run(['unzip', archive_path, '-d', models_dir], check=True)
+                                print(f"Extracted {archive} using unzip command")
+                            except Exception as e2:
+                                print(f"unzip command failed: {e2}")
+                                
+                                # Try with 7z as last resort
+                                try:
+                                    subprocess.run(['7z', 'x', archive_path, f'-o{models_dir}'], check=True)
+                                    print(f"Extracted {archive} using 7z")
+                                except Exception as e3:
+                                    print(f"7z extraction failed: {e3}")
+                                    print(f"Failed to extract {archive} with any method")
+                    except Exception as e:
+                        print(f"Error during extraction: {e}")
+                else:
+                    print(f"Failed to download {archive} with gdown")
+            except Exception as e:
+                print(f"Error downloading with gdown: {e}")
+                print("Trying direct download method...")
+                
+                # Try direct download with requests as fallback
+                try:
+                    response = requests.get(url, stream=True)
+                    if response.status_code == 200:
+                        with open(archive_path, 'wb') as f:
+                            for chunk in response.iter_content(chunk_size=8192):
+                                f.write(chunk)
+                        print(f"Downloaded {archive} with requests")
+                        
+                        # Extract the file
+                        try:
+                            print(f"Extracting {archive}...")
+                            
+                            # Handle ZIP extraction
+                            try:
+                                with zipfile.ZipFile(archive_path) as zf:
+                                    zf.extractall(models_dir)
+                                print(f"Extracted {archive} using zipfile")
+                            except Exception as e:
+                                print(f"zipfile extraction failed: {e}")
+                                
+                                # Try with subprocess
+                                try:
+                                    subprocess.run(['unzip', archive_path, '-d', models_dir], check=True)
+                                    print(f"Extracted {archive} using unzip command")
+                                except Exception as e2:
+                                    print(f"unzip command failed: {e2}")
+                                    
+                                    # Try with 7z as last resort
+                                    try:
+                                        subprocess.run(['7z', 'x', archive_path, f'-o{models_dir}'], check=True)
+                                        print(f"Extracted {archive} using 7z")
+                                    except Exception as e3:
+                                        print(f"7z extraction failed: {e3}")
+                                        print(f"Failed to extract {archive} with any method")
+                        except Exception as e:
+                            print(f"Error during extraction: {e}")
+                    else:
+                        print(f"Failed to download {archive} with requests: {response.status_code}")
+                except Exception as e:
+                    print(f"Error with direct download: {e}")
+    
+    # Verify models again
+    models_available, still_missing = verify_models()
+    if still_missing:
+        print("\nSome models are still missing after download attempts:")
+        for model in still_missing:
+            print(f"  - {model}")
+        return False
+    else:
+        print("\nAll models successfully downloaded and verified!")
+        return True
+
+# Function to update paths in code files
+def update_model_paths():
+    """Update hardcoded model paths in the code files"""
+    print("Updating model paths in code files...")
+    
+    models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ConversationQA', 'Models')
+    models_dir = models_dir.replace('\\', '\\\\')  # Escape backslashes for string literals
+    
+    # Update QA.py
+    qa_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ConversationQA', 'QA.py')
+    if os.path.exists(qa_path):
+        try:
+            with open(qa_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            content = content.replace(
+                r'D:\College\Senior-2\GP\ZAAM project\ZAAM\server\ConversationQA\Models\bert_seq2seq_ner.pt',
+                f'{models_dir}\\\\bert_seq2seq_ner.pt'
+            )
+            content = content.replace(
+                r'D:\College\Senior-2\GP\ZAAM project\ZAAM\server\ConversationQA\Models\pronoun_resolution_model_full.pt',
+                f'{models_dir}\\\\pronoun_resolution_model_full.pt'
+            )
+            content = content.replace(
+                r'D:\College\Senior-2\GP\ZAAM project\ZAAM\server\ConversationQA\Models\extractiveQA.pt',
+                f'{models_dir}\\\\extractiveQA.pt'
+            )
+            
+            with open(qa_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            print(f"Updated model paths in {qa_path}")
+        except Exception as e:
+            print(f"Error updating QA.py: {e}")
+    
+    # Update TopicExtractionModel.py
+    topic_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ConversationQA', 'NameEntityModel', 'TopicExtractionModel.py')
+    if os.path.exists(topic_path):
+        try:
+            with open(topic_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            content = content.replace(
+                r'D:\College\Senior-2\GP\ZAAM project\ZAAM\server\ConversationQA\Models\bert_seq2seq_ner.pt',
+                f'{models_dir}\\\\bert_seq2seq_ner.pt'
+            )
+            
+            with open(topic_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            print(f"Updated model paths in {topic_path}")
+        except Exception as e:
+            print(f"Error updating TopicExtractionModel.py: {e}")
+
+# Run model checks and downloads before importing anything else
+print("\n===== ZAAM Server Initialization =====")
+print("Checking for AI models...")
+models_available, missing_models = verify_models()
+
+if not models_available:
+    print("Missing models detected. Attempting to download...")
+    if download_models(missing_models):
+        update_model_paths()
+        print("Model setup completed successfully!")
+    else:
+        print("WARNING: Failed to download all models. Some features may not work.")
+else:
+    print("All models are available!")
+    update_model_paths()
+
+# ===== Continue with regular imports after model checks =====
 from flask import Flask
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from flask_session import Session
 from dotenv import load_dotenv
-import os
-import sys
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from pymongo import MongoClient
 import json
@@ -16,10 +274,11 @@ from routes.auth_routes import register_auth_routes
 from routes.reminder_routes import register_reminder_routes
 from routes.google_auth_routes import register_google_auth_routes
 from routes.ai_routes import register_ai_routes
-from routes.memory_aid_routes import memory_aid_routes
+# Keep import, but don't register directly to avoid conflicts
 from routes.reminder_ai_routes import register_reminder_ai_routes
 from routes.reminder_sync_routes import register_reminder_sync_routes
 from routes.conversation_qa_routes import register_conversation_qa_routes
+from routes.memory_aid_routes import memory_aid_routes
 
 # Load environment variables
 load_dotenv()
@@ -27,111 +286,28 @@ load_dotenv()
 # Google OAuth Config - Important for authentication to work
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # Only for development
 
-# Try to locate and use the credentials file from Reminder-v2
-project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-reminder_v2_dir = os.path.join(project_root, 'Reminder-v2')
-credentials_source = os.path.join(reminder_v2_dir, 'credentialsOAuth.json')
-credentials_dest = os.path.join(os.path.dirname(__file__), 'credentialsOAuth.json')
-
-# Copy credentials file if it exists and destination doesn't
-if os.path.exists(credentials_source) and not os.path.exists(credentials_dest):
+# Initialize QA system early to load models at startup
+def initialize_qa_system():
+    """Pre-initialize the QA system to load models at startup"""
     try:
-        import shutil
-        shutil.copy2(credentials_source, credentials_dest)
-        print(f"Copied OAuth credentials from {credentials_source} to {credentials_dest}")
+        # Add ConversationQA to the path if needed
+        conversation_qa_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ConversationQA")
+        if conversation_qa_path not in sys.path:
+            sys.path.append(conversation_qa_path)
+        
+        # Import and initialize the QA singleton
+        from ConversationQA.qa_singleton import get_qa_instance
+        
+        print("Pre-initializing QA system and loading models...")
+        qa_system = get_qa_instance()
+        print(f"QA system initialized on device: {qa_system.device}")
+        print(f"ConversationQA models loaded successfully!")
+        return True
     except Exception as e:
-        print(f"Error copying OAuth credentials: {str(e)}")
+        print(f"Error initializing QA system: {str(e)}")
+        return False
 
-# Set the path to credentials file for the application
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_dest if os.path.exists(credentials_dest) else ""
-
-# Extract credentials from the JSON file if it exists
-if os.path.exists(credentials_dest):
-    try:
-        with open(credentials_dest, 'r') as f:
-            creds = json.load(f)
-            if 'web' in creds:
-                # Set environment variables from the credentials file
-                if 'client_id' in creds['web'] and not os.getenv("GOOGLE_CLIENT_ID"):
-                    os.environ["GOOGLE_CLIENT_ID"] = creds['web']['client_id']
-                    print(f"Set GOOGLE_CLIENT_ID from credentials file")
-                
-                if 'client_secret' in creds['web'] and not os.getenv("GOOGLE_CLIENT_SECRET"):
-                    os.environ["GOOGLE_CLIENT_SECRET"] = creds['web']['client_secret']
-                    print(f"Set GOOGLE_CLIENT_SECRET from credentials file")
-                
-                # Set redirect URI if not already set
-                if not os.getenv("GOOGLE_REDIRECT_URI"):
-                    if 'redirect_uris' in creds['web'] and creds['web']['redirect_uris']:
-                        # Use the first redirect URI from the file
-                        os.environ["GOOGLE_REDIRECT_URI"] = creds['web']['redirect_uris'][0]
-                        print(f"Set GOOGLE_REDIRECT_URI to {os.environ['GOOGLE_REDIRECT_URI']} from credentials file")
-                    else:
-                        # Set default redirect URI
-                        os.environ["GOOGLE_REDIRECT_URI"] = "http://192.168.1.7:5000/callback"
-                        print(f"Set default GOOGLE_REDIRECT_URI")
-    except Exception as e:
-        print(f"Error extracting credentials from file: {str(e)}")
-
-# Get credentials from environment or use defaults from Reminder-v2
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://192.168.1.7:5000/callback")
-
-# Set default secret key from Reminder-v2 if not provided
-if not os.getenv("JWT_SECRET"):
-    os.environ["JWT_SECRET"] = "e5QD8iIgEo0iBvi2Lx2bgK89vHtcqV"  # Same as in Reminder-v2
-
-# Enhanced debugging for OAuth
-def print_oauth_debug_info():
-    """Print debug info for OAuth configuration"""
-    print("\n==== OAUTH DEBUG INFO ====")
-    print(f"GOOGLE_CLIENT_ID: {'Set' if os.getenv('GOOGLE_CLIENT_ID') else 'Not set'}")
-    print(f"GOOGLE_CLIENT_SECRET: {'Set' if os.getenv('GOOGLE_CLIENT_SECRET') else 'Not set'}")
-    print(f"GOOGLE_REDIRECT_URI: {os.getenv('GOOGLE_REDIRECT_URI')}")
-    print(f"GOOGLE_APPLICATION_CREDENTIALS: {os.getenv('GOOGLE_APPLICATION_CREDENTIALS')}")
-    print(f"JWT_SECRET: {'Set' if os.getenv('JWT_SECRET') else 'Not set'}")
-    
-    # Check if credentials file exists
-    creds_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-    if creds_path and os.path.exists(creds_path):
-        print(f"Credentials file exists at: {creds_path}")
-        try:
-            with open(creds_path, 'r') as f:
-                creds = json.load(f)
-                if 'web' in creds:
-                    print("Credentials file contains 'web' configuration")
-                    if 'client_id' in creds['web']:
-                        print("Credentials file contains client_id")
-                    if 'client_secret' in creds['web']:
-                        print("Credentials file contains client_secret")
-                    print(f"Redirect URIs in credentials: {creds['web'].get('redirect_uris', [])}")
-                else:
-                    print("WARNING: Credentials file doesn't contain 'web' configuration")
-        except Exception as e:
-            print(f"Error reading credentials file: {str(e)}")
-    else:
-        print(f"WARNING: Credentials file doesn't exist at path: {creds_path}")
-    
-    print("==========================\n")
-
-# Run debug info
-print_oauth_debug_info()
-
-# Debug environment variables
-jwt_secret = os.getenv("JWT_SECRET")
-if not jwt_secret:
-    print("WARNING: JWT_SECRET environment variable is not set!")
-else:
-    print("JWT_SECRET environment variable is loaded")
-
-# Check if Google OAuth credentials are set
-if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-    print("WARNING: Google OAuth credentials are not set properly!")
-    print(f"GOOGLE_CLIENT_ID: {'Set' if GOOGLE_CLIENT_ID else 'Not set'}")
-    print(f"GOOGLE_CLIENT_SECRET: {'Set' if GOOGLE_CLIENT_SECRET else 'Not set'}")
-else:
-    print("Google OAuth credentials loaded successfully")
+# Continue with the rest of the code...
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -191,7 +367,8 @@ register_auth_routes(app, mongo)
 register_reminder_routes(app, mongo)
 register_google_auth_routes(app, mongo)
 register_ai_routes(app, mongo)
-register_reminder_ai_routes(app, mongo)
+# Remove the direct registration of reminder_ai_routes to avoid endpoint conflicts
+# register_reminder_ai_routes(app, mongo)
 register_reminder_sync_routes(app, mongo)
 register_conversation_qa_routes(app, mongo)
 app.register_blueprint(memory_aid_routes)
@@ -304,7 +481,19 @@ def main_home():
     """
 
 if __name__ == '__main__':
-
+    print("\n=== ZAAM Server Initialization ===")
+    
+    # Initialize the QA system if models are available
+    if models_available:
+        try:
+            initialize_qa_system()
+            print("AI models initialized and ready for use.")
+        except Exception as e:
+            print(f"WARNING: Failed to initialize QA system: {str(e)}")
+            print("ConversationQA features may not be available.")
+    
+    print("=== Server Initialization Complete ===\n")
+    
     # from waitress import serve
     # serve(app, host="0.0.0.0", port=5000)
 

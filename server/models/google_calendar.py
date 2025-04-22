@@ -1,6 +1,8 @@
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from datetime import datetime, timedelta
+import pytz
+import re
 
 class GoogleCalendarService:
     """Service for Google Calendar API integration."""
@@ -18,9 +20,35 @@ class GoogleCalendarService:
         self.credentials = credentials
         self.service = build('calendar', 'v3', credentials=self.credentials)
     
+    def _format_datetime_for_google(self, dt):
+        """Format a datetime object for Google Calendar API."""
+        if not dt:
+            return None
+            
+        # Make sure the datetime has timezone info
+        if dt.tzinfo is None:
+            # If no timezone, assume UTC
+            dt = dt.replace(tzinfo=pytz.UTC)
+            
+        # Format according to RFC3339
+        return dt.isoformat()
+    
     def create_event(self, reminder):
         """Create an event in Google Calendar from a reminder."""
         if not self.service:
+            return None
+            
+        # Format start and end times
+        start_time = self._format_datetime_for_google(reminder.start_time)
+        
+        # Set end_time to start_time + 1 hour if not provided
+        if reminder.end_time:
+            end_time = self._format_datetime_for_google(reminder.end_time)
+        else:
+            end_time = self._format_datetime_for_google(reminder.start_time + timedelta(hours=1))
+        
+        if not start_time or not end_time:
+            print(f"Invalid times for Google Calendar: start={reminder.start_time}, end={reminder.end_time}")
             return None
             
         # Format the reminder data for Google Calendar
@@ -28,13 +56,12 @@ class GoogleCalendarService:
             'summary': reminder.title,
             'description': reminder.description,
             'start': {
-                'dateTime': reminder.start_time.isoformat(),
-                'timeZone': 'UTC',  # You may want to make this configurable
+                'dateTime': start_time,
+                'timeZone': 'Africa/Cairo',  # Using explicit timezone for Egypt
             },
             'end': {
-                'dateTime': reminder.end_time.isoformat() if reminder.end_time else 
-                           (reminder.start_time + timedelta(hours=1)).isoformat(),
-                'timeZone': 'UTC',
+                'dateTime': end_time,
+                'timeZone': 'Africa/Cairo',
             },
         }
         
@@ -74,15 +101,26 @@ class GoogleCalendarService:
                 eventId=reminder.google_event_id
             ).execute()
             
+            # Format start and end times
+            start_time = self._format_datetime_for_google(reminder.start_time)
+            
+            # Set end_time to start_time + 1 hour if not provided
+            if reminder.end_time:
+                end_time = self._format_datetime_for_google(reminder.end_time)
+            else:
+                end_time = self._format_datetime_for_google(reminder.start_time + timedelta(hours=1))
+            
+            if not start_time or not end_time:
+                print(f"Invalid times for Google Calendar update: start={reminder.start_time}, end={reminder.end_time}")
+                return False
+            
             # Update fields
             event['summary'] = reminder.title
             event['description'] = reminder.description
-            event['start']['dateTime'] = reminder.start_time.isoformat()
-            
-            if reminder.end_time:
-                event['end']['dateTime'] = reminder.end_time.isoformat()
-            else:
-                event['end']['dateTime'] = (reminder.start_time + timedelta(hours=1)).isoformat()
+            event['start']['dateTime'] = start_time
+            event['start']['timeZone'] = 'Africa/Cairo'
+            event['end']['dateTime'] = end_time
+            event['end']['timeZone'] = 'Africa/Cairo'
             
             # Update recurrence if needed
             if reminder.recurrence:

@@ -5,7 +5,7 @@ import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 
 // API URL and Google Client ID from constants
-const API_URL = Constants.expoConfig?.extra?.apiUrl || 'http://192.168.1.7:5000/api';
+const API_URL = Constants.expoConfig?.extra?.apiUrl || 'https://d997-196-137-176-101.ngrok-free.appp/api';
 const GOOGLE_CLIENT_ID = Constants.expoConfig?.extra?.googleWebClientId || '';
 
 // For debugging

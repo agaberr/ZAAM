@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from bson import ObjectId
 import uuid
+import pytz
 
 class Reminder:
     def __init__(self, user_id, title, description, start_time, end_time, 
@@ -9,27 +10,49 @@ class Reminder:
         self.user_id = user_id
         self.title = title
         self.description = description
-        self.start_time = start_time  # datetime object
-        self.end_time = end_time      # datetime object
+        
+        # Ensure start_time has timezone information
+        self.start_time = self._ensure_timezone(start_time)
+        
+        # Ensure end_time has timezone information if provided
+        self.end_time = self._ensure_timezone(end_time) if end_time else None
+        
         self.recurrence = recurrence  # daily, weekly, monthly, or None for one-time
         self.completed = completed
         self.google_event_id = google_event_id  # ID from Google Calendar
-        self.created_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.created_at = datetime.now(pytz.UTC)
+        self.updated_at = datetime.now(pytz.UTC)
+
+    def _ensure_timezone(self, dt):
+        """Ensure a datetime has timezone information."""
+        if dt is None:
+            return None
+            
+        # If datetime has no timezone, set it to Cairo timezone
+        if dt.tzinfo is None:
+            egypt_tz = pytz.timezone('Africa/Cairo')
+            return egypt_tz.localize(dt)
+        return dt
 
     def to_dict(self):
         """Convert reminder to dictionary for serialization"""
+        # Ensure all datetimes have timezone info for serialization
+        start_time = self._ensure_timezone(self.start_time)
+        end_time = self._ensure_timezone(self.end_time) if self.end_time else None
+        created_at = self._ensure_timezone(self.created_at)
+        updated_at = self._ensure_timezone(self.updated_at)
+        
         result = {
             "user_id": self.user_id,
             "title": self.title,
             "description": self.description,
-            "start_time": self.start_time,
-            "end_time": self.end_time,
+            "start_time": start_time,
+            "end_time": end_time,
             "recurrence": self.recurrence,
             "completed": self.completed,
             "google_event_id": self.google_event_id,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at
+            "created_at": created_at,
+            "updated_at": updated_at
         }
         
         # Only include _id if it's not None
@@ -37,6 +60,24 @@ class Reminder:
             result["_id"] = self._id
             
         return result
+
+    def to_json_dict(self):
+        """Convert reminder to a JSON-serializable dictionary."""
+        data = self.to_dict()
+        
+        # Convert datetime objects to ISO format strings for JSON
+        if data.get("start_time"):
+            data["start_time"] = data["start_time"].isoformat()
+        if data.get("end_time"):
+            data["end_time"] = data["end_time"].isoformat()
+        if data.get("created_at"):
+            data["created_at"] = data["created_at"].isoformat()
+        if data.get("updated_at"):
+            data["updated_at"] = data["updated_at"].isoformat()
+        if data.get("_id"):
+            data["_id"] = str(data["_id"])
+            
+        return data
 
     def save(self, db):
         """Save the reminder to the database."""
@@ -59,7 +100,7 @@ class Reminder:
         
         # For update operations
         if self._id is not None:
-            reminder_data["updated_at"] = datetime.utcnow()
+            reminder_data["updated_at"] = datetime.now(pytz.UTC)
             try:
                 result = db.reminders.update_one(
                     {"_id": self._id},
@@ -115,8 +156,8 @@ class Reminder:
         if db is None:
             return []
             
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+        today_start = datetime.now(pytz.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = datetime.now(pytz.UTC).replace(hour=23, minute=59, second=59, microsecond=999999)
         
         try:
             query = {
@@ -134,7 +175,7 @@ class Reminder:
         if db is None:
             return []
             
-        now = datetime.utcnow()
+        now = datetime.now(pytz.UTC)
         future_date = now.replace(hour=23, minute=59, second=59) + timedelta(days=days)
         
         try:
@@ -165,8 +206,8 @@ class Reminder:
             google_event_id=data.get("google_event_id")
         )
         reminder._id = data["_id"]
-        reminder.created_at = data.get("created_at", datetime.utcnow())
-        reminder.updated_at = data.get("updated_at", datetime.utcnow())
+        reminder.created_at = data.get("created_at", datetime.now(pytz.UTC))
+        reminder.updated_at = data.get("updated_at", datetime.now(pytz.UTC))
         return reminder
 
     @staticmethod
@@ -211,7 +252,7 @@ class Reminder:
                 completion_rate = round((completed_reminders / total_reminders) * 100, 2)
                 
             # Get current time
-            now = datetime.utcnow()
+            now = datetime.now(pytz.UTC)
             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
             

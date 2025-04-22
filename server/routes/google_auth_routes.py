@@ -180,6 +180,13 @@ def register_google_auth_routes(app, mongo):
                         print(f"Failed to save tokens for new user {user_id}")
                         return jsonify({"error": "token_save_failed"}), 500
                     
+                    # Check for temporary ID and associate tokens with it too
+                    temp_id = session.get('google_auth_temp_id')
+                    if temp_id:
+                        print(f"Found temporary ID: {temp_id}, associating Google tokens with it")
+                        # Save tokens for the temporary ID too
+                        oauth_service.save_tokens_for_user(mongo.db, temp_id, tokens)
+                    
                     # Generate JWT for the new user
                     auth_token = new_user.generate_auth_token()
                     
@@ -193,6 +200,122 @@ def register_google_auth_routes(app, mongo):
         except Exception as e:
             print(f"Error in Google callback: {str(e)}")
             return jsonify({"error": str(e)}), 500
+    
+    @app.route('/api/auth/google/callback', methods=['GET'])
+    def google_callback_get():
+        """Handle GET callback from Google OAuth."""
+        try:
+            # Get code and state from query parameters
+            code = request.args.get('code')
+            state = request.args.get('state')
+            
+            if not code:
+                print("No authorization code received in GET callback")
+                return jsonify({"error": "no_code"}), 400
+                
+            # Verify state to prevent CSRF
+            stored_state = session.get('google_auth_state')
+            if not stored_state or state != stored_state:
+                print(f"Invalid state in OAuth GET callback: stored={stored_state}, received={state}")
+                # For development only: Continue even if state doesn't match
+                print("WARNING: Continuing despite state mismatch (for development only)")
+                # In production, you would return: 
+                # return jsonify({"error": "invalid_state"}), 400
+            
+            # Get OAuth mode (link or signin)
+            auth_mode = session.get('google_auth_mode', 'signin')
+            print(f"OAuth mode (GET): {auth_mode}")
+            
+            # Exchange code for tokens
+            tokens = oauth_service.exchange_code_for_tokens(code)
+            
+            if auth_mode == 'link':
+                # Link to existing account
+                user_id = session.get('google_auth_user_id')
+                if not user_id:
+                    print("Missing user_id in OAuth callback for account linking")
+                    return jsonify({"error": "missing_user_id"}), 400
+                
+                # Ensure user_id is a string
+                user_id_str = str(user_id)
+                
+                # Save tokens for user
+                print(f"Saving tokens for user during account linking: {user_id_str}")
+                success = oauth_service.save_tokens_for_user(mongo.db, user_id_str, tokens)
+                
+                if not success:
+                    print(f"Failed to save tokens for user {user_id_str}")
+                    return jsonify({"error": "token_save_failed"}), 500
+                    
+                # For GET callback, redirect to app with success message
+                return redirect(f"zaam://callback?success=true&message=Google+account+linked+successfully")
+            else:
+                # Handle sign-in flow
+                # Get user info from Google using the access token
+                user_info = oauth_service.get_user_info(tokens['token'])
+                
+                if not user_info:
+                    print("Failed to get user info from Google")
+                    return jsonify({"error": "failed_to_get_user_info"}), 500
+                
+                print(f"Got user info from Google: {user_info.get('name')}, {user_info.get('email')}")
+                
+                # Check if user exists in our database
+                existing_user = User.find_by_email(mongo.db, user_info.get('email'))
+                
+                if existing_user:
+                    # User exists, update their Google tokens
+                    print(f"Found existing user: {existing_user._id}")
+                    # Convert ObjectId to string if it's not already a string
+                    user_id_str = str(existing_user._id)
+                    success = oauth_service.save_tokens_for_user(mongo.db, user_id_str, tokens)
+                    
+                    if not success:
+                        print(f"Failed to save tokens for user {user_id_str}")
+                        return jsonify({"error": "token_save_failed"}), 500
+                    
+                    # Generate JWT for the user
+                    auth_token = existing_user.generate_auth_token()
+                    
+                    # For GET callback, redirect to app with token and user_id
+                    return redirect(f"zaam://callback?token={auth_token}&user_id={user_id_str}")
+                else:
+                    # Create new user
+                    new_user = User(
+                        name=user_info.get('name'),
+                        email=user_info.get('email'),
+                        google_id=user_info.get('id'),
+                        profile_picture=user_info.get('picture')
+                    )
+                    
+                    # Save new user
+                    user_id = new_user.save(mongo.db)
+                    if not user_id:
+                        print("Failed to save new user")
+                        return jsonify({"error": "user_save_failed"}), 500
+                    
+                    # Save Google tokens for the new user
+                    success = oauth_service.save_tokens_for_user(mongo.db, str(user_id), tokens)
+                    if not success:
+                        print(f"Failed to save tokens for new user {user_id}")
+                        return jsonify({"error": "token_save_failed"}), 500
+                    
+                    # Check for temporary ID and associate tokens with it too
+                    temp_id = session.get('google_auth_temp_id')
+                    if temp_id:
+                        print(f"Found temporary ID: {temp_id}, associating Google tokens with it")
+                        # Save tokens for the temporary ID too
+                        oauth_service.save_tokens_for_user(mongo.db, temp_id, tokens)
+                    
+                    # Generate JWT for the new user
+                    auth_token = new_user.generate_auth_token()
+                    
+                    # For GET callback, redirect to app with token, user_id and is_new flag
+                    return redirect(f"zaam://callback?token={auth_token}&user_id={str(user_id)}&is_new=true")
+                    
+        except Exception as e:
+            print(f"Error in Google GET callback: {str(e)}")
+            return redirect(f"zaam://callback?error={str(e)}")
     
     @app.route('/api/auth/google/disconnect', methods=['POST'])
     def google_disconnect():
