@@ -28,8 +28,8 @@ conversation_qa_path = Path(__file__).parent.parent / "ConversationQA"
 sys.path.append(str(conversation_qa_path))
 
 # Import ConversationQA functionality
-from text_summarization import article_summarize
-from qa_singleton import get_qa_instance
+from ConversationQA.text_summarization import article_summarize
+from ConversationQA.qa_singleton import get_qa_instance
 
 # Get the singleton instance
 qa_system = get_qa_instance()
