@@ -15,8 +15,16 @@ LEARNING_RATE = 2e-5
 BERT_MODEL = 'bert-base-cased'  # Using cased variant as NER is case-sensitive
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-base_path = os.path.dirname(__file__)
-
+# Define function to get model path
+def get_model_path(model_filename):
+    # Get the directory of the current file
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Get the parent directory (ConversationQA)
+    parent_dir = os.path.dirname(current_dir)
+    # Get the Models directory path
+    models_dir = os.path.join(parent_dir, 'Models')
+    # Return the full path to the model file
+    return os.path.join(models_dir, model_filename)
 
 # CoNLL-2003 has these entity types
 tag2idx = {
@@ -76,21 +84,26 @@ class BERTSeq2SeqForNER(nn.Module):
         
         return {"loss": loss, "logits": logits} if loss is not None else {"logits": logits}
 
-bert_seq2seq_ner_path = os.path.join(base_path, "../", "Models", "bert_seq2seq_ner.pt")
-
 class NERPredictor:
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Load the model
-        self.model = BERTSeq2SeqForNER(BERT_MODEL, len(tag2idx))
+        model_path = get_model_path('bert_seq2seq_ner.pt')
+        print(f"Loading NER model from: {model_path}")
         
-        self.model.load_state_dict(torch.load(bert_seq2seq_ner_path, map_location=self.device))
-        self.model.to(self.device)
-        self.model.eval()
+        try:
+            self.model = BERTSeq2SeqForNER(BERT_MODEL, len(tag2idx))
+            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+            self.model.to(self.device)
+            self.model.eval()
+            print(f"NER model loaded successfully on {self.device}")
 
-        # Initialize tokenizer - Use Fast version
-        self.tokenizer = BertTokenizerFast.from_pretrained(BERT_MODEL)
+            # Initialize tokenizer - Use Fast version
+            self.tokenizer = BertTokenizerFast.from_pretrained(BERT_MODEL)
+        except Exception as e:
+            print(f"Failed to load NER model: {e}")
+            raise
 
     def predict(self, text):
         # Tokenize input

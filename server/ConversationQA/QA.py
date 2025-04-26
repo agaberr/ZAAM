@@ -17,7 +17,14 @@ from text_summarization import article_summarize
 from classifier.QueryClassifier import predict_query_type
 import os
 
-base_path = os.path.dirname(__file__)
+# Define function to get model path
+def get_model_path(model_filename):
+    # Get the directory of the current file
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Get the Models directory path
+    models_dir = os.path.join(current_dir, 'Models')
+    # Return the full path to the model file
+    return os.path.join(models_dir, model_filename)
 
 # Performance decorator for timing functions
 def timing_decorator(func):
@@ -35,7 +42,12 @@ class ConversationalQA:
         self.conversation_history = []
         self.current_passage = None
         # Load a smaller model for better performance
-        self.nlp = spacy.load("en_core_web_sm")  # Using smaller model
+        try:
+            self.nlp = spacy.load("en_core_web_sm")  # Using smaller model
+        except Exception as e:
+            print(f"Error loading spaCy model: {e}")
+            raise
+            
         self.current_entity = None
         self.entity_info = {}
         
@@ -56,43 +68,73 @@ class ConversationalQA:
         # Batch processing settings
         self.batch_size = 32  # Optimal batch size for embedding computation
         # load NER model
-        self.ner_predictor = NERPredictor()
+        try:
+            self.ner_predictor = NERPredictor()
+        except Exception as e:
+            print(f"Error loading NER predictor: {e}")
+            raise
+            
         # load Pronoun resolution model
-        self._load_pronoun_resolution_model()
+        try:
+            self._load_pronoun_resolution_model()
+        except Exception as e:
+            print(f"Error loading pronoun resolution model: {e}")
+            raise
+            
         # Initialize QA model
-        self._load_qa_model()
+        try:
+            self._load_qa_model()
+        except Exception as e:
+            print(f"Error loading QA model: {e}")
+            raise
 
-        classifyQuery_model_path = os.path.join(base_path, "Models", "classifier_model.pkl")
-        classifyVectorizar_path = os.path.join(base_path, "Models", "vectorizer.pkl")
-
-        self.classifyQuery_model =  joblib.load(classifyQuery_model_path)
-        self.classifyVectorizar = joblib.load(classifyVectorizar_path)
-        
+        try:
+            # Load classifier models using relative paths
+            self.classifyQuery_model = joblib.load(get_model_path("classifier_model.pkl"))
+            self.classifyVectorizar = joblib.load(get_model_path("vectorizer.pkl"))
+        except Exception as e:
+            print(f"Error loading classifier models: {e}")
+            raise
     
     def _load_pronoun_resolution_model(self):
-        # model_path = 'Models/pronoun_resolution_model_full.pt'
-        model_path = os.path.join(base_path, "Models", "pronoun_resolution_model_full.pt")
+        # Use relative paths
+        model_path_pr = get_model_path('pronoun_resolution_model_full.pt')
+        print(f"Loading pronoun resolution model from: {model_path_pr}")
+        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        checkpoint = torch.load(model_path, map_location=self.device)
-        bert_model_name = checkpoint.get('bert_model_name', 'bert-base-uncased')
+        print(f"Using device: {self.device}")
+        
+        try:
+            checkpoint = torch.load(model_path_pr, map_location=self.device)
+            bert_model_name = checkpoint.get('bert_model_name', 'bert-base-uncased')
 
-        self.tokenizer = BertTokenizer.from_pretrained(bert_model_name)
-        self.pronoun_model = PronounResolutionModel(bert_model_name=bert_model_name)
-        self.pronoun_model.load_state_dict(checkpoint['model_state_dict'])
-        self.pronoun_model.to(self.device)
-        self.pronoun_model.eval()
+            self.tokenizer = BertTokenizer.from_pretrained(bert_model_name)
+            self.pronoun_model = PronounResolutionModel(bert_model_name=bert_model_name)
+            self.pronoun_model.load_state_dict(checkpoint['model_state_dict'])
+            self.pronoun_model.to(self.device)
+            self.pronoun_model.eval()
+            print("Pronoun resolution model loaded successfully")
+        except Exception as e:
+            print(f"Failed to load pronoun resolution model: {e}")
+            raise
 
     def _load_qa_model(self):
-        self.model_qa = BertForQA()
-        model_path_qa = os.path.join(base_path, "Models", "extractiveQA.pt")
-
-        self.model_qa.load_state_dict(torch.load(model_path_qa, 
-                                             map_location=self.device))
-        self.model_qa.to(self.device)
-        self.model_qa.eval()
-        self.model_qa = self.model_qa.to(self.device)
-        self.tokenizer_qa = BertTokenizerFast.from_pretrained("bert-base-uncased")
-        print(f"Model loaded successfully on {self.device}")
+        # Use relative paths
+        model_path_qa = get_model_path('extractiveQA.pt')
+        print(f"Loading QA model from: {model_path_qa}")
+        
+        try:
+            self.model_qa = BertForQA()
+            self.model_qa.load_state_dict(torch.load(model_path_qa, 
+                                                map_location=self.device))
+            self.model_qa.to(self.device)
+            self.model_qa.eval()
+            self.model_qa = self.model_qa.to(self.device)
+            self.tokenizer_qa = BertTokenizerFast.from_pretrained("bert-base-uncased")
+            print(f"QA model loaded successfully on {self.device}")
+        except Exception as e:
+            print(f"Failed to load QA model: {e}")
+            raise
 
     def answer_question(self, question, context, max_length=384):
 
