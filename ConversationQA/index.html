@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Conversational QA System</title>
+    <style>
+      :root {
+        --primary-color: #4a6fa5;
+        --primary-light: #e1ebf7;
+        --secondary-color: #6c757d;
+        --success-color: #28a745;
+        --danger-color: #dc3545;
+        --background-color: #f8f9fa;
+        --text-color: #212529;
+        --border-color: #dee2e6;
+        --border-radius: 8px;
+        --spacing: 20px;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      body {
+        background-color: var(--background-color);
+        color: var(--text-color);
+        line-height: 1.6;
+        padding: 0;
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 var(--spacing);
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        background-color: var(--primary-color);
+        color: white;
+        padding: var(--spacing);
+        text-align: center;
+        position: relative;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      h1 {
+        margin-bottom: 10px;
+      }
+
+      .header-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .action-button {
+        background-color: white;
+        color: var(--primary-color);
+        border: none;
+        padding: 8px 16px;
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s;
+      }
+
+      .action-button:hover {
+        background-color: #f0f0f0;
+      }
+
+      .action-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .passage-container {
+        background-color: white;
+        padding: var(--spacing);
+        margin-bottom: var(--spacing);
+        border-bottom: 1px solid var(--border-color);
+        display: none;
+      }
+
+      .passage-textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        resize: vertical;
+        min-height: 120px;
+        margin-bottom: 10px;
+        font-size: 16px;
+      }
+
+      .passage-submit {
+        background-color: var(--success-color);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        font-weight: bold;
+      }
+
+      .passage-submit:hover {
+        opacity: 0.9;
+      }
+
+      .passage-submit:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .chat-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background-color: white;
+        border-radius: var(--border-radius);
+        margin-top: var(--spacing);
+        margin-bottom: var(--spacing);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: var(--spacing);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .welcome-message {
+        text-align: center;
+        margin: auto;
+        padding: var(--spacing);
+        color: var(--secondary-color);
+      }
+
+      .welcome-message h2 {
+        margin-bottom: 10px;
+        color: var(--primary-color);
+      }
+
+      .message {
+        max-width: 80%;
+        padding: 12px 16px;
+        border-radius: var(--border-radius);
+        position: relative;
+        line-height: 1.5;
+      }
+
+      .user-message {
+        background-color: var(--primary-light);
+        color: var(--text-color);
+        align-self: flex-end;
+        border-bottom-right-radius: 0;
+      }
+
+      .system-message {
+        background-color: white;
+        border: 1px solid var(--border-color);
+        align-self: flex-start;
+        border-bottom-left-radius: 0;
+      }
+
+      .message-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+        font-size: 0.85rem;
+      }
+
+      .message-sender {
+        font-weight: bold;
+        color: var(--primary-color);
+      }
+
+      .message-time {
+        color: var(--secondary-color);
+      }
+
+      .message-content {
+        word-break: break-word;
+      }
+
+      .message-metadata {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px dashed var(--border-color);
+        font-size: 0.85rem;
+        color: var(--secondary-color);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .metadata-label {
+        font-weight: bold;
+        margin-right: 4px;
+      }
+
+      .metadata-highlight {
+        color: var(--primary-color);
+        font-style: italic;
+      }
+
+      .typing-indicator {
+        display: none;
+        align-self: flex-start;
+        background-color: #e6e6e6;
+        padding: 12px 16px;
+        border-radius: var(--border-radius);
+        margin-bottom: 10px;
+      }
+
+      .typing-indicator::after {
+        content: "...";
+        animation: ellipsis 1.5s infinite;
+      }
+
+      @keyframes ellipsis {
+        0% {
+          content: ".";
+        }
+        33% {
+          content: "..";
+        }
+        66% {
+          content: "...";
+        }
+      }
+
+      .error-message {
+        color: var(--danger-color);
+        background-color: #f8d7da;
+        padding: 10px;
+        border-radius: var(--border-radius);
+        margin-bottom: 10px;
+        display: none;
+      }
+
+      .input-container {
+        display: flex;
+        padding: var(--spacing);
+        border-top: 1px solid var(--border-color);
+        background-color: #f9f9f9;
+      }
+
+      .query-input {
+        flex: 1;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius) 0 0 var(--border-radius);
+        font-size: 16px;
+      }
+
+      .query-input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+      }
+
+      .send-button {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 0 20px;
+        border-radius: 0 var(--border-radius) var(--border-radius) 0;
+        cursor: pointer;
+        font-weight: bold;
+      }
+
+      .send-button:hover {
+        background-color: #3a5a8c;
+      }
+
+      .send-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      @media (max-width: 768px) {
+        .header-buttons {
+          flex-direction: column;
+        }
+
+        .message {
+          max-width: 90%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Conversational QA System</h1>
+      <div class="header-buttons">
+        <button id="passageToggle" class="action-button">
+          Set Custom Passage
+        </button>
+        <button id="resetButton" class="action-button">
+          Reset Conversation
+        </button>
+      </div>
+    </header>
+
+    <div class="container">
+      <div id="passageContainer" class="passage-container">
+        <textarea
+          id="passageInput"
+          class="passage-textarea"
+          placeholder="Enter custom passage here..."
+        ></textarea>
+        <button id="passageSubmit" class="passage-submit">Set Passage</button>
+      </div>
+
+      <div class="chat-container">
+        <div id="errorMessage" class="error-message"></div>
+
+        <div id="messages" class="messages">
+          <div class="welcome-message">
+            <h2>Welcome to the QA System</h2>
+            <p>Ask a question to get started!</p>
+          </div>
+        </div>
+
+        <div id="typingIndicator" class="typing-indicator">I am thinking</div>
+
+        <div class="input-container">
+          <input
+            type="text"
+            id="queryInput"
+            class="query-input"
+            placeholder="Type your question here..."
+            autocomplete="off"
+          />
+          <button id="sendButton" class="send-button">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Configuration
+      const API_BASE_URL = "http://localhost:5000";
+
+      // DOM Elements
+      const passageToggle = document.getElementById("passageToggle");
+      const passageContainer = document.getElementById("passageContainer");
+      const passageInput = document.getElementById("passageInput");
+      const passageSubmit = document.getElementById("passageSubmit");
+      const resetButton = document.getElementById("resetButton");
+      const messagesContainer = document.getElementById("messages");
+      const queryInput = document.getElementById("queryInput");
+      const sendButton = document.getElementById("sendButton");
+      const typingIndicator = document.getElementById("typingIndicator");
+      const errorMessage = document.getElementById("errorMessage");
+
+      // Event Listeners
+      passageToggle.addEventListener("click", togglePassageInput);
+      passageSubmit.addEventListener("click", handleSetPassage);
+      resetButton.addEventListener("click", handleReset);
+      sendButton.addEventListener("click", handleSendQuery);
+      queryInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") handleSendQuery();
+      });
+
+      // Toggle passage input visibility
+      function togglePassageInput() {
+        const isVisible = passageContainer.style.display === "block";
+        passageContainer.style.display = isVisible ? "none" : "block";
+        passageToggle.textContent = isVisible
+          ? "Set Custom Passage"
+          : "Hide Passage Input";
+      }
+
+      // Format timestamp to readable time
+      function formatTime(timestamp) {
+        return new Date(timestamp).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      // Create message element
+      function createMessageElement(message) {
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${message.type}-message`;
+
+        const headerDiv = document.createElement("div");
+        headerDiv.className = "message-header";
+
+        const senderSpan = document.createElement("span");
+        senderSpan.className = "message-sender";
+        senderSpan.textContent = message.type === "user" ? "You" : "ZAAM";
+
+        const timeSpan = document.createElement("span");
+        timeSpan.className = "message-time";
+        timeSpan.textContent = formatTime(message.timestamp);
+
+        headerDiv.appendChild(senderSpan);
+        headerDiv.appendChild(timeSpan);
+
+        const contentDiv = document.createElement("div");
+        contentDiv.className = "message-content";
+        contentDiv.textContent = message.content;
+
+        messageDiv.appendChild(headerDiv);
+        messageDiv.appendChild(contentDiv);
+
+        // Add metadata for system messages
+        if (message.type === "system" && message.metadata) {
+          const metadataDiv = document.createElement("div");
+          metadataDiv.className = "message-metadata";
+
+          // Confidence
+          const confidenceDiv = document.createElement("div");
+          const confidenceLabel = document.createElement("span");
+          confidenceLabel.className = "metadata-label";
+          confidenceLabel.textContent = "Confidence:";
+          const confidenceValue = document.createElement("span");
+          confidenceValue.textContent = ` ${message.metadata.confidence}`;
+          confidenceDiv.appendChild(confidenceLabel);
+          confidenceDiv.appendChild(confidenceValue);
+
+          // Processing time
+          const timeDiv = document.createElement("div");
+          const timeLabel = document.createElement("span");
+          timeLabel.className = "metadata-label";
+          timeLabel.textContent = "Processing Time:";
+          const timeValue = document.createElement("span");
+          timeValue.textContent = ` ${message.metadata.processingTime}s`;
+          timeDiv.appendChild(timeLabel);
+          timeDiv.appendChild(timeValue);
+
+          metadataDiv.appendChild(confidenceDiv);
+          metadataDiv.appendChild(timeDiv);
+
+          // Debug info
+          if (message.metadata.debug) {
+            if (message.metadata.debug.needed_new_passage) {
+              const passageDiv = document.createElement("div");
+              passageDiv.className = "metadata-highlight";
+              passageDiv.textContent =
+                "A new passage was generated to answer this question";
+              metadataDiv.appendChild(passageDiv);
+            }
+
+            if (message.metadata.debug.current_entity) {
+              const entityDiv = document.createElement("div");
+              const entityLabel = document.createElement("span");
+              entityLabel.className = "metadata-label";
+              entityLabel.textContent = "Current Entity:";
+              const entityValue = document.createElement("span");
+              entityValue.textContent = ` ${message.metadata.debug.current_entity}`;
+              entityDiv.appendChild(entityLabel);
+              entityDiv.appendChild(entityValue);
+              metadataDiv.appendChild(entityDiv);
+            }
+          }
+
+          messageDiv.appendChild(metadataDiv);
+        }
+
+        return messageDiv;
+      }
+
+      // Add message to UI
+      function addMessage(message) {
+        const messageElement = createMessageElement(message);
+        messagesContainer.appendChild(messageElement);
+        scrollToBottom();
+      }
+
+      // Scroll messages to bottom
+      function scrollToBottom() {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+
+      // Show/hide typing indicator
+      function setLoading(isLoading) {
+        typingIndicator.style.display = isLoading ? "block" : "none";
+        sendButton.disabled = isLoading;
+        resetButton.disabled = isLoading;
+        passageSubmit.disabled = isLoading;
+      }
+
+      // Show/hide error message
+      function showError(message) {
+        if (message) {
+          errorMessage.textContent = message;
+          errorMessage.style.display = "block";
+        } else {
+          errorMessage.style.display = "none";
+        }
+      }
+
+      // Handle sending a query
+      async function handleSendQuery() {
+        const query = queryInput.value.trim();
+
+        if (!query) return;
+
+        // Add user message
+        const userMessage = {
+          type: "user",
+          content: query,
+          timestamp: Date.now(),
+        };
+
+        addMessage(userMessage);
+        queryInput.value = "";
+        showError(null);
+        setLoading(true);
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/query`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: query,
+              session_id: "user_session",
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Server responded with status: ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          if (data.status === "success") {
+            const systemMessage = {
+              type: "system",
+              content: data.answer,
+              metadata: {
+                confidence: data.confidence,
+                processingTime: data.processing_time,
+                debug: data.debug,
+              },
+              timestamp: Date.now(),
+            };
+
+            addMessage(systemMessage);
+          } else {
+            showError(data.error || "Unknown error occurred");
+          }
+        } catch (err) {
+          console.error("Error sending query:", err);
+          showError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      // Handle resetting conversation
+      async function handleReset() {
+        setLoading(true);
+        showError(null);
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/reset`, {
+            method: "POST",
+          });
+
+          if (!response.ok) {
+            throw new Error(`Server responded with status: ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          if (data.status === "success") {
+            // Clear messages and add system message
+            messagesContainer.innerHTML = "";
+            addMessage({
+              type: "system",
+              content: "Conversation has been reset.",
+              timestamp: Date.now(),
+            });
+          } else {
+            showError(data.error || "Failed to reset conversation");
+          }
+        } catch (err) {
+          console.error("Error resetting conversation:", err);
+          showError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      // Handle setting custom passage
+      async function handleSetPassage() {
+        const passage = passageInput.value.trim();
+
+        if (!passage) return;
+
+        setLoading(true);
+        showError(null);
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/set_passage`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              passage: passage,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Server responded with status: ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          if (data.status === "success") {
+            addMessage({
+              type: "system",
+              content: "Custom passage has been set.",
+              timestamp: Date.now(),
+            });
+
+            togglePassageInput();
+            passageInput.value = "";
+          } else {
+            showError(data.error || "Failed to set custom passage");
+          }
+        } catch (err) {
+          console.error("Error setting passage:", err);
+          showError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+    </script>
+  </body>
+</html>
