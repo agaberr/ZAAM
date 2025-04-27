@@ -8,12 +8,13 @@ import json
 import jwt
 import datetime
 import pytz
-from models.reminder_nlp import ReminderNLP
-from models.reminder import Reminder
-from models.google_calendar import GoogleCalendarService
-from models.google_oauth import GoogleOAuthService
-# Import the functionality from reminder_ai_routes but don't register routes
-from routes.reminder_ai_routes import register_reminder_ai_routes
+# Remove imports related to reminders and Google Calendar
+# from models.reminder_nlp import ReminderNLP
+# from models.reminder import Reminder
+# from models.google_calendar import GoogleCalendarService
+# from models.google_oauth import GoogleOAuthService
+# Remove import from reminder_ai_routes
+# from routes.reminder_ai_routes import register_reminder_ai_routes
 
 # Configure logging
 logging.basicConfig(
@@ -53,41 +54,14 @@ def register_ai_routes(app, mongo):
     ai_processor = AIProcessor()
     print("[DEBUG] AI Processor initialized")
     
-    # Initialize reminder-related services
-    nlp_service = ReminderNLP()
-    oauth_service = GoogleOAuthService()
-    print("[DEBUG] ReminderNLP and GoogleOAuthService initialized")
+    # Remove ReminderNLP and GoogleOAuthService initialization
     
     # JWT secret for authentication
     JWT_SECRET = os.getenv("JWT_SECRET")
     print(f"[DEBUG] JWT_SECRET length: {len(JWT_SECRET) if JWT_SECRET else 0} characters")
     
-    print("\n[DEBUG] Creating test Flask app for reminder AI routes")
-    # Create a test Flask app to register the reminder AI routes without conflicts
-    # This allows us to reuse the implementation while avoiding endpoint conflicts
-    from flask import Flask
-    reminder_app = Flask("reminder_test_app")
-    reminder_modules = {}
+    # Remove test Flask app for reminder AI routes
     
-    print("[DEBUG] Registering reminder AI routes in test app")
-    register_reminder_ai_routes(reminder_app, mongo)
-    
-    # Save the implementation of process_reminder_request to use it later
-    reminder_handler = None
-    endpoint_found = False
-    print("[DEBUG] Looking for process_reminder_request in registered endpoints")
-    for rule in reminder_app.url_map.iter_rules():
-        print(f"[DEBUG] Test app has endpoint: {rule.endpoint}, URL: {rule}")
-        if rule.endpoint == "process_reminder_request":
-            endpoint_found = True
-            reminder_handler = reminder_app.view_functions["process_reminder_request"]
-            print(f"[DEBUG] Found process_reminder_request handler: {reminder_handler}")
-            break
-    
-    if not endpoint_found:
-        print("[DEBUG] WARNING: Could not find process_reminder_request endpoint in test app!")
-        
-    print(f"[DEBUG] Successfully imported reminder AI handler: {reminder_handler is not None}")
     print("===== END OF AI ROUTES INITIALIZATION =====\n")
     
     # Helper function to get authenticated user ID
@@ -110,10 +84,7 @@ def register_ai_routes(app, mongo):
             # Check for user_id directly in session
             elif 'user_id' in session:
                 return session['user_id']
-            # Check for google_auth_temp_id in session (from Google OAuth flow)
-            elif 'google_auth_temp_id' in session:
-                print(f"[DEBUG] Found google_auth_temp_id in session: {session['google_auth_temp_id']}")
-                return session['google_auth_temp_id']
+            # Remove Google OAuth related checks
         
         # If we have a token, decode it
         if token:
@@ -132,14 +103,8 @@ def register_ai_routes(app, mongo):
                 user_session = mongo.db.sessions.find_one({"_id": session_id})
                 if user_session and 'user_id' in user_session:
                     return user_session['user_id']
-                    
-            # Check if there's a Google session in progress
-            if 'google_auth_temp_id' in session:
-                google_temp_id = session['google_auth_temp_id']
-                # Look up the user by their Google temp ID
-                user = mongo.db.users.find_one({"google_auth_temp_id": google_temp_id})
-                if user:
-                    return str(user["_id"])
+            
+            # Remove Google session check
         except Exception as e:
             logger.error(f"Error checking session in database: {str(e)}")
         
@@ -190,322 +155,47 @@ def register_ai_routes(app, mongo):
             print(f"[DEBUG] Error in process_news_internal: {str(e)}")
             return {"response": f"Error processing news query: {str(e)}", "success": False}
     
-    # Internal function to process reminder queries - this now uses the implementation from reminder_ai_routes.py
-    def process_reminder_internal(text):
-        """Internal function to process reminder queries, using the handlers from reminder_ai_routes.py"""
-        try:
-            print(f"\n===== PROCESS_REMINDER_INTERNAL CALLED =====")
-            print(f"[DEBUG] process_reminder_internal called with: '{text}'")
-            
-            # Get authenticated user ID
-            user_id = get_authenticated_user_id()
-            print(f"[DEBUG] Authentication status: user_id={user_id}")
-            
-            # For development purposes, allow bypass if no user is found
-            if not user_id and os.getenv("FLASK_ENV") == "development":
-                print("[DEBUG] DEVELOPMENT MODE: Creating temporary user for reminder processing")
-                try:
-                    # Try to get the first user in the database
-                    temp_user = mongo.db.users.find_one({})
-                    if temp_user:
-                        user_id = str(temp_user["_id"])
-                        print(f"[DEBUG] Using temporary user ID: {user_id}")
-                    else:
-                        print("[DEBUG] No users found in the database!")
-                except Exception as e:
-                    print(f"[DEBUG] Error getting temporary user: {str(e)}")
-            
-            # If still no user ID, return authentication error
-            if not user_id:
-                print(f"[DEBUG] No authenticated user for reminder processing - returning auth error")
-                return {
-                    "response": "Authentication required to process reminders. Please log in first.",
-                    "category": "reminder",
-                    "success": False
-                }
-            
-            # Check if we have the reminder handler
-            print(f"[DEBUG] Reminder handler available: {reminder_handler is not None}")
-            print(f"[DEBUG] JWT_SECRET available: {JWT_SECRET is not None}")
-            
-            # If we have the reminder handler from reminder_ai_routes.py and a valid JWT secret
-            if reminder_handler and JWT_SECRET:
-                try:
-                    print("[DEBUG] Attempting to use reminder_handler from reminder_ai_routes.py")
-                    # Create a JWT token to authenticate the request
-                    token = jwt.encode({"user_id": user_id}, JWT_SECRET, algorithm="HS256")
-                    print(f"[DEBUG] Generated JWT token (first 15 chars): {token[:15]}...")
-                    
-                    # Create test environment to call the handler
-                    print("[DEBUG] Creating test request context")
-                    data_json = json.dumps({"text": text})
-                    print(f"[DEBUG] Request data: {data_json}")
-                    
-                    with reminder_app.test_request_context(
-                        '/api/ai/reminder',
-                        method='POST',
-                        data=data_json,
-                        headers={
-                            'Authorization': f'Bearer {token}',
-                            'Content-Type': 'application/json'
-                        }
-                    ):
-                        print("[DEBUG] Calling reminder_handler from reminder_ai_routes.py")
-                        # Call the handler function directly
-                        response = reminder_handler()
-                        print(f"[DEBUG] Got response type: {type(response)}")
-                        
-                        # Process the response
-                        if hasattr(response, 'get_json'):
-                            # It's a Response object
-                            print("[DEBUG] Converting Response object to dict")
-                            response_data = response.get_json()
-                            print(f"[DEBUG] Response data: {response_data}")
-                            
-                            formatted_response = {
-                                "response": response_data.get("message", ""),
-                                "category": "reminder",
-                                "success": response_data.get("success", False)
-                            }
-                            
-                            # Copy any additional fields
-                            for key in ["reminder_id", "reminder", "reminders"]:
-                                if key in response_data:
-                                    formatted_response[key] = response_data[key]
-                            
-                            print(f"[DEBUG] Returning formatted response: {formatted_response}")
-                            return formatted_response
-                        else:
-                            print(f"[DEBUG] Response is not a Response object: {response}")
-                        
-                except Exception as e:
-                    print(f"[DEBUG] Error calling reminder handler: {str(e)}")
-                    import traceback
-                    print(f"[DEBUG] Traceback: {traceback.format_exc()}")
-            
-            # If we couldn't use the reminder handler, fall back to our own implementation
-            print("[DEBUG] Using fallback reminder implementation in ai_routes.py")
-            
-            # Process the input with NLP
-            print("[DEBUG] Calling nlp_service.predict")
-            nlp_result = nlp_service.predict(text)
-            print(f"[DEBUG] NLP result: {nlp_result}")
-            
-            if not nlp_result.get('success', False):
-                print(f"[DEBUG] NLP processing failed: {nlp_result}")
-                error_message = nlp_result.get('error', 'Failed to understand your request')
-                return {
-                    "response": f"Sorry, I couldn't process your reminder request: {error_message}",
-                    "category": "reminder",
-                    "success": False,
-                    "error": error_message
-                }
-                
-            # Extract parsed data
-            parsed_data = nlp_result.get('parsed_data', {})
-            intent = parsed_data.get('predicted_intent')
-            action = parsed_data.get('predicted_action')
-            time_str = parsed_data.get('predicted_time')
-            
-            response_message = nlp_result.get('response', "I've processed your request.")
-            
-            # Handle intents
-            if intent == "create_event" and action:
-                # Parse time to datetime
-                try:
-                    start_time = nlp_service.parse_time_to_datetime(time_str)
-                    end_time = start_time + datetime.timedelta(hours=1)
-                    
-                    # Create reminder object
-                    reminder = Reminder(
-                        user_id=user_id,
-                        title=action,
-                        description=f"Created from voice command: '{text}'",
-                        start_time=start_time,
-                        end_time=end_time,
-                        recurrence=None  # No recurrence by default for voice reminders
-                    )
-                    
-                    # Save reminder
-                    success, errors = reminder.save(mongo.db)
-                    
-                    if not success:
-                        return jsonify({
-                            "success": False,
-                            "message": "Failed to create reminder",
-                            "errors": errors
-                        }), 400
-                    
-                    # Try to create Google Calendar event if credentials are available
-                    google_credentials = oauth_service.get_credentials_for_user(mongo.db, user_id)
-                    if google_credentials:
-                        print(f"Found Google credentials for user {user_id}, attempting to create calendar event")
-                        calendar_service = GoogleCalendarService(google_credentials)
-                        event_id = calendar_service.create_event(reminder)
-                        if event_id:
-                            print(f"Successfully created Google Calendar event with ID: {event_id}")
-                            # Update reminder with Google event ID
-                            reminder.google_event_id = event_id
-                            reminder.save(mongo.db)
-                            
-                            return jsonify({
-                                "success": True,
-                                "message": f"{response_message} I've also added it to your Google Calendar.",
-                                "reminder_id": str(reminder._id),
-                                "reminder": {
-                                    "title": reminder.title,
-                                    "start_time": reminder.start_time.isoformat(),
-                                    "end_time": reminder.end_time.isoformat() if reminder.end_time else None,
-                                    "google_event_id": event_id
-                                }
-                            })
-                        else:
-                            print(f"Failed to create Google Calendar event for reminder {reminder._id}")
-                    else:
-                        print(f"No Google credentials found for user {user_id}, skipping calendar integration")
-                        print(f"Available tokens in database: {list(mongo.db.google_tokens.find())}")
-                        
-                        # Try to create tokens using request body directly
-                        temp_user = mongo.db.users.find_one({"_id": user_id})
-                        if temp_user and temp_user.get("google_id"):
-                            print(f"User has Google ID but no tokens, trying to recover tokens")
-                            # Look for tokens by email
-                            if temp_user.get("email"):
-                                other_user = mongo.db.users.find_one({"email": temp_user.get("email")})
-                                if other_user:
-                                    print(f"Found other user with same email, trying their tokens")
-                                    google_credentials = oauth_service.get_credentials_for_user(mongo.db, str(other_user["_id"]))
-                                    if google_credentials:
-                                        print(f"Found credentials for other user, trying to create calendar event")
-                                        calendar_service = GoogleCalendarService(google_credentials)
-                                        event_id = calendar_service.create_event(reminder)
-                                        if event_id:
-                                            print(f"Successfully created Google Calendar event with ID: {event_id}")
-                                            reminder.google_event_id = event_id
-                                            reminder.save(mongo.db)
-                                            
-                                            return jsonify({
-                                                "success": True,
-                                                "message": f"{response_message} I've also added it to your Google Calendar.",
-                                                "reminder_id": str(reminder._id),
-                                                "reminder": {
-                                                    "title": reminder.title,
-                                                    "start_time": reminder.start_time.isoformat(),
-                                                    "end_time": reminder.end_time.isoformat() if reminder.end_time else None,
-                                                    "google_event_id": event_id
-                                                }
-                                            })
-                    
-                    # If we got here, no Google Calendar event was created
-                    return jsonify({
-                        "success": True,
-                        "message": response_message,
-                        "reminder_id": str(reminder._id),
-                        "reminder": {
-                            "title": reminder.title,
-                            "start_time": reminder.start_time.isoformat(),
-                            "end_time": reminder.end_time.isoformat() if reminder.end_time else None
-                        }
-                    })
-                    
-                except Exception as e:
-                    logger.error(f"Error creating reminder: {str(e)}", exc_info=True)
-                    print(f"[DEBUG] Error creating reminder: {str(e)}")
-                    return jsonify({
-                        "success": False,
-                        "message": f"I couldn't create your reminder due to an error: {str(e)}",
-                        "error": str(e)
-                    }), 500
-                    
-            elif intent == "get_timetable":
-                # Show today's schedule
-                try:
-                    now = datetime.datetime.now(pytz.timezone('Africa/Cairo'))
-                    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                    today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
-                    
-                    # Get reminders for today
-                    reminders = Reminder.find_by_user_and_timerange(
-                        mongo.db, 
-                        user_id, 
-                        today_start, 
-                        today_end
-                    )
-                    
-                    # Format reminders for response
-                    formatted_reminders = []
-                    for reminder in reminders:
-                        formatted_time = reminder.start_time.strftime('%I:%M %p')
-                        formatted_reminders.append({
-                            "id": str(reminder._id),
-                            "title": reminder.title,
-                            "time": formatted_time,
-                            "description": reminder.description,
-                            "completed": reminder.completed
-                        })
-                    
-                    # Generate response
-                    if not formatted_reminders:
-                        response_message = "You don't have any reminders scheduled for today. Your schedule is clear!"
-                    else:
-                        today_date = now.strftime("%A, %B %d")
-                        response_items = [f"• {r['time']} - {r['title']}" for r in formatted_reminders]
-                        items_text = "\n".join(response_items)
-                        response_message = f"Here's your schedule for {today_date}:\n\n{items_text}"
-                    
-                    return jsonify({
-                        "success": True,
-                        "message": response_message,
-                        "reminders": formatted_reminders
-                    })
-                    
-                except Exception as e:
-                    logger.error(f"Error fetching timetable: {str(e)}", exc_info=True)
-                    print(f"[DEBUG] Error fetching timetable: {str(e)}")
-                    return jsonify({
-                        "success": False,
-                        "message": f"I couldn't retrieve your schedule due to an error: {str(e)}",
-                        "error": str(e)
-                    }), 500
-            else:
-                # Use the response from the NLP service
-                return jsonify({
-                    "success": True,
-                    "message": response_message,
-                    "intent": intent
-                })
-                
-        except Exception as e:
-            logger.error(f"Error in process_reminder_internal: {str(e)}", exc_info=True)
-            print(f"[DEBUG] Error in process_reminder_internal: {str(e)}")
-            return {
-                "response": f"Error processing reminder: {str(e)}",
-                "category": "reminder", 
-                "success": False
-            }
-    
-    # Internal function to process weather queries
+    # Remove process_reminder_internal function
+
     def process_weather_internal(text):
-        """Internal function to process weather queries, used by the main AI route"""
+        """Internal function to process weather-related queries"""
         try:
             print(f"[DEBUG] process_weather_internal called with: '{text}'")
             
-            # Process weather text
-            sentences = text.split('.')
-            sentences = [s.strip() for s in sentences if s.strip()]
+            # For now, just extract entities and return a weather-formatted response
+            # In a real implementation, this would call a weather API
             
-            # Format the response
-            newline = '\n'
-            response = f"WEATHER: Processed weather request:{newline}- {newline}- ".join(sentences)
+            # Simple entity extraction for city names, dates, etc.
+            location_match = re.search(r'(?:in|at|for)\s+([A-Za-z\s]+)(?:,|\?|\.|\s+|$)', text)
+            location = location_match.group(1).strip() if location_match else "your current location"
             
-            print(f"[DEBUG] Weather response: '{response}'")
+            # Extract time reference (today, tomorrow, etc)
+            time_match = re.search(r'(?:today|tomorrow|tonight|this week|next week|on\s+([A-Za-z]+))', text, re.IGNORECASE)
+            time_ref = time_match.group(0) if time_match else "today"
+            
+            # Generate a simple response
+            forecast_options = [
+                f"The weather {time_ref} in {location} looks good with temperatures around 75°F (24°C).",
+                f"Expect partly cloudy skies {time_ref} in {location} with a high of 72°F (22°C).",
+                f"The forecast for {location} {time_ref} shows a chance of rain with temperatures around 68°F (20°C)."
+            ]
+            
+            # Select a random forecast for demo purposes
+            import random
+            weather_response = random.choice(forecast_options)
+            
+            # Create a formatted response
+            response = f"WEATHER: {weather_response}\n\nNote: This is a demonstration response. In a production environment, this would connect to a real weather API."
             
             result = {
                 "response": response,
                 "category": "weather",
-                "success": True
+                "success": True,
+                "location": location,
+                "time": time_ref
             }
             return result
+            
         except Exception as e:
             logger.error(f"Error in process_weather_internal: {str(e)}")
             print(f"[DEBUG] Error in process_weather_internal: {str(e)}")
@@ -514,114 +204,66 @@ def register_ai_routes(app, mongo):
     @app.route('/api/ai/process', methods=['POST'])
     def process_ai_request():
         """
-        Process an AI request with natural language understanding.
+        Process a natural language input and categorize it.
         
-        This endpoint accepts natural language input and categorizes it into
-        different types (news, reminders, weather), processing each category
-        with specialized handlers.
+        This route handles general queries by categorizing them as news, weather, or other types,
+        and processes each category accordingly.
         """
         try:
-            # Get the request data
             data = request.json
             if not data or 'text' not in data:
                 return jsonify({"error": "No text provided in request"}), 400
                 
-            # Get the text from the request
             text = data['text']
-            print(f"[DEBUG] /api/ai/process received: '{text}'")
+            print(f"[DEBUG] AI processing request: '{text}'")
             
-            # Segment the text into categories
+            # Get authentication info for advanced processing
+            user_id = get_authenticated_user_id()
+            print(f"[DEBUG] User ID: {user_id}")
+            
+            # Categorize text into different segments
+            ai_processor = AIProcessor()
             segments = ai_processor.segment_sentences(text)
-            print(f"[DEBUG] Segments: {segments}")
+            
+            print(f"[DEBUG] Categorized segments: {segments.keys()}")
             
             # Process each category
             responses = {}
             combined_response = ""
             
-            # Process news queries
-            if segments.get("news"):
+            # Process news segments
+            if "news" in segments and segments["news"]:
                 news_text = " ".join(segments["news"])
-                print(f"[DEBUG] Redirecting to news processing: '{news_text}'")
+                print(f"[DEBUG] Processing news segment: '{news_text}'")
                 
-                news_response = process_news_internal(news_text)
-                print(f"[DEBUG] News response: {news_response}")
+                news_result = process_news_internal(news_text)
+                news_response = f"NEWS: {news_result['response']}"
                 
-                responses["news"] = news_response.get("response", "")
-                combined_response += responses["news"] + "\n\n"
+                responses["news"] = news_response
+                combined_response += news_response + "\n\n"
             
-            # Process reminder queries
-            if segments.get("reminders"):
-                reminder_text = " ".join(segments["reminders"])
-                print(f"[DEBUG] Redirecting to reminder processing: '{reminder_text}'")
-                
-                # Get user authentication for reminder processing
-                user_id = get_authenticated_user_id()
-                
-                # In development mode, we can proceed even without authentication
-                # IMPORTANT: Remove this in production 
-                dev_mode = os.getenv("FLASK_ENV") == "development"
-                
-                if user_id or dev_mode:
-                    if user_id:
-                        print(f"[DEBUG] User authenticated for reminder: {user_id}")
-                    else:
-                        print("[DEBUG] DEVELOPMENT MODE: Proceeding without authentication")
-                    
-                    # Check if NLP model is loaded
-                    if not nlp_service.is_loaded:
-                        print("[DEBUG] NLP model not loaded, cannot process reminder")
-                        reminder_response = {
-                            "response": "I'm sorry, the reminder processing service is currently unavailable. Please try again later.",
-                            "category": "reminder",
-                            "success": False,
-                            "error": "NLP model not loaded"
-                        }
-                    else:
-                        # Call reminder processing function
-                        reminder_response = process_reminder_internal(reminder_text)
-                else:
-                    print("[DEBUG] No authentication for reminder processing")
-                    reminder_response = {
-                        "response": "Authentication required to process reminders. Please log in first.",
-                        "category": "reminder",
-                        "success": False
-                    }
-                
-                print(f"[DEBUG] Reminder response: {reminder_response}")
-                
-                # Extract the response text from reminder_response
-                if isinstance(reminder_response, dict):
-                    # If it's a dictionary, extract the response field
-                    responses["reminders"] = reminder_response.get("response", "")
-                else:
-                    # If it's a Response object, convert it to JSON and extract the message
-                    try:
-                        # Attempt to get the JSON data from the response
-                        response_data = reminder_response.get_json()
-                        responses["reminders"] = response_data.get("message", response_data.get("response", ""))
-                    except Exception as e:
-                        print(f"[DEBUG] Error extracting response from reminder: {e}")
-                        responses["reminders"] = "I processed your reminder, but couldn't format the response properly."
-                
-                combined_response += responses["reminders"] + "\n\n"
-            
-            # Process weather queries
-            if segments.get("weather"):
+            # Process weather segments
+            if "weather" in segments and segments["weather"]:
                 weather_text = " ".join(segments["weather"])
-                print(f"[DEBUG] Redirecting to weather processing: '{weather_text}'")
+                print(f"[DEBUG] Processing weather segment: '{weather_text}'")
                 
-                weather_response = process_weather_internal(weather_text)
-                print(f"[DEBUG] Weather response: {weather_response}")
+                weather_result = process_weather_internal(weather_text)
+                weather_response = weather_result["response"]
                 
-                responses["weather"] = weather_response.get("response", "")
-                combined_response += responses["weather"] + "\n\n"
+                responses["weather"] = weather_response
+                combined_response += weather_response + "\n\n"
             
-            # Process uncategorized as generic responses
-            if segments.get("uncategorized"):
+            # Remove reminder segment processing
+            
+            # Process uncategorized segments
+            if "uncategorized" in segments and segments["uncategorized"]:
                 uncategorized_text = " ".join(segments["uncategorized"])
-                print(f"[DEBUG] Processing uncategorized text: '{uncategorized_text}'")
+                print(f"[DEBUG] Processing uncategorized segment: '{uncategorized_text}'")
                 
-                uncategorized_response = ai_processor.process_uncategorized(segments["uncategorized"])
+                # Try to process it as a general query
+                uncategorized_result = process_news_internal(uncategorized_text)
+                uncategorized_response = uncategorized_result["response"]
+                
                 responses["uncategorized"] = uncategorized_response
                 combined_response += uncategorized_response + "\n\n"
             
@@ -758,67 +400,4 @@ def register_ai_routes(app, mongo):
             logger.error(f"Error processing news article: {str(e)}")
             return jsonify({"error": str(e), "success": False}), 500
     
-    # Add back the reminder route with a unique name to avoid conflicts
-    @app.route('/api/ai/reminder', methods=['POST'])
-    def process_reminder():
-        """Process reminder-specific requests using the handler from reminder_ai_routes.py."""
-        try:
-            print("\n===== /API/AI/REMINDER ENDPOINT CALLED =====")
-            # If we have the imported handler from reminder_ai_routes.py, use it
-            print(f"[DEBUG] reminder_handler available: {reminder_handler is not None}")
-            if reminder_handler:
-                print("[DEBUG] Using imported reminder_handler from reminder_ai_routes.py")
-                return reminder_handler()
-            
-            print("[DEBUG] Fallback to local implementation - reminder_handler not available")
-            # Fallback implementation if the handler is not available
-            data = request.json
-            if not data or 'text' not in data:
-                print("[DEBUG] /api/ai/reminder: No text provided in request")
-                return jsonify({"error": "No text provided in request"}), 400
-                
-            text = data['text']
-            print(f"[DEBUG] /api/ai/reminder received: '{text}'")
-            
-            # Use the internal implementation
-            print("[DEBUG] Calling process_reminder_internal")
-            result = process_reminder_internal(text)
-            print(f"[DEBUG] process_reminder_internal returned: {result}")
-            
-            # If result is already a Response object, return it directly
-            if hasattr(result, 'get_data'):
-                return result
-                
-            # Otherwise convert to a proper response
-            if isinstance(result, dict):
-                # Extract the fields we need
-                success = result.get("success", False)
-                message = result.get("response", "")
-                
-                response_data = {
-                    "success": success,
-                    "message": message
-                }
-                
-                # Add any additional fields
-                for key in ["reminder_id", "reminder", "reminders", "category", "error"]:
-                    if key in result:
-                        response_data[key] = result[key]
-                
-                status_code = 400 if not success else 200
-                return jsonify(response_data), status_code
-            
-            # If we got something unexpected, return an error
-            return jsonify({
-                "error": "Unexpected response format", 
-                "success": False
-            }), 500
-                
-        except Exception as e:
-            logger.error(f"Error in /api/ai/reminder: {str(e)}", exc_info=True)
-            print(f"[DEBUG] Error in /api/ai/reminder: {str(e)}")
-            return jsonify({
-                "error": str(e), 
-                "success": False,
-                "response": "Sorry, I encountered an error while processing your reminder request."
-            }), 500 
+    # Remove the reminder route 

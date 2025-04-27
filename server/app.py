@@ -271,20 +271,12 @@ import json
 from routes.main_routes import register_main_routes
 from routes.user_routes import register_user_routes
 from routes.auth_routes import register_auth_routes
-from routes.reminder_routes import register_reminder_routes
-from routes.google_auth_routes import register_google_auth_routes
 from routes.ai_routes import register_ai_routes
-# Keep import, but don't register directly to avoid conflicts
-from routes.reminder_ai_routes import register_reminder_ai_routes
-from routes.reminder_sync_routes import register_reminder_sync_routes
 from routes.conversation_qa_routes import register_conversation_qa_routes
 from routes.memory_aid_routes import memory_aid_routes
 
 # Load environment variables
 load_dotenv()
-
-# Google OAuth Config - Important for authentication to work
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # Only for development
 
 # Initialize QA system early to load models at startup
 def initialize_qa_system():
@@ -364,12 +356,7 @@ except Exception as e:
 register_main_routes(app)
 register_user_routes(app, mongo)
 register_auth_routes(app, mongo)
-register_reminder_routes(app, mongo)
-register_google_auth_routes(app, mongo)
 register_ai_routes(app, mongo)
-# Remove the direct registration of reminder_ai_routes to avoid endpoint conflicts
-# register_reminder_ai_routes(app, mongo)
-register_reminder_sync_routes(app, mongo)
 register_conversation_qa_routes(app, mongo)
 app.register_blueprint(memory_aid_routes)
 

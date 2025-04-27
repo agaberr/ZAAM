@@ -51,7 +51,6 @@ class AIProcessor:
         vector_size = 100
         self.category_embeddings = {
             "news": np.ones(vector_size) / np.sqrt(vector_size),
-            "reminders": np.ones(vector_size) / np.sqrt(vector_size) * 0.8,
             "weather": np.ones(vector_size) / np.sqrt(vector_size) * 0.6
         }
         
@@ -84,8 +83,6 @@ class AIProcessor:
             keywords = {
                 "news": ["news", "report", "headline", "breaking", "article", "story", "journalist", 
                          "media", "press", "announce", "publish", "tell me", "who is", "what is"],
-                "reminders": ["remind", "remember", "appointment", "schedule", "meeting", "event", 
-                             "task", "deadline", "todo", "don't forget", "call", "email", "calendar"],
                 "weather": ["weather", "temperature", "forecast", "rain", "snow", "sunny", "cloudy", 
                            "storm", "wind", "humidity", "cold", "hot", "degrees"]
             }
@@ -145,9 +142,6 @@ class AIProcessor:
         if segments.get("news"):
             responses["news"] = self.process_news(segments["news"])
         
-        if segments.get("reminders"):
-            responses["reminders"] = self.process_reminders(segments["reminders"])
-        
         if segments.get("weather"):
             responses["weather"] = self.process_weather(segments["weather"])
         
@@ -188,12 +182,6 @@ class AIProcessor:
         newline = '\n'
         return f"NEWS: I found news information in your request:{newline}- {newline}- ".join(str(s) for s in sentences if s)
     
-    def process_reminders(self, sentences):
-        """Process reminder-related sentences."""
-        # This would be replaced with a model call in production
-        newline = '\n'
-        return f"REMINDER: I'll help you with these reminders:{newline}- {newline}- ".join(sentences)
-    
     def process_weather(self, sentences):
         """Process weather-related sentences."""
         # This would be replaced with a model call in production
@@ -202,6 +190,10 @@ class AIProcessor:
     
     def process_uncategorized(self, sentences):
         """Process uncategorized sentences."""
-        # This would be replaced with a more sophisticated fallback in production
-        newline = '\n'
-        return f"I'm not sure how to categorize these parts of your request:{newline}- {newline}- ".join(sentences) 
+        # Default processing for uncategorized sentences
+        if not sentences:
+            return ""
+            
+        # Join sentences and return as general response
+        combined_text = " ".join(sentences)
+        return f"I found this general information: {combined_text}" 
