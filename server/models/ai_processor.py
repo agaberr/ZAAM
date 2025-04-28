@@ -51,7 +51,8 @@ class AIProcessor:
         vector_size = 100
         self.category_embeddings = {
             "news": np.ones(vector_size) / np.sqrt(vector_size),
-            "weather": np.ones(vector_size) / np.sqrt(vector_size) * 0.6
+            "weather": np.ones(vector_size) / np.sqrt(vector_size) * 0.6,
+            "reminder": np.ones(vector_size) / np.sqrt(vector_size) * 0.8
         }
         
         print("Using default category embeddings")
@@ -84,7 +85,12 @@ class AIProcessor:
                 "news": ["news", "report", "headline", "breaking", "article", "story", "journalist", 
                          "media", "press", "announce", "publish", "tell me", "who is", "what is"],
                 "weather": ["weather", "temperature", "forecast", "rain", "snow", "sunny", "cloudy", 
-                           "storm", "wind", "humidity", "cold", "hot", "degrees"]
+                           "storm", "wind", "humidity", "cold", "hot", "degrees"],
+                "reminder": ["remind", "calendar", "schedule", "event", "appointment", 
+                             "meeting", "reminder", "don't forget", "remember", "plan", 
+                             "tomorrow", "today", "next week", "later", "day after tomorrow",
+                             "what's on", "what do i have", "what's scheduled", "am i free", 
+                             "do i have any", "when is", "at what time"]
             }
             
             for sentence in sentences:
@@ -144,6 +150,9 @@ class AIProcessor:
         
         if segments.get("weather"):
             responses["weather"] = self.process_weather(segments["weather"])
+            
+        if segments.get("reminder"):
+            responses["reminder"] = self.process_reminder(segments["reminder"])
         
         if segments.get("uncategorized"):
             responses["uncategorized"] = self.process_uncategorized(segments["uncategorized"])
@@ -187,6 +196,12 @@ class AIProcessor:
         # This would be replaced with a model call in production
         newline = '\n'
         return f"WEATHER: Here's the weather information you asked about:{newline}- {newline}- ".join(sentences)
+    
+    def process_reminder(self, sentences):
+        """Process reminder-related sentences."""
+        # This would be handled by the ReminderNLP model
+        combined_text = " ".join(sentences)
+        return f"REMINDER: {combined_text}"
     
     def process_uncategorized(self, sentences):
         """Process uncategorized sentences."""

@@ -45,7 +45,7 @@ export default function TalkToAIScreen({ setActiveTab }) {
 
     try {
       // Call the AI processing endpoint
-      const response = await fetch('https://d997-196-137-176-101.ngrok-free.app/api/ai/process', {
+      const response = await fetch('http://localhost:5000/api/ai/process', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -9,6 +9,15 @@ replacing them with proper relative paths for cross-platform compatibility.
 import os
 import sys
 import re
+from pathlib import Path
+
+# Get the absolute path of the project root directory
+project_root = Path(__file__).parent.absolute()
+
+# Add to the Python path if not already there
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+    print(f"Added {project_root} to Python path")
 
 def fix_paths():
     """Fix hardcoded paths in all relevant files"""

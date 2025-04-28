@@ -49,7 +49,7 @@ export default {
       ]
     ],
     extra: {
-      apiUrl: "https://d997-196-137-176-101.ngrok-free.app/api",
+      apiUrl: "http://localhost:5000/api",
       googleWebClientId: "485643114726-0joadin731ltorui0db3v6dma86rjbvb.apps.googleusercontent.com",
       eas: {
         projectId: "your-project-id"

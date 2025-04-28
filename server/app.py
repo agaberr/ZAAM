@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
 
-# ==== Model Verification and Download - RUN FIRST ====
+# First apply path fix to ensure imports work correctly
 import os
 import sys
 import importlib
 import subprocess
+from pathlib import Path
+from flask import Flask
 
+# Add project root to sys.path
+project_root = Path(__file__).parent.absolute()
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+    print(f"Added {project_root} to Python path")
+
+# ==== Model Verification and Download - RUN FIRST ====
 # Ensure required packages are installed
 required_packages = ["gdown", "requests"]
 for package in required_packages:
@@ -484,4 +493,4 @@ if __name__ == '__main__':
     # from waitress import serve
     # serve(app, host="0.0.0.0", port=5000)
 
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=True)
