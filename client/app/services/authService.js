@@ -5,7 +5,18 @@ import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 
 // API URL and Google Client ID from constants
-const API_URL = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:5000/api';
+const API_URL = Constants.expoConfig?.extra?.apiUrl || 'http://192.168.1.3:5000/api';
+
+// Ensure API_URL has the correct format
+const getApiUrl = (endpoint) => {
+  // If API_URL already ends with '/api', don't add it again
+  if (API_URL.endsWith('/api')) {
+    return `${API_URL}${endpoint}`;
+  }
+  // If API_URL does not have '/api' at the end, add it
+  return `${API_URL}/api${endpoint}`;
+};
+
 const GOOGLE_CLIENT_ID = Constants.expoConfig?.extra?.googleWebClientId || '';
 
 // For debugging
@@ -23,22 +34,28 @@ export const useGoogleAuth = () => {
       setLoading(true);
       
       // First, get the authorization URL from the backend
-      const authResponse = await fetch(`${API_URL}/auth/google/connect`);
+      const authResponse = await fetch(getApiUrl('/auth/google/connect'));
       const authData = await authResponse.json();
       
-      if (!authData.authorization_url) {
+      if (!authData.auth_url) {
+        console.error('Auth response data:', authData);
         throw new Error('Failed to get authorization URL');
       }
       
-      console.log('Opening auth URL:', authData.authorization_url);
+      console.log('Opening auth URL:', authData.auth_url);
       
       // Open browser for OAuth flow
+      console.log('Starting WebBrowser auth session...');
       const result = await WebBrowser.openAuthSessionAsync(
-        authData.authorization_url,
-        'zaam://callback'
+        authData.auth_url,
+        'zaam://callback',
+        {
+          showInRecents: true,
+          createTask: true
+        }
       );
       
-      console.log('Auth result:', result);
+      console.log('WebBrowser auth session result:', JSON.stringify(result));
       
       if (result.type === 'success') {
         // Extract data from the redirect URL
@@ -88,7 +105,7 @@ export const useGoogleAuth = () => {
           }
           
           // Exchange the code for tokens with our backend
-          const tokenResponse = await fetch(`${API_URL}/auth/google/callback`, {
+          const tokenResponse = await fetch(getApiUrl('/auth/google/callback'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -185,7 +202,7 @@ const saveAuthData = async (data) => {
 // Helper function to fetch and save user profile
 const fetchAndSaveUserProfile = async (token, userId) => {
   try {
-    const response = await fetch(`${API_URL}/users/${userId}`, {
+    const response = await fetch(getApiUrl(`/users/${userId}`), {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -193,7 +210,7 @@ const fetchAndSaveUserProfile = async (token, userId) => {
     
     if (!response.ok) {
       // Try with the /api prefix if the first request fails
-      const apiResponse = await fetch(`${API_URL.includes('/api') ? API_URL : `${API_URL}/api`}/users/${userId}`, {
+      const apiResponse = await fetch(getApiUrl(`/users/${userId}`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -252,7 +269,7 @@ export const signOut = async () => {
     
     // Call backend to revoke tokens
     if (token) {
-      await fetch(`${API_URL}/auth/google/disconnect`, {
+      await fetch(getApiUrl('/auth/google/disconnect'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -277,7 +294,7 @@ export const getCurrentUser = async () => {
     }
     
     // Verify token with backend
-    const response = await fetch(`${API_URL}/auth/google/status`, {
+    const response = await fetch(getApiUrl('/auth/google/status'), {
       headers: {
         'Authorization': `Bearer ${token}`
       }

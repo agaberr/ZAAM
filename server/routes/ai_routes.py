@@ -1,4 +1,4 @@
-from flask import jsonify, request, session
+from flask import Blueprint, jsonify, request, session, url_for
 from models.ai_processor import AIProcessor
 import sys
 import os
@@ -542,7 +542,10 @@ def register_ai_routes(app, mongo):
         """Start OAuth flow for Google Calendar integration."""
         try:
             # Generate the authorization URL
-            redirect_uri = url_for('google_callback', _external=True)
+            # Use request.url_root to build the absolute URL instead of url_for
+            redirect_uri = f"{request.url_root.rstrip('/')}/api/auth/google/callback"
+            logger.info(f"Google OAuth redirect URI: {redirect_uri}")
+            
             authorization_url, state = google_oauth_service.get_authorization_url(redirect_uri)
             
             # Save the state for later validation
@@ -574,7 +577,9 @@ def register_ai_routes(app, mongo):
                 return jsonify({"error": "No authorization code received", "success": False}), 400
                 
             # Exchange the code for tokens
-            redirect_uri = url_for('google_callback', _external=True)
+            redirect_uri = f"{request.url_root.rstrip('/')}/api/auth/google/callback"
+            logger.info(f"Google OAuth callback URI: {redirect_uri}")
+            
             credentials = google_oauth_service.fetch_token(request.url, redirect_uri)
             
             # Save the credentials in the session

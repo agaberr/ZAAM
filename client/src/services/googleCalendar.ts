@@ -1,6 +1,7 @@
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { GoogleCalendar } from 'expo-calendar';
+import api from './api';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -20,6 +21,51 @@ export const useGoogleCalendar = () => {
     webClientId: CONFIG.webClientId,
     scopes: CONFIG.scopes,
   });
+
+  const loginWithGoogle = async () => {
+    try {
+      // Get authorization URL from backend
+      const { data } = await api.get('/api/auth/google/login');
+      const { authorization_url } = data;
+      
+      // Open the authorization URL in browser
+      const result = await WebBrowser.openAuthSessionAsync(
+        authorization_url,
+        'http://192.168.1.3:5000/callback'
+      );
+      
+      if (result.type === 'success') {
+        // Handle the callback URL
+        const callbackUrl = result.url;
+        await api.get(`/api/auth/google/callback?${callbackUrl.split('?')[1]}`);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error during Google login:', error);
+      throw error;
+    }
+  };
+
+  const checkGoogleAuth = async () => {
+    try {
+      const { data } = await api.get('/api/auth/google/check');
+      return data.authenticated;
+    } catch (error) {
+      console.error('Error checking Google auth:', error);
+      return false;
+    }
+  };
+
+  const logoutGoogle = async () => {
+    try {
+      await api.get('/api/auth/google/logout');
+      return true;
+    } catch (error) {
+      console.error('Error during Google logout:', error);
+      throw error;
+    }
+  };
 
   const addEventToCalendar = async (eventDetails: {
     title: string;
@@ -67,6 +113,9 @@ export const useGoogleCalendar = () => {
     request,
     response,
     promptAsync,
+    loginWithGoogle,
+    checkGoogleAuth,
+    logoutGoogle,
     addEventToCalendar,
     getCalendarEvents,
   };

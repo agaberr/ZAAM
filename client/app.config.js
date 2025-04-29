@@ -49,7 +49,7 @@ export default {
       ]
     ],
     extra: {
-      apiUrl: "http://localhost:5000/api",
+      apiUrl: "http://192.168.1.3:5000/api",
       googleWebClientId: "485643114726-0joadin731ltorui0db3v6dma86rjbvb.apps.googleusercontent.com",
       eas: {
         projectId: "your-project-id"

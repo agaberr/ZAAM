@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 
 // Base API URL (should match your server configuration)
 // const API_URL = 'https://zaam-mj7u.onrender.com/api';
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://192.168.1.3:5000/api';
 
 // Reminder interface that matches the server model
 export interface ReminderData {
