@@ -10,9 +10,7 @@ import datetime
 import pytz
 import re
 # Add imports for reminder functionality
-from models.reminder import ReminderNLP, Reminder
-from models.google_oauth import GoogleOAuthService
-from models.google_calendar import GoogleCalendarService
+from models.reminder import ReminderNLP, Reminder, ReminderDB
 
 # Configure logging
 logging.basicConfig(
@@ -48,6 +46,10 @@ def register_ai_routes(app, mongo):
         os.environ["FLASK_ENV"] = "development"
         print("[DEBUG] FLASK_ENV not set, temporarily forcing to 'development' mode")
     
+    # Set JWT_SECRET for authentication
+    JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-key")
+    print(f"[DEBUG] JWT_SECRET length: {len(JWT_SECRET)} characters")
+    
     # Initialize the AI processor
     ai_processor = AIProcessor()
     print("[DEBUG] AI Processor initialized")
@@ -60,22 +62,6 @@ def register_ai_routes(app, mongo):
         logger.error(f"Error initializing ReminderNLP: {str(e)}")
         reminder_nlp = None
         print(f"[DEBUG] Failed to initialize ReminderNLP: {str(e)}")
-    
-    # Initialize Google OAuth Service
-    reminder_oauth_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'reminders', 'credentialsOAuth.json')
-    google_oauth_service = GoogleOAuthService(
-        client_secrets_file=reminder_oauth_file,
-        scopes=["https://www.googleapis.com/auth/calendar"]
-    )
-    print(f"[DEBUG] Google OAuth Service initialized with file: {reminder_oauth_file}")
-    
-    # Initialize Google Calendar Service
-    google_calendar_service = GoogleCalendarService(google_oauth_service)
-    print("[DEBUG] Google Calendar Service initialized")
-    
-    # JWT secret for authentication
-    JWT_SECRET = os.getenv("JWT_SECRET")
-    print(f"[DEBUG] JWT_SECRET length: {len(JWT_SECRET) if JWT_SECRET else 0} characters")
     
     print("===== END OF AI ROUTES INITIALIZATION =====\n")
     
@@ -117,11 +103,6 @@ def register_ai_routes(app, mongo):
                 user_session = mongo.db.sessions.find_one({"_id": session_id})
                 if user_session and 'user_id' in user_session:
                     return user_session['user_id']
-            
-            # Check for Google session
-            if 'google_credentials' in session:
-                # For Google-authenticated users
-                return "google_user"
         except Exception as e:
             logger.error(f"Error checking session in database: {str(e)}")
         
@@ -182,10 +163,11 @@ def register_ai_routes(app, mongo):
             if not reminder_nlp:
                 return {"response": "Sorry, the reminder service is not available at the moment.", "success": False}
             
-            # Check if user is authenticated with Google
-            if not google_oauth_service.is_authenticated():
+            # Get the authenticated user ID
+            user_id = get_authenticated_user_id()
+            if not user_id:
                 return {
-                    "response": "You'll need to log in with Google Calendar first before I can help you with your calendar.",
+                    "response": "You must be logged in to use the reminder service.",
                     "category": "reminder",
                     "success": False,
                     "needs_auth": True
@@ -201,20 +183,16 @@ def register_ai_routes(app, mongo):
             time_str = result.get("predicted_time", "")
             days_offset = result.get("days_offset", 0)
             
-            # Get Google Calendar service
-            credentials = google_oauth_service.get_credentials()
-            service = google_oauth_service.build_service("calendar", "v3", credentials)
-            
             if predicted_intent == "get_timetable":
-                # Get events for the specified day
+                # Get reminders for the specified day
                 egypt_tz = pytz.timezone('Africa/Cairo')
                 target_date = datetime.datetime.now(egypt_tz) + datetime.timedelta(days=days_offset)
                 
-                # Get events using the calendar service
-                events = google_calendar_service.get_day_events(target_date)
+                # Get reminders from database
+                reminders = ReminderDB.get_day_reminders(user_id, target_date, db=mongo.db)
                 
                 # Format the response
-                response = google_calendar_service.format_events_response(events, days_offset)
+                response = ReminderDB.format_reminders_response(reminders, days_offset)
                 
                 return {
                     "response": response,
@@ -222,14 +200,14 @@ def register_ai_routes(app, mongo):
                     "success": True,
                     "intent": "get_timetable",
                     "days_offset": days_offset,
-                    "events_count": len(events)
+                    "reminders_count": len(reminders)
                 }
                 
             elif predicted_intent == "create_event":
-                # Validate the action (event title)
+                # Validate the action (reminder title)
                 if not action:
                     return {
-                        "response": "I couldn't understand what event to create. Could you please be more specific?",
+                        "response": "I couldn't understand what reminder to create. Could you please be more specific?",
                         "category": "reminder",
                         "success": False,
                         "intent": "create_event"
@@ -251,9 +229,15 @@ def register_ai_routes(app, mongo):
                             "intent": "create_event"
                         }
                 
-                # Create the event
+                # Create the reminder
                 try:
-                    event = google_calendar_service.create_event(action, start_time)
+                    reminder = ReminderDB.create_reminder(
+                        user_id=user_id, 
+                        title=action, 
+                        start_time=start_time,
+                        description=f"Created from voice command: '{text}'",
+                        db=mongo.db
+                    )
                     
                     # Format the response
                     formatted_time = start_time.strftime("%I:%M %p")
@@ -267,23 +251,24 @@ def register_ai_routes(app, mongo):
                     else:
                         time_context = f"on {formatted_date}"
                     
-                    response = f"Perfect! I've added {action} to your calendar for {formatted_time} {time_context}. It's scheduled for one hour."
+                    response = f"Perfect! I've added {action} to your reminders for {formatted_time} {time_context}. It's scheduled for one hour."
                     
                     return {
                         "response": response,
                         "category": "reminder",
                         "success": True,
                         "intent": "create_event",
-                        "event": {
+                        "reminder": {
+                            "id": str(reminder["_id"]),
                             "title": action,
                             "time": formatted_time,
                             "date": formatted_date
                         }
                     }
                 except Exception as e:
-                    logger.error(f"Error creating event: {str(e)}")
+                    logger.error(f"Error creating reminder: {str(e)}")
                     return {
-                        "response": f"Sorry, I couldn't create your event: {str(e)}",
+                        "response": f"Sorry, I couldn't create your reminder: {str(e)}",
                         "category": "reminder",
                         "success": False,
                         "intent": "create_event"
@@ -291,7 +276,7 @@ def register_ai_routes(app, mongo):
             
             # If intent is not recognized
             return {
-                "response": "I'm not quite sure what you'd like me to do with your calendar. Could you please rephrase that?",
+                "response": "I'm not quite sure what you'd like me to do with your reminders. Could you please rephrase that?",
                 "category": "reminder",
                 "success": False,
                 "recognized": False
@@ -404,62 +389,42 @@ def register_ai_routes(app, mongo):
                 print(f"[DEBUG] Processing reminder segment: '{reminder_text}'")
                 
                 reminder_result = process_reminder_internal(reminder_text)
-                
-                if reminder_result["success"]:
-                    reminder_response = f"REMINDER: {reminder_result['response']}"
-                else:
-                    # If needs authentication, add appropriate message
-                    if reminder_result.get("needs_auth", False):
-                        reminder_response = "REMINDER: You need to connect your Google Calendar first. Use the '/api/auth/google/connect' endpoint to authorize access."
-                    else:
-                        reminder_response = f"REMINDER: Sorry, I couldn't process your reminder request. {reminder_result.get('response', '')}"
+                reminder_response = reminder_result["response"]
                 
                 responses["reminder"] = reminder_response
                 combined_response += reminder_response + "\n\n"
             
-            # Process uncategorized segments
-            if "uncategorized" in segments and segments["uncategorized"]:
-                uncategorized_text = " ".join(segments["uncategorized"])
-                print(f"[DEBUG] Processing uncategorized segment: '{uncategorized_text}'")
+            # Process general segments
+            if "general" in segments and segments["general"]:
+                general_text = " ".join(segments["general"])
+                print(f"[DEBUG] Processing general segment as news: '{general_text}'")
                 
-                # Try to process it as a general query
-                uncategorized_result = process_news_internal(uncategorized_text)
-                uncategorized_response = uncategorized_result["response"]
+                general_result = process_news_internal(general_text)
+                general_response = general_result["response"]
                 
-                responses["uncategorized"] = uncategorized_response
-                combined_response += uncategorized_response + "\n\n"
+                responses["general"] = general_response
+                if not combined_response:  # Only add if no other responses
+                    combined_response += general_response
             
-            # If no categories were found, return a message
-            if not responses:
-                print(f"[DEBUG] No categories found for input: '{text}'")
-                return jsonify({
-                    "response": "I couldn't categorize your request.",
-                    "success": True,
-                    "categories": {}
-                })
-            
-            # Remove trailing newlines
+            # Remove any trailing newlines
             combined_response = combined_response.strip()
-            print(f"[DEBUG] Final combined response: '{combined_response}'")
             
-            return jsonify({
+            result = {
                 "response": combined_response,
-                "success": True,
-                "categories": responses
-            })
+                "category_responses": responses,
+                "categories": list(responses.keys()),
+                "success": True
+            }
+            
+            return jsonify(result)
             
         except Exception as e:
-            logger.error(f"Error processing AI request: {str(e)}", exc_info=True)
-            print(f"[DEBUG] Error in /api/ai/process: {str(e)}")
-            return jsonify({
-                "error": str(e), 
-                "success": False,
-                "response": "Sorry, I encountered an error while processing your request."
-            }), 500
+            logger.error(f"Error processing AI request: {str(e)}")
+            return jsonify({"error": str(e), "success": False}), 500
     
     @app.route('/api/ai/news', methods=['POST'])
     def process_news():
-        """Process news-specific requests using ConversationQA."""
+        """Process news-specific requests."""
         try:
             data = request.json
             if not data or 'text' not in data:
@@ -467,30 +432,11 @@ def register_ai_routes(app, mongo):
                 return jsonify({"error": "No text provided in request"}), 400
                 
             text = data['text']
-            print(f"[DEBUG] /api/ai/news received: '{text}', length: {len(text)}")
+            print(f"[DEBUG] /api/ai/news received: '{text}'")
             
-            # If this is a news article, first summarize it and set as passage
-            if len(text) > 500:  # If it's a longer text, treat as article
-                print(f"[DEBUG] Processing as article (length > 500)")
-                
-                # Summarize and set as passage in QA system
-                summary = article_summarize(text)
-                qa_system.set_passage(text)  # Set full text as passage for QA
-                
-                print(f"[DEBUG] Article summarized. Summary length: {len(summary)}")
-                
-                return jsonify({
-                    "response": summary,
-                    "category": "news",
-                    "success": True,
-                    "message": "Article processed. You can now ask questions about it."
-                })
-            else:
-                print(f"[DEBUG] Processing as news query (length <= 500)")
-                
-                # Reuse the internal news processing function
-                result = process_news_internal(text)
-                return jsonify(result)
+            # Reuse the internal news processing function
+            result = process_news_internal(text)
+            return jsonify(result)
             
         except Exception as e:
             logger.error(f"Error processing news request: {str(e)}")
@@ -536,119 +482,111 @@ def register_ai_routes(app, mongo):
         except Exception as e:
             print(f"[DEBUG] Error in /api/ai/reminder: {str(e)}")
             return jsonify({"error": str(e), "success": False}), 500
-            
-    @app.route('/api/auth/google/connect', methods=['GET'])
-    def google_connect():
-        """Start OAuth flow for Google Calendar integration."""
+     
+    @app.route('/api/reminder', methods=['GET'])
+    def get_reminders():
+        """Get user's reminders for a specific day"""
         try:
-            # Generate the authorization URL
-            # Use request.url_root to build the absolute URL instead of url_for
-            redirect_uri = f"{request.url_root.rstrip('/')}/api/auth/google/callback"
-            logger.info(f"Google OAuth redirect URI: {redirect_uri}")
+            user_id = get_authenticated_user_id()
+            if not user_id:
+                return jsonify({"error": "Authentication required", "success": False}), 401
             
-            authorization_url, state = google_oauth_service.get_authorization_url(redirect_uri)
+            # Parse query parameters
+            days_offset = request.args.get('days_offset', 0, type=int)
             
-            # Save the state for later validation
-            session['google_oauth_state'] = state
+            # Get target date
+            egypt_tz = pytz.timezone('Africa/Cairo')
+            target_date = datetime.datetime.now(egypt_tz) + datetime.timedelta(days=days_offset)
             
-            # Redirect user to the authorization URL
+            # Get reminders from database
+            reminders = ReminderDB.get_day_reminders(user_id, target_date, db=mongo.db)
+            
+            # Convert ObjectId to string for JSON serialization
+            formatted_reminders = []
+            for reminder in reminders:
+                reminder['_id'] = str(reminder['_id'])
+                # Convert datetime objects to ISO format
+                reminder['start_time'] = reminder['start_time'].isoformat()
+                reminder['end_time'] = reminder['end_time'].isoformat()
+                reminder['created_at'] = reminder['created_at'].isoformat()
+                formatted_reminders.append(reminder)
+            
             return jsonify({
-                "auth_url": authorization_url,
-                "message": "Please visit this URL to authorize access to your Google Calendar",
-                "success": True
+                "success": True,
+                "reminders": formatted_reminders,
+                "count": len(formatted_reminders),
+                "date": target_date.strftime("%Y-%m-%d")
             })
             
         except Exception as e:
-            logger.error(f"Error starting Google OAuth flow: {str(e)}")
-            return jsonify({"error": str(e), "success": False}), 500
-            
-    @app.route('/api/auth/google/callback', methods=['GET'])
-    def google_callback():
-        """Handle callback from Google OAuth."""
-        try:
-            # Verify state to prevent CSRF
-            state = request.args.get('state')
-            if not state or state != session.get('google_oauth_state'):
-                return jsonify({"error": "Invalid state parameter", "success": False}), 400
-                
-            # Get the authorization code
-            code = request.args.get('code')
-            if not code:
-                return jsonify({"error": "No authorization code received", "success": False}), 400
-                
-            # Exchange the code for tokens
-            redirect_uri = f"{request.url_root.rstrip('/')}/api/auth/google/callback"
-            logger.info(f"Google OAuth callback URI: {redirect_uri}")
-            
-            credentials = google_oauth_service.fetch_token(request.url, redirect_uri)
-            
-            # Save the credentials in the session
-            google_oauth_service.save_credentials(credentials)
-            
-            return jsonify({
-                "message": "Successfully connected to Google Calendar",
-                "success": True
-            })
-            
-        except Exception as e:
-            logger.error(f"Error in Google OAuth callback: {str(e)}")
-            return jsonify({"error": str(e), "success": False}), 500
-            
-    @app.route('/api/auth/google/status', methods=['GET'])
-    def google_status():
-        """Check Google Calendar connection status."""
-        try:
-            is_connected = google_oauth_service.is_authenticated()
-            
-            if is_connected:
-                # Try to access the calendar to verify the connection
-                try:
-                    service = google_oauth_service.build_service("calendar", "v3")
-                    if service:
-                        # Get a sample calendar to verify access
-                        calendar = service.calendars().get(calendarId='primary').execute()
-                        return jsonify({
-                            "connected": True,
-                            "calendar_name": calendar.get('summary', 'Primary Calendar'),
-                            "message": "Connected to Google Calendar",
-                            "success": True
-                        })
-                except Exception as e:
-                    logger.error(f"Error verifying Google Calendar access: {str(e)}")
-                    # Clear invalid credentials
-                    google_oauth_service.clear_credentials()
-                    return jsonify({
-                        "connected": False,
-                        "message": f"Google Calendar credentials found but access failed: {str(e)}",
-                        "success": False
-                    })
-            
-            return jsonify({
-                "connected": False,
-                "message": "Not connected to Google Calendar",
-                "success": True
-            })
-            
-        except Exception as e:
-            logger.error(f"Error checking Google connection status: {str(e)}")
-            return jsonify({"error": str(e), "success": False}), 500
-            
-    @app.route('/api/auth/google/disconnect', methods=['POST'])
-    def google_disconnect():
-        """Disconnect Google Calendar integration."""
-        try:
-            # Clear Google credentials from session
-            google_oauth_service.clear_credentials()
-            
-            return jsonify({
-                "message": "Successfully disconnected from Google Calendar",
-                "success": True
-            })
-            
-        except Exception as e:
-            logger.error(f"Error disconnecting from Google: {str(e)}")
+            logger.error(f"Error getting reminders: {str(e)}")
             return jsonify({"error": str(e), "success": False}), 500
     
+    @app.route('/api/reminder/<reminder_id>', methods=['PUT'])
+    def update_reminder(reminder_id):
+        """Update a specific reminder"""
+        try:
+            user_id = get_authenticated_user_id()
+            if not user_id:
+                return jsonify({"error": "Authentication required", "success": False}), 401
+            
+            data = request.json
+            if not data:
+                return jsonify({"error": "No data provided", "success": False}), 400
+            
+            # Ensure the reminder belongs to the user
+            reminder = mongo.db.reminders.find_one({"_id": ObjectId(reminder_id), "user_id": user_id})
+            if not reminder:
+                return jsonify({"error": "Reminder not found", "success": False}), 404
+            
+            # Prepare update data
+            update_data = {}
+            if 'title' in data:
+                update_data['title'] = data['title']
+            if 'start_time' in data:
+                update_data['start_time'] = datetime.datetime.fromisoformat(data['start_time'])
+            if 'end_time' in data:
+                update_data['end_time'] = datetime.datetime.fromisoformat(data['end_time'])
+            if 'description' in data:
+                update_data['description'] = data['description']
+            
+            # Update the reminder
+            success = ReminderDB.update_reminder(reminder_id, update_data, db=mongo.db)
+            
+            return jsonify({
+                "success": success,
+                "message": "Reminder updated successfully" if success else "Failed to update reminder"
+            })
+            
+        except Exception as e:
+            logger.error(f"Error updating reminder: {str(e)}")
+            return jsonify({"error": str(e), "success": False}), 500
+    
+    @app.route('/api/reminder/<reminder_id>', methods=['DELETE'])
+    def delete_reminder(reminder_id):
+        """Delete a specific reminder"""
+        try:
+            user_id = get_authenticated_user_id()
+            if not user_id:
+                return jsonify({"error": "Authentication required", "success": False}), 401
+            
+            # Ensure the reminder belongs to the user
+            reminder = mongo.db.reminders.find_one({"_id": ObjectId(reminder_id), "user_id": user_id})
+            if not reminder:
+                return jsonify({"error": "Reminder not found", "success": False}), 404
+            
+            # Delete the reminder
+            success = ReminderDB.delete_reminder(reminder_id, db=mongo.db)
+            
+            return jsonify({
+                "success": success,
+                "message": "Reminder deleted successfully" if success else "Failed to delete reminder"
+            })
+            
+        except Exception as e:
+            logger.error(f"Error deleting reminder: {str(e)}")
+            return jsonify({"error": str(e), "success": False}), 500
+            
     @app.route('/api/ai/news/article', methods=['POST'])
     def upload_news_article():
         """

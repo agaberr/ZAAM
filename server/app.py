@@ -283,7 +283,6 @@ from routes.auth_routes import register_auth_routes
 from routes.ai_routes import register_ai_routes
 from routes.conversation_qa_routes import register_conversation_qa_routes
 from routes.memory_aid_routes import memory_aid_routes
-from routes.google_routes import register_google_routes
 
 # Load environment variables
 load_dotenv()
@@ -368,7 +367,6 @@ register_user_routes(app, mongo)
 register_auth_routes(app, mongo)
 register_ai_routes(app, mongo)
 register_conversation_qa_routes(app, mongo)
-register_google_routes(app)
 app.register_blueprint(memory_aid_routes)
 
 # Configure database access for routes that use the Blueprint pattern

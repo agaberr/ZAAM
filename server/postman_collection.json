@@ -8,7 +8,7 @@
 	"variable": [
 		{
 			"key": "base_url",
-			"value": "http://192.168.1.3:5000",
+			"value": "http://localhost:5000",
 			"type": "string"
 		},
 		{
@@ -380,10 +380,10 @@
 			"description": "AI assistant endpoints for processing various types of queries"
 		},
 		{
-			"name": "Google Calendar Integration",
+			"name": "Reminders",
 			"item": [
 				{
-					"name": "Connect Google Calendar",
+					"name": "Get Reminders",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -393,58 +393,63 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/auth/google/connect",
+							"raw": "{{base_url}}/api/reminder?days_offset=0",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"api",
-								"auth",
-								"google",
-								"connect"
-							]
-						},
-						"description": "Start Google OAuth flow to connect to Google Calendar"
-					},
-					"response": []
-				},
-				{
-					"name": "Google OAuth Callback",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/api/auth/google/callback?code=AUTH_CODE&state=STATE_TOKEN",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"auth",
-								"google",
-								"callback"
+								"reminder"
 							],
 							"query": [
 								{
-									"key": "code",
-									"value": "AUTH_CODE",
-									"description": "Authorization code from Google"
-								},
-								{
-									"key": "state",
-									"value": "STATE_TOKEN",
-									"description": "State token to prevent CSRF"
+									"key": "days_offset",
+									"value": "0",
+									"description": "0 = today, 1 = tomorrow, etc."
 								}
 							]
 						},
-						"description": "Callback endpoint for Google OAuth flow"
+						"description": "Get reminders for a specific day"
 					},
 					"response": []
 				},
 				{
-					"name": "Check Google Connection Status",
+					"name": "Update Reminder",
 					"request": {
-						"method": "GET",
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Updated reminder title\",\n    \"description\": \"Updated description\",\n    \"start_time\": \"2023-05-20T15:30:00+02:00\",\n    \"end_time\": \"2023-05-20T16:30:00+02:00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/reminder/{{reminder_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reminder",
+								"{{reminder_id}}"
+							]
+						},
+						"description": "Update a specific reminder"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Reminder",
+					"request": {
+						"method": "DELETE",
 						"header": [
 							{
 								"key": "Authorization",
@@ -452,49 +457,22 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/auth/google/status",
+							"raw": "{{base_url}}/api/reminder/{{reminder_id}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"api",
-								"auth",
-								"google",
-								"status"
+								"reminder",
+								"{{reminder_id}}"
 							]
 						},
-						"description": "Check Google Calendar connection status"
-					},
-					"response": []
-				},
-				{
-					"name": "Disconnect Google Calendar",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/auth/google/disconnect",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"auth",
-								"google",
-								"disconnect"
-							]
-						},
-						"description": "Disconnect Google Calendar integration"
+						"description": "Delete a specific reminder"
 					},
 					"response": []
 				}
 			],
-			"description": "Endpoints for managing Google Calendar integration"
+			"description": "Endpoints for managing reminders directly in the database"
 		}
 	]
 } 

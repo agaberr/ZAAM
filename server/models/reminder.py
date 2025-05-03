@@ -5,6 +5,7 @@ import os
 import re
 from datetime import datetime, timedelta
 import pytz
+from bson import ObjectId
 # from reminders.model import NERIntentModel
 # from reminders.model import NERIntentModel
 
@@ -288,32 +289,182 @@ class ReminderNLP:
         
         return result
 
+class ReminderDB:
+    """Database interface for storing and retrieving reminders"""
+    
+    @staticmethod
+    def create_reminder(user_id, title, start_time, end_time=None, description=None, db=None):
+        """Create a new reminder in the database"""
+        if db is None:
+            raise ValueError("Database connection required")
+            
+        if not end_time:
+            end_time = start_time + timedelta(hours=1)
+            
+        # Create reminder object
+        reminder = {
+            "user_id": user_id,
+            "title": title,
+            "start_time": start_time,
+            "end_time": end_time,
+            "description": description,
+            "created_at": datetime.now(pytz.timezone("Africa/Cairo")),
+            "status": "active"
+        }
+        
+        # Insert into database
+        result = db.reminders.insert_one(reminder)
+        
+        # Add the ID to the reminder object
+        reminder["_id"] = result.inserted_id
+        
+        return reminder
+    
+    @staticmethod
+    def get_reminders(user_id, time_min=None, time_max=None, max_results=10, db=None):
+        """Get reminders from database within a time range"""
+        if db is None:
+            raise ValueError("Database connection required")
+            
+        # Default to today if no time range is provided
+        egypt_tz = pytz.timezone("Africa/Cairo")
+        if not time_min:
+            time_min = datetime.now(egypt_tz).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            
+        if not time_max:
+            time_max = time_min.replace(hour=23, minute=59, second=59)
+            
+        # Build query
+        query = {
+            "user_id": user_id,
+            "start_time": {"$gte": time_min, "$lte": time_max},
+            "status": "active"
+        }
+        
+        # Get reminders
+        reminders = list(db.reminders.find(query).sort("start_time", 1).limit(max_results))
+        
+        return reminders
+    
+    @staticmethod
+    def get_day_reminders(user_id, target_date=None, db=None):
+        """Get all reminders for a specific day"""
+        if db is None:
+            raise ValueError("Database connection required")
+            
+        # Default to today if no date is provided
+        egypt_tz = pytz.timezone('Africa/Cairo')
+        if not target_date:
+            target_date = datetime.now(egypt_tz)
+            
+        # Set time range for the whole day
+        time_min = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        time_max = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        return ReminderDB.get_reminders(user_id, time_min=time_min, time_max=time_max, max_results=50, db=db)
+    
+    @staticmethod
+    def format_reminders_response(reminders, date_context=None):
+        """Format reminders into a human-readable response"""
+        if not reminders:
+            time_context = ReminderDB._get_time_context(date_context)
+            return f"I've checked your reminders and you don't have any scheduled {time_context}. Your schedule is clear!"
+            
+        # Format reminders in a more conversational way
+        formatted_reminders = []
+        for reminder in reminders:
+            start_time = reminder['start_time']
+            time_str = start_time.strftime("%I:%M %p")
+            formatted_reminders.append(f"At {time_str}, you have {reminder['title']}")
+        
+        timetable = "\n".join(formatted_reminders)
+        
+        time_context = ReminderDB._get_time_context(date_context)
+        return f"Let me tell you what's on your schedule {time_context}.\n\n{timetable}"
+    
+    @staticmethod
+    def _get_time_context(date_context):
+        """Get a human-readable time context string"""
+        if not date_context:
+            return "today"
+            
+        # If it's a datetime object
+        if isinstance(date_context, datetime):
+            now = datetime.now(date_context.tzinfo)
+            days_diff = (date_context.date() - now.date()).days
+            
+            if days_diff == 0:
+                return "today"
+            elif days_diff == 1:
+                return "tomorrow"
+            else:
+                return f"for {date_context.strftime('%A, %B %d')}"
+                
+        # If it's an integer (days offset)
+        if isinstance(date_context, int):
+            if date_context == 0:
+                return "today"
+            elif date_context == 1:
+                return "tomorrow"
+            else:
+                tz = pytz.timezone("Africa/Cairo")
+                target_date = datetime.now(tz) + timedelta(days=date_context)
+                return f"for {target_date.strftime('%A, %B %d')}"
+                
+        return "today"  # Default fallback
+    
+    @staticmethod
+    def update_reminder(reminder_id, updates, db=None):
+        """Update a reminder in the database"""
+        if db is None:
+            raise ValueError("Database connection required")
+            
+        result = db.reminders.update_one(
+            {"_id": ObjectId(reminder_id)},
+            {"$set": updates}
+        )
+        
+        return result.modified_count > 0
+    
+    @staticmethod
+    def delete_reminder(reminder_id, db=None):
+        """Delete a reminder from the database"""
+        if db is None:
+            raise ValueError("Database connection required")
+            
+        # We don't actually delete, just mark as inactive
+        result = db.reminders.update_one(
+            {"_id": ObjectId(reminder_id)},
+            {"$set": {"status": "deleted"}}
+        )
+        
+        return result.modified_count > 0
+
 class Reminder:
-    """Reminder utility for creating and managing calendar events"""
+    """Reminder utility for creating and managing reminders"""
     
     @staticmethod
     def create_event(title, start_time):
-        """Create a calendar event object"""
-        event = {
-            "summary": title,
-            "start": {"dateTime": start_time.isoformat(), "timeZone": "Africa/Cairo"},
-            "end": {"dateTime": (start_time + timedelta(hours=1)).isoformat(), "timeZone": "Africa/Cairo"}
+        """Create a reminder event object"""
+        reminder = {
+            "title": title,
+            "start_time": start_time,
+            "end_time": start_time + timedelta(hours=1)
         }
-        return event
+        return reminder
     
     @staticmethod
     def get_timetable(days_offset=0):
-        """Get the time range for fetching calendar events"""
+        """Get the time range for fetching reminders"""
         egypt_tz = pytz.timezone('Africa/Cairo')
         target_date = datetime.now(egypt_tz) + timedelta(days=days_offset)
         
         return {
-            "calendarId": "primary",
-            "timeMin": target_date.replace(hour=0, minute=0, second=0, microsecond=0).isoformat(),
-            "timeMax": target_date.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat(),
-            "singleEvents": True,
-            "orderBy": "startTime",
-            "timeZone": "Africa/Cairo"
+            "time_min": target_date.replace(hour=0, minute=0, second=0, microsecond=0),
+            "time_max": target_date.replace(hour=23, minute=59, second=59, microsecond=999999),
+            "days_offset": days_offset
         }
     
     @staticmethod
