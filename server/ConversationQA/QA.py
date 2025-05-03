@@ -1,5 +1,6 @@
 import joblib
 import numpy as np
+import os
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 from NameEntityModel.TopicExtractionModel import NERPredictor
@@ -22,6 +23,10 @@ from TopicExtraction.FootballNewsExtraction import get_football_articles
 from TopicExtraction.TopicClassifier import TopicClassifier
 from TopicExtraction.ExtractTopic import ExtractTopic
 
+# Get current directory path for loading models
+QA_DIR = os.path.dirname(os.path.abspath(__file__))
+# Path to Models directory
+MODELS_DIR = os.path.join(QA_DIR, "Models")
 
 # Performance decorator for timing functions
 def timing_decorator(func):
@@ -115,8 +120,8 @@ class ConversationalQA:
         self._load_qa_model()
 
         
-        self.classifyQuery_model =  joblib.load("./Models/classifier_model.pkl")
-        self.classifyVectorizar = joblib.load("./Models/vectorizer.pkl")
+        self.classifyQuery_model =  joblib.load(os.path.join(MODELS_DIR, "classifier_model.pkl"))
+        self.classifyVectorizar = joblib.load(os.path.join(MODELS_DIR, "vectorizer.pkl"))
         
     def add_to_knowledge_base(self, documents, metadata=None):
         if isinstance(documents, str):
@@ -138,7 +143,7 @@ class ConversationalQA:
         return num_chunks
     
     def _load_pronoun_resolution_model(self):
-        model_path = './Models/pronoun_resolution_model_full.pt'
+        model_path = os.path.join(MODELS_DIR, 'pronoun_resolution_model_full.pt')
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         checkpoint = torch.load(model_path, map_location=self.device)
         bert_model_name = checkpoint.get('bert_model_name', 'bert-base-uncased')
@@ -151,7 +156,7 @@ class ConversationalQA:
 
     def _load_qa_model(self):
         self.model_qa = BertForQA()
-        self.model_qa.load_state_dict(torch.load(f"./Models/extractiveQA.pt", 
+        self.model_qa.load_state_dict(torch.load(os.path.join(MODELS_DIR, "extractiveQA.pt"), 
                                              map_location=self.device))
         self.model_qa.to(self.device)
         self.model_qa.eval()

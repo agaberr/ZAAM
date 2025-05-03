@@ -11,6 +11,11 @@ import pytz
 import re
 # Add imports for reminder functionality
 from models.reminder import ReminderNLP, Reminder, ReminderDB
+from bson.objectid import ObjectId
+
+# Import the Weather functionality
+sys.path.append(str(Path(__file__).parent.parent / "Weather"))
+from Weather.run import get_weather_response
 
 # Configure logging
 logging.basicConfig(
@@ -287,42 +292,19 @@ def register_ai_routes(app, mongo):
             print(f"[DEBUG] Error in process_reminder_internal: {str(e)}")
             return {"response": f"Error processing reminder: {str(e)}", "success": False}
 
+    # Internal function to process weather-related queries using Weather module
     def process_weather_internal(text):
-        """Internal function to process weather-related queries"""
+        """Internal function to process weather-related queries using the Weather module"""
         try:
             print(f"[DEBUG] process_weather_internal called with: '{text}'")
             
-            # For now, just extract entities and return a weather-formatted response
-            # In a real implementation, this would call a weather API
-            
-            # Simple entity extraction for city names, dates, etc.
-            location_match = re.search(r'(?:in|at|for)\s+([A-Za-z\s]+)(?:,|\?|\.|\s+|$)', text)
-            location = location_match.group(1).strip() if location_match else "your current location"
-            
-            # Extract time reference (today, tomorrow, etc)
-            time_match = re.search(r'(?:today|tomorrow|tonight|this week|next week|on\s+([A-Za-z]+))', text, re.IGNORECASE)
-            time_ref = time_match.group(0) if time_match else "today"
-            
-            # Generate a simple response
-            forecast_options = [
-                f"The weather {time_ref} in {location} looks good with temperatures around 75°F (24°C).",
-                f"Expect partly cloudy skies {time_ref} in {location} with a high of 72°F (22°C).",
-                f"The forecast for {location} {time_ref} shows a chance of rain with temperatures around 68°F (20°C)."
-            ]
-            
-            # Select a random forecast for demo purposes
-            import random
-            weather_response = random.choice(forecast_options)
-            
-            # Create a formatted response
-            response = f"WEATHER: {weather_response}\n\nNote: This is a demonstration response. In a production environment, this would connect to a real weather API."
+            # Use get_weather_response function from Weather module
+            weather_response = get_weather_response(text)
             
             result = {
-                "response": response,
+                "response": weather_response,
                 "category": "weather",
-                "success": True,
-                "location": location,
-                "time": time_ref
+                "success": True
             }
             return result
             
@@ -445,7 +427,7 @@ def register_ai_routes(app, mongo):
     
     @app.route('/api/ai/weather', methods=['POST'])
     def process_weather():
-        """Process weather-specific requests."""
+        """Process weather-specific requests using the Weather module."""
         try:
             data = request.json
             if not data or 'text' not in data:
@@ -455,8 +437,15 @@ def register_ai_routes(app, mongo):
             text = data['text']
             print(f"[DEBUG] /api/ai/weather received: '{text}'")
             
-            # Reuse the internal weather processing function
-            result = process_weather_internal(text)
+            # Get weather response directly from Weather module
+            weather_response = get_weather_response(text)
+            
+            result = {
+                "response": weather_response,
+                "category": "weather",
+                "success": True
+            }
+            
             return jsonify(result)
             
         except Exception as e:
