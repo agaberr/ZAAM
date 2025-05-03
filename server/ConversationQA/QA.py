@@ -4,7 +4,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 from NameEntityModel.TopicExtractionModel import NERPredictor
 from transformers import BertModel, BertTokenizerFast, AdamW, get_linear_schedule_with_warmup
-from TopicExtraction.ExtractTopic import ExtractTopic, generate_passage, generate_passage_from_entity_tuple
 import spacy
 import functools
 import time
@@ -15,16 +14,14 @@ import re
 from transformers import BertTokenizer
 from text_summarization import article_summarize
 from classifier.QueryClassifier import predict_query_type
-import os
+from TopicExtraction.Daily_football import ImprovedFootballScraper
+from TopicExtraction.NewsExtraction import get_articles_for_query
+from TopicExtraction.ArticleEvaluation import article_contains_answer
+from TopicExtraction.CookingExtraction import transform_recipe_to_conversation,get_recipes_for_query
+from TopicExtraction.FootballNewsExtraction import get_football_articles
+from TopicExtraction.TopicClassifier import TopicClassifier
+from TopicExtraction.ExtractTopic import ExtractTopic
 
-# Define function to get model path
-def get_model_path(model_filename):
-    # Get the directory of the current file
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    # Get the Models directory path
-    models_dir = os.path.join(current_dir, 'Models')
-    # Return the full path to the model file
-    return os.path.join(models_dir, model_filename)
 
 # Performance decorator for timing functions
 def timing_decorator(func):
@@ -41,16 +38,59 @@ class ConversationalQA:
     def __init__(self, model_name="all-MiniLM-L6-v2"):
         self.conversation_history = []
         self.current_passage = None
-        # Load a smaller model for better performance
-        try:
-            self.nlp = spacy.load("en_core_web_sm")  # Using smaller model
-        except Exception as e:
-            print(f"Error loading spaCy model: {e}")
-            raise
-            
+        self.nlp = spacy.load("en_core_web_sm") 
         self.current_entity = None
         self.entity_info = {}
-        
+        self.topic_classifier = TopicClassifier(model_name=model_name, confidence_threshold=0.7)
+        category_examples = {
+        "football": [
+            "Who won the match yesterday?",
+            "What's the best football team this season?",
+            "Tell me about the latest soccer transfer news",
+            "How did the game end?",
+            "Who scored the goal?",
+            "Which team is leading the league?",
+            "Who are the top strikers this season?",
+            "When is the next Champions League match?",
+            "Tell me about the World Cup",
+            "Did they win the match?",
+            "what is the result of match barca and real madrid",
+            "who is Mohamed Salah",
+            "how many goals did Messi score",
+            "who is the best player in the world",
+        ],
+        "cooking": [
+            "How do I make pasta carbonara?",
+            "What ingredients do I need for chocolate cake?",
+            "Tell me a good recipe for dinner",
+            "How long should I bake chicken?",
+            "What's a good substitute for butter?",
+            "How do you make bread from scratch?",
+            "What's the best way to season steak?",
+            "How do I make a gluten-free dessert?",
+            "What's the secret to fluffy pancakes?",
+            "Can you suggest a vegetarian meal plan?",
+            "how to cook chicken without using eggs?",
+            "how to make a pizza without using oil?",
+        ],
+        "news": [
+            "What's happening in politics today?",
+            "Tell me the latest headlines",
+            "Any breaking news about the economy?",
+            "What's the most recent story?",
+            "Tell me about current events",
+            "What's the latest on the government policy?",
+            "Are there any updates on the international situation?",
+            "What's happening with the stock market?",
+            "Tell me about the recent scientific discoveries",
+            "What's the latest health news?",
+            "tell me about gaza",
+            "what happened in Egypt in 2011",
+        ]
+    }
+        self.topic_classifier.add_examples(category_examples)
+
+    
         # Initialize sentence transformer
         self.model = SentenceTransformer(model_name)
         
@@ -66,79 +106,61 @@ class ConversationalQA:
         self.processed_sentences = []
         
         # Batch processing settings
-        self.batch_size = 32  # Optimal batch size for embedding computation
+        self.batch_size = 32  
         # load NER model
-        try:
-            self.ner_predictor = NERPredictor()
-        except Exception as e:
-            print(f"Error loading NER predictor: {e}")
-            raise
-            
+        self.ner_predictor = NERPredictor()
         # load Pronoun resolution model
-        try:
-            self._load_pronoun_resolution_model()
-        except Exception as e:
-            print(f"Error loading pronoun resolution model: {e}")
-            raise
-            
+        self._load_pronoun_resolution_model()
         # Initialize QA model
-        try:
-            self._load_qa_model()
-        except Exception as e:
-            print(f"Error loading QA model: {e}")
-            raise
+        self._load_qa_model()
 
-        try:
-            # Load classifier models using relative paths
-            self.classifyQuery_model = joblib.load(get_model_path("classifier_model.pkl"))
-            self.classifyVectorizar = joblib.load(get_model_path("vectorizer.pkl"))
-        except Exception as e:
-            print(f"Error loading classifier models: {e}")
-            raise
+        
+        self.classifyQuery_model =  joblib.load("./Models/classifier_model.pkl")
+        self.classifyVectorizar = joblib.load("./Models/vectorizer.pkl")
+        
+    def add_to_knowledge_base(self, documents, metadata=None):
+        if isinstance(documents, str):
+            documents = [documents]
+            
+        if metadata is None:
+            metadata = [{"source": f"document-{i+len(self.knowledge_base)}"} for i in range(len(documents))]
+        elif isinstance(metadata, dict):
+            metadata = [metadata]
+            
+        # Add to knowledge base list
+        self.knowledge_base.extend(documents)
+        self.knowledge_base_metadata.extend(metadata)
+        
+        # Index documents in RAG
+        doc_ids = [f"kb-{i+len(self.knowledge_base)-len(documents)}" for i in range(len(documents))]
+        num_chunks = self.rag.index_documents(documents, doc_ids)
+        
+        return num_chunks
     
     def _load_pronoun_resolution_model(self):
-        # Use relative paths
-        model_path_pr = get_model_path('pronoun_resolution_model_full.pt')
-        print(f"Loading pronoun resolution model from: {model_path_pr}")
-        
+        model_path = './Models/pronoun_resolution_model_full.pt'
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Using device: {self.device}")
-        
-        try:
-            checkpoint = torch.load(model_path_pr, map_location=self.device)
-            bert_model_name = checkpoint.get('bert_model_name', 'bert-base-uncased')
+        checkpoint = torch.load(model_path, map_location=self.device)
+        bert_model_name = checkpoint.get('bert_model_name', 'bert-base-uncased')
 
-            self.tokenizer = BertTokenizer.from_pretrained(bert_model_name)
-            self.pronoun_model = PronounResolutionModel(bert_model_name=bert_model_name)
-            self.pronoun_model.load_state_dict(checkpoint['model_state_dict'])
-            self.pronoun_model.to(self.device)
-            self.pronoun_model.eval()
-            print("Pronoun resolution model loaded successfully")
-        except Exception as e:
-            print(f"Failed to load pronoun resolution model: {e}")
-            raise
+        self.tokenizer = BertTokenizer.from_pretrained(bert_model_name)
+        self.pronoun_model = PronounResolutionModel(bert_model_name=bert_model_name)
+        self.pronoun_model.load_state_dict(checkpoint['model_state_dict'])
+        self.pronoun_model.to(self.device)
+        self.pronoun_model.eval()
 
     def _load_qa_model(self):
-        # Use relative paths
-        model_path_qa = get_model_path('extractiveQA.pt')
-        print(f"Loading QA model from: {model_path_qa}")
-        
-        try:
-            self.model_qa = BertForQA()
-            self.model_qa.load_state_dict(torch.load(model_path_qa, 
-                                                map_location=self.device))
-            self.model_qa.to(self.device)
-            self.model_qa.eval()
-            self.model_qa = self.model_qa.to(self.device)
-            self.tokenizer_qa = BertTokenizerFast.from_pretrained("bert-base-uncased")
-            print(f"QA model loaded successfully on {self.device}")
-        except Exception as e:
-            print(f"Failed to load QA model: {e}")
-            raise
+        self.model_qa = BertForQA()
+        self.model_qa.load_state_dict(torch.load(f"./Models/extractiveQA.pt", 
+                                             map_location=self.device))
+        self.model_qa.to(self.device)
+        self.model_qa.eval()
+        self.model_qa = self.model_qa.to(self.device)
+        self.tokenizer_qa = BertTokenizerFast.from_pretrained("bert-base-uncased")
+        print(f"Model loaded successfully on {self.device}")
 
     def answer_question(self, question, context, max_length=384):
 
-        # # Ensure model is in evaluation mode
         # self.model_qa.eval()
         
         # Tokenize input
@@ -203,7 +225,6 @@ class ConversationalQA:
         return answer
         
     def _get_embedding(self, text):
-        """Cache embeddings to avoid recomputation"""
         if text in self.embedding_cache:
             return self.embedding_cache[text]
         
@@ -215,7 +236,6 @@ class ConversationalQA:
         return embedding
     
     def _get_embeddings_batch(self, texts):
-        """Process embeddings in batches for efficiency"""
         # Filter out texts that are already cached
         new_texts = []
         new_texts_indices = []
@@ -239,13 +259,12 @@ class ConversationalQA:
         return [self.embedding_cache[text] for text in texts]
     
     def _get_entities(self, text):
-        """Cache entities to avoid recomputation"""
         if text in self.entity_cache:
             return self.entity_cache[text]
         
         # Extract entities
         doc = self.ner_predictor.predict(text)
-        important_keywords = {"war"}
+        important_keywords = {"war", "football", "born","places","news","achievements","today","now"}
         entities, important_keywords = ExtractTopic(doc, important_keywords)
         
         # Store in cache
@@ -257,7 +276,7 @@ class ConversationalQA:
         if not query.strip():
             if passage is not None:
                 self.current_passage = passage
-            return "", False
+            return "",'none'
         
         # Update passage if provided
         if passage is not None:
@@ -266,59 +285,70 @@ class ConversationalQA:
             self._preprocess_passage()
             
         # Apply attention to resolve the query using conversation history
+
+        print("current Query: ",query)
         resolved_query = self._apply_attention(query)
         
         print("the query:: ",query)
         print("\nresolved query:: ",resolved_query)
         
-        # queryType= predict_query_type(resolved_query,self.nlp,self.classifyQuery_model,self.classifyVectorizar)
-        queryType= "QA"
+        queryType= predict_query_type(resolved_query,self.nlp,self.classifyQuery_model,self.classifyVectorizar)
         print("query type: ",queryType)
 
         # Check if current passage has the entities we need
         answer, confidence = self._get_answer_with_cosine_similarity(resolved_query)
         print("answer before checking confidence: ",answer)
         print("\nconfidence level: ",confidence)
-        need_new_passage = confidence < 0.35
-        if need_new_passage:
-            print("I need new Passsage\n")
-            # clear history
-            self.conversation_history = []    
-            # call NER Model to label query
-            predictions = self.ner_predictor.predict(resolved_query)                           
-            important_keywords = {"match", "war", "football", "born","places","news","achievements","today","now"}   # set important words
-            entities = ExtractTopic(predictions, important_keywords)    # extract entities
-            
-            # generate prompt based on entities
-            prompt = generate_passage_from_entity_tuple(entities,resolved_query)       
-            print("prompt : ",prompt)
 
-            # generate passage based on prompt
-            passage_generated = generate_passage(prompt)
-            print("new passage : ",passage_generated)
-            self.set_passage(passage_generated) 
-            # get closed answer from new passage
-            # answer, confidence = self._get_answer_with_cosine_similarity(resolved_query)
+        #get last element in history
+        last_element = self.conversation_history[-1] if self.conversation_history else None
 
-            if queryType == "Summarization":
-                answer = article_summarize(passage_generated)
-            else: answer = self.answer_question(resolved_query,passage_generated)
+        if (
+            last_element
+            and last_element.get('confirmation') == 'Yes'
+            and ('cooking' in resolved_query or 'news' in resolved_query or 'football' in resolved_query)
+        ):
+            if 'cooking' in resolved_query:
+                category = 'cooking'
+            elif 'news' in resolved_query:
+                category = 'news'
+            elif 'football' in resolved_query:
+                category = 'football'
+            query_embedding = self.topic_classifier.get_query_embedding(last_element['resolved_query'])
 
-            print("query type: ",queryType)
-            # append to history
-            self.conversation_history.append({
-            "query": query,
-            "resolved_query": resolved_query,
-            "answer": answer,
-            "entity": self.current_entity,
-            "confidence": confidence
-             })
-            return answer, need_new_passage
+            self.topic_classifier.add_confirmed_example(
+                last_element['resolved_query'], 
+                category, 
+                query_embedding
+            )
+            print("category hena b3d confirmation: ",category)
         else:
-            if queryType == "Summarization":
-                answer = article_summarize(self.current_passage)
-            else: answer = self.answer_question(resolved_query,self.current_passage)
-            
+
+            result = self.topic_classifier.interactive_classify(resolved_query)
+
+            if result["result"] == "confident":
+                category = result["category"]
+                print(f"Category: {category}")
+            else:
+                answer = result["message"]
+                self.conversation_history.append({
+                    "query": query,
+                    "resolved_query": resolved_query,
+                    "answer": answer,
+                    "entity": self.current_entity,
+                    "confidence": confidence,
+                    "confirmation":"Yes"
+                })
+                return answer,'None'
+        
+        if  last_element and last_element.get('confirmation') == 'Yes':
+            resolved_query = last_element['resolved_query']
+
+        print("category hena: ",category)
+        if category == 'cooking':
+            recipes =get_recipes_for_query(resolved_query)
+            answer = transform_recipe_to_conversation(recipes[0])
+
             self.conversation_history.append({
                 "query": query,
                 "resolved_query": resolved_query,
@@ -326,16 +356,55 @@ class ConversationalQA:
                 "entity": self.current_entity,
                 "confidence": confidence
             })
-            if self.current_entity:
-                if self.current_entity not in self.entity_info:
-                    self.entity_info[self.current_entity] = []
-                self.entity_info[self.current_entity].append({
-                    "query": query,
-                    "answer": answer,
-                    "confidence": confidence
-                })
+            return answer ,"All recipes"
+        elif category=='news':
+             articles = get_articles_for_query(resolved_query)
+        else:
+            articles= get_football_articles(resolved_query,max_articles=2)
+
+        best_article = None
+        article_match = None
+        best_score = 0.0
+
+        for article in articles:
+           contains_answer, best_match, score = article_contains_answer(article['qa_text'], resolved_query, debug=False)
+           if score > best_score:
+                best_score = score
+                best_article = article
+                article_match = best_match
+   
+        print("best score: ",best_score)
+        print("best article match: ",article_match)
+      
+        if best_article and queryType == "Summarization":
+            answer = article_summarize(best_article['qa_text'])
+            source = best_article['source']
+        elif best_article :
+            answer = self.answer_question(resolved_query,best_article['qa_text'])
+            source = best_article['source']
+        else:
+            answer = "I am sorry, I don't have enough information to answer your question."
+            source = 'NONE'
             
-            return answer, need_new_passage
+        print("answer:::  ",answer)
+        
+        self.conversation_history.append({
+            "query": query,
+            "resolved_query": resolved_query,
+            "answer": answer,
+            "entity": self.current_entity,
+            "confidence": confidence,
+            "confirmation":"No"
+        })
+        if self.current_entity:
+            if self.current_entity not in self.entity_info:
+                self.entity_info[self.current_entity] = []
+            self.entity_info[self.current_entity].append({
+                "query": query,
+                "answer": answer,
+                "confidence": confidence
+            })
+        return answer,source            
 
 
     def resolve_query(self,context, query, pronoun):
@@ -393,7 +462,6 @@ class ConversationalQA:
 
     
     def _preprocess_passage(self):
-        """Preprocess the passage to extract sentences and entities once"""
         # Clear cache for new passage
         self.processed_sentences = []
         self.sentence_cache = {}
@@ -417,7 +485,7 @@ class ConversationalQA:
             }
     
     def _check_passage_relevance(self, resolved_query):
-        """Check if the current passage contains information relevant to the query"""
+      
         if not self.current_passage:
             return True
             
@@ -500,6 +568,7 @@ class ConversationalQA:
     
     def assess_answer_quality(self, query, answer_sentence, similarity_score, question_type):
         
+        # remove stopwords and lemmatize query and find important keywords
         query_keywords = set()
         query_doc = self.nlp(query)
         for token in query_doc:
@@ -513,6 +582,7 @@ class ConversationalQA:
             return similarity_score
             
         # Quick keyword check for answer
+        # Extract Keywords from the Answer
         answer_doc = self.nlp(answer_sentence)
         answer_keywords = set()
         for token in answer_doc:
