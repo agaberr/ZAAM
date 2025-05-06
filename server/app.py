@@ -508,10 +508,10 @@ def check_upcoming_reminders():
 
 # Start the scheduler after all routes are registered
 def start_scheduler():
-    # Schedule the reminder check every 15 minutes
+    # Schedule the reminder check every minute for testing (normally would be 15 minutes)
     scheduler.add_job(check_upcoming_reminders, 'interval', minutes=1)
     scheduler.start()
-    logger.info("Reminder scheduler started - will check for upcoming reminders every 15 minutes")
+    logger.info("Reminder scheduler started - will check for upcoming reminders every minute")
 
 # Start the scheduler when the app runs
 with app.app_context():

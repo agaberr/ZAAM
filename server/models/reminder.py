@@ -181,23 +181,30 @@ class ReminderNLP:
         text_lower = text.lower()
         days_offset = 0
         found_expression = None
+        time_match = None
         
-        # Check for time expressions
+        # Extract time expressions like "3 pm", "5:30 pm", etc.
+        time_pattern = r'\b(\d{1,2})(?::(\d{1,2}))?\s*(am|pm|a\.m\.|p\.m\.)\b'
+        time_match = re.search(time_pattern, text_lower)
+        
+        # Check for date expressions (today, tomorrow, etc.)
         for expression, offset in self.TIME_EXPRESSIONS.items():
             if expression in text_lower:
                 days_offset = offset
                 found_expression = expression
                 break
         
-        # Remove the expression from text if found
+        # Process text to keep any extracted time but remove date expressions
+        processed_text = text_lower
         if found_expression:
             print(f"Found time expression: '{found_expression}', days offset: {days_offset}")
             # Use regex to remove the expression while preserving word boundaries
-            text = re.sub(r'\b' + re.escape(found_expression) + r'\b', '', text_lower, flags=re.IGNORECASE)
-            # Clean up any double spaces created
-            text = re.sub(r'\s+', ' ', text).strip()
+            processed_text = re.sub(r'\b' + re.escape(found_expression) + r'\b', '', processed_text, flags=re.IGNORECASE)
         
-        return text, days_offset
+        # Clean up any double spaces created
+        processed_text = re.sub(r'\s+', ' ', processed_text).strip()
+        
+        return processed_text, days_offset
     
     def predict(self, tokenized_text, max_seq_length=128):
         """Run prediction on tokenized text"""
@@ -275,6 +282,15 @@ class ReminderNLP:
         # Extract time expressions
         user_input, days_offset = self.extract_time_expressions(text)
         
+        # Check for time expressions directly in the text
+        time_str = None
+        time_pattern = r'\b(\d{1,2})(?::(\d{1,2}))?\s*(am|pm|a\.m\.|p\.m\.)\b'
+        time_match = re.search(time_pattern, text.lower())
+        
+        if time_match:
+            time_str = time_match.group(0)
+            print(f"Found time expression: '{time_str}'")
+        
         # Tokenize the text
         tokenized_text = user_input.lower().split()
         
@@ -287,6 +303,10 @@ class ReminderNLP:
         # Add days offset to the result
         result['days_offset'] = days_offset
         
+        # Add time string if found directly in the text but not by the model
+        if time_str and not result.get('predicted_time'):
+            result['predicted_time'] = time_str
+            
         return result
 
 class ReminderDB:
@@ -297,9 +317,25 @@ class ReminderDB:
         """Create a new reminder in the database"""
         if db is None:
             raise ValueError("Database connection required")
+        
+        # Ensure timezone is set to Egypt time
+        egypt_tz = pytz.timezone("Africa/Cairo")
+        
+        # Make sure the start_time is timezone-aware in Egypt time
+        if start_time.tzinfo is None:
+            start_time = egypt_tz.localize(start_time)
+        elif start_time.tzinfo != egypt_tz:
+            start_time = start_time.astimezone(egypt_tz)
             
+        # Calculate end_time properly
         if not end_time:
             end_time = start_time + timedelta(hours=1)
+        else:
+            # Make sure end_time has the same timezone handling
+            if end_time.tzinfo is None:
+                end_time = egypt_tz.localize(end_time)
+            elif end_time.tzinfo != egypt_tz:
+                end_time = end_time.astimezone(egypt_tz)
             
         # Create reminder object
         reminder = {
@@ -308,7 +344,7 @@ class ReminderDB:
             "start_time": start_time,
             "end_time": end_time,
             "description": description,
-            "created_at": datetime.now(pytz.timezone("Africa/Cairo")),
+            "created_at": datetime.now(egypt_tz),
             "status": "active"
         }
         
@@ -328,6 +364,8 @@ class ReminderDB:
             
         # Default to today if no time range is provided
         egypt_tz = pytz.timezone("Africa/Cairo")
+        
+        # Set default time range if not provided
         if not time_min:
             time_min = datetime.now(egypt_tz).replace(
                 hour=0, minute=0, second=0, microsecond=0
@@ -335,7 +373,21 @@ class ReminderDB:
             
         if not time_max:
             time_max = time_min.replace(hour=23, minute=59, second=59)
+        
+        # Ensure timezone awareness for query parameters
+        if time_min.tzinfo is None:
+            time_min = egypt_tz.localize(time_min)
+        elif time_min.tzinfo != egypt_tz:
+            time_min = time_min.astimezone(egypt_tz)
             
+        if time_max.tzinfo is None:
+            time_max = egypt_tz.localize(time_max)
+        elif time_max.tzinfo != egypt_tz:
+            time_max = time_max.astimezone(egypt_tz)
+            
+        # Print debug info
+        print(f"[DEBUG] Querying reminders from {time_min} to {time_max}")
+        
         # Build query
         query = {
             "user_id": user_id,
@@ -345,6 +397,16 @@ class ReminderDB:
         
         # Get reminders
         reminders = list(db.reminders.find(query).sort("start_time", 1).limit(max_results))
+        
+        # Ensure all returned times have consistent timezone
+        for reminder in reminders:
+            for field in ['start_time', 'end_time', 'created_at']:
+                if field in reminder and reminder[field]:
+                    dt = reminder[field]
+                    if dt.tzinfo is None:
+                        reminder[field] = egypt_tz.localize(dt)
+                    elif dt.tzinfo != egypt_tz:
+                        reminder[field] = dt.astimezone(egypt_tz)
         
         return reminders
     
@@ -469,35 +531,49 @@ class Reminder:
     
     @staticmethod
     def parse_time(time_str, target_date):
-        """Parse time string like '3 pm' into datetime object"""
+        """Parse time string into datetime object with timezone"""
         if not time_str:
             return target_date
             
         try:
-            # Handle different time formats
-            time_parts = time_str.split()
+            # Extract hours, minutes, and am/pm
+            time_pattern = r'(\d{1,2})(?::(\d{1,2}))?\s*(am|pm|a\.m\.|p\.m\.)'
+            match = re.match(time_pattern, time_str.lower())
             
-            if len(time_parts) == 1:  # Only number provided, default to AM
-                hour = int(time_parts[0])
-                meridian = 'am'  # Default to AM
-            elif len(time_parts) == 2:  # Format: "3 pm" or "11 am"
-                hour = int(time_parts[0])
-                meridian = time_parts[1].lower()
+            if match:
+                hour = int(match.group(1))
+                minute = int(match.group(2)) if match.group(2) else 0
+                meridian = match.group(3)
+                
+                # Convert to 24-hour format
+                if meridian in ['pm', 'p.m.'] and hour != 12:
+                    hour += 12
+                elif meridian in ['am', 'a.m.'] and hour == 12:
+                    hour = 0
+                
+                # Ensure target_date has Egypt timezone
+                egypt_tz = pytz.timezone('Africa/Cairo')
+                if target_date.tzinfo is None:
+                    target_date = egypt_tz.localize(target_date)
+                elif target_date.tzinfo != egypt_tz:
+                    target_date = target_date.astimezone(egypt_tz)
+                
+                # Print debug info for timezone validation
+                print(f"[DEBUG] Parsing time: {hour}:{minute} ({meridian})")
+                print(f"[DEBUG] Target date before: {target_date}")
+                
+                # Create new time with the target date
+                new_time = target_date.replace(
+                    hour=hour,
+                    minute=minute,
+                    second=0,
+                    microsecond=0
+                )
+                
+                print(f"[DEBUG] New time after: {new_time}")
+                return new_time
             else:
                 raise ValueError(f"Could not parse time format: {time_str}")
-            
-            # Convert to 24-hour format
-            if meridian == 'pm' and hour != 12:
-                hour += 12
-            elif meridian == 'am' and hour == 12:
-                hour = 0
-            
-            # Create new time
-            return target_date.replace(
-                hour=hour,
-                minute=0,
-                second=0,
-                microsecond=0
-            )
+                
         except ValueError as e:
-            raise ValueError(f"Invalid time format. Please use format like '3 pm' or '11 am'. Error: {str(e)}") 
+            raise ValueError(f"Invalid time format. Please use format like '3 pm' or '11:30 am'. Error: {str(e)}") 

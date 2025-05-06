@@ -209,6 +209,28 @@ def register_ai_routes(app, mongo):
                 }
                 
             elif predicted_intent == "create_event":
+                # Extract a better title from the original text if action is incomplete
+                if not action or len(action.split()) < 2:
+                    # Try to extract a meaningful title from the original text
+                    # Remove common phrases like "remind me to", "set a reminder to", etc.
+                    cleaned_text = re.sub(r'^(remind me to|set a reminder to|remind me|set reminder|remind)\s+', '', text.lower())
+                    
+                    # Remove time related parts
+                    time_pattern = r'\b(at|on|for|by)\s+\d{1,2}(?::)?\d{0,2}\s*(am|pm|a\.m\.|p\.m\.)\b'
+                    cleaned_text = re.sub(time_pattern, '', cleaned_text)
+                    
+                    # Remove date related parts
+                    for date_exp in reminder_nlp.TIME_EXPRESSIONS:
+                        if date_exp in cleaned_text.lower():
+                            cleaned_text = re.sub(r'\b' + re.escape(date_exp) + r'\b', '', cleaned_text, flags=re.IGNORECASE)
+                    
+                    # Clean up any duplicate spaces
+                    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+                    
+                    # Use this as the action if it's better than what we had
+                    if len(cleaned_text) > len(action):
+                        action = cleaned_text
+                
                 # Validate the action (reminder title)
                 if not action:
                     return {
@@ -225,7 +247,12 @@ def register_ai_routes(app, mongo):
                 # Parse the time if provided
                 if time_str:
                     try:
-                        start_time = Reminder.parse_time(time_str, start_time)
+                        # If we have our own parse_time method in the ReminderNLP class, use it
+                        if hasattr(reminder_nlp, 'parse_time'):
+                            start_time = reminder_nlp.parse_time(time_str, start_time)
+                        else:
+                            # Otherwise use the Reminder class method
+                            start_time = Reminder.parse_time(time_str, start_time)
                     except ValueError as e:
                         return {
                             "response": str(e),
@@ -233,6 +260,10 @@ def register_ai_routes(app, mongo):
                             "success": False,
                             "intent": "create_event"
                         }
+                else:
+                    # Default time if none provided - set to next hour
+                    current_hour = start_time.hour
+                    start_time = start_time.replace(hour=(current_hour + 1) % 24, minute=0, second=0, microsecond=0)
                 
                 # Create the reminder
                 try:
@@ -256,7 +287,7 @@ def register_ai_routes(app, mongo):
                     else:
                         time_context = f"on {formatted_date}"
                     
-                    response = f"Perfect! I've added {action} to your reminders for {formatted_time} {time_context}. It's scheduled for one hour."
+                    response = f"Perfect! I've added '{action}' to your reminders for {formatted_time} {time_context}. It's scheduled for one hour."
                     
                     return {
                         "response": response,
@@ -476,58 +507,113 @@ def register_ai_routes(app, mongo):
     def check_upcoming_reminders():
         """
         Check for reminders scheduled in the next 15 minutes and send notifications.
-        This endpoint is designed to be called by a scheduler every 15 minutes.
+        This endpoint is designed to be called by a scheduler every minute.
         """
         try:
-            print("[DEBUG] Checking for upcoming reminders")
+            print("[DEBUG] ===== Checking for upcoming reminders =====")
             
-            # Get all users with reminders in the next 15 minutes
+            # Get current time with Egypt timezone
             egypt_tz = pytz.timezone('Africa/Cairo')
             now = datetime.datetime.now(egypt_tz)
             fifteen_min_later = now + datetime.timedelta(minutes=15)
             
-            # Find reminders that are due in the next 15 minutes
-            upcoming_reminders = mongo.db.reminders.find({
-                "start_time": {
-                    "$gte": now,
-                    "$lte": fifteen_min_later
-                }
-            })
+            # Debug
+            print(f"[DEBUG] Current time (Cairo): {now.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+            print(f"[DEBUG] 15 min later (Cairo): {fifteen_min_later.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
             
-            # Convert cursor to list to avoid cursor timeout
-            upcoming_reminders = list(upcoming_reminders)
-            print(f"[DEBUG] Found {len(upcoming_reminders)} upcoming reminders")
+            # For debugging, get all reminders for today to see what's available
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
             
+            all_day_reminders = list(mongo.db.reminders.find({
+                "start_time": {"$gte": today_start, "$lte": today_end},
+                "status": "active"
+            }))
+            
+            print(f"[DEBUG] Found {len(all_day_reminders)} total reminders for today")
+            for r in all_day_reminders:
+                r_time = r.get('start_time')
+                if r_time:
+                    # Ensure the time is timezone-aware in Egypt time
+                    if r_time.tzinfo is None:
+                        r_time = egypt_tz.localize(r_time)
+                    elif r_time.tzinfo != egypt_tz:
+                        r_time = r_time.astimezone(egypt_tz)
+                    
+                    # Calculate time until reminder
+                    time_diff_minutes = (r_time - now).total_seconds() / 60
+                    time_diff_str = f"{time_diff_minutes:.1f} min" if time_diff_minutes >= 0 else "past"
+                    
+                    print(f"[DEBUG] Reminder: '{r.get('title')}' at {r_time.strftime('%Y-%m-%d %H:%M:%S %Z%z')} ({time_diff_str} from now)")
+            
+            # Get all users from the database
+            users = list(mongo.db.users.find({}, {"_id": 1}))
+            print(f"[DEBUG] Found {len(users)} users to check reminders for")
+            
+            upcoming_reminders = []
             notifications_sent = 0
+            
+            # Check each user's reminders
+            for user in users:
+                user_id = str(user["_id"])
+                
+                # Find reminders that are due in the next 15 minutes
+                user_reminders = ReminderDB.get_reminders(
+                    user_id=user_id,
+                    time_min=now,
+                    time_max=fifteen_min_later,
+                    max_results=10,
+                    db=mongo.db
+                )
+                
+                print(f"[DEBUG] Found {len(user_reminders)} upcoming reminders for user {user_id}")
+                
+                # Add valid reminders to our list
+                for reminder in user_reminders:
+                    start_time = reminder.get('start_time')
+                    
+                    # Ensure timezone is set to Egypt time
+                    if start_time.tzinfo is None:
+                        start_time = egypt_tz.localize(start_time)
+                        reminder['start_time'] = start_time
+                    elif start_time.tzinfo != egypt_tz:
+                        start_time = start_time.astimezone(egypt_tz)
+                        reminder['start_time'] = start_time
+                    
+                    # Calculate minutes until reminder is due
+                    time_diff = (start_time - now).total_seconds() / 60
+                    
+                    # Only include reminders that are actually in the next 15 minutes
+                    if 0 <= time_diff <= 15:
+                        print(f"[DEBUG] Including reminder '{reminder.get('title')}' at {start_time.strftime('%H:%M:%S')} ({time_diff:.1f} min from now)")
+                        upcoming_reminders.append(reminder)
+                    else:
+                        print(f"[DEBUG] Excluding reminder '{reminder.get('title')}' at {start_time.strftime('%H:%M:%S')} ({time_diff:.1f} min from now)")
+            
+            print(f"[DEBUG] Found {len(upcoming_reminders)} total valid upcoming reminders")
             
             # Process each upcoming reminder
             for reminder in upcoming_reminders:
                 user_id = reminder.get('user_id')
                 reminder_title = reminder.get('title', 'Untitled reminder')
+                start_time = reminder.get('start_time')
+                
+                # Format the time
+                time_str = start_time.strftime("%I:%M %p")
                 
                 # Format the notification text
-                notification_text = f"You have a reminder which is {reminder_title} after 15 minutes, be prepared."
+                notification_text = f"You have a reminder '{reminder_title}' at {time_str} (in the next 15 minutes), be prepared."
                 
                 # Send the notification to the AI reminder endpoint
                 try:
-                    # Send internal request to the reminder endpoint
-                    notification_data = {
-                        'text': notification_text,
-                        'user_id': user_id,
-                        'reminder_id': str(reminder['_id']),
-                        'is_notification': True
-                    }
-                    
-                    # Make an internal request to the reminder processing function
-                    result = process_reminder_internal(notification_text)
-                    
                     # Save notification in the database
                     mongo.db.notifications.insert_one({
                         'user_id': user_id,
                         'text': notification_text,
                         'reminder_id': reminder['_id'],
                         'created_at': now,
-                        'read': False
+                        'read': False,
+                        'type': 'reminder_alert'
                     })
                     
                     notifications_sent += 1
@@ -536,14 +622,19 @@ def register_ai_routes(app, mongo):
                 except Exception as e:
                     logger.error(f"Error sending notification for reminder {reminder['_id']}: {str(e)}")
             
+            print("[DEBUG] ===== Reminder check completed =====")
+            
             return jsonify({
                 "success": True,
                 "upcoming_reminders": len(upcoming_reminders),
-                "notifications_sent": notifications_sent
+                "notifications_sent": notifications_sent,
+                "current_time": now.strftime("%Y-%m-%d %H:%M:%S %Z%z"),
+                "time_window_end": fifteen_min_later.strftime("%Y-%m-%d %H:%M:%S %Z%z"),
             })
             
         except Exception as e:
             logger.error(f"Error checking upcoming reminders: {str(e)}")
+            print(f"[DEBUG] Error checking upcoming reminders: {str(e)}")
             return jsonify({"error": str(e), "success": False}), 500
     
     @app.route('/api/reminder', methods=['GET'])
