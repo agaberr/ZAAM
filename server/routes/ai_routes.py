@@ -472,6 +472,80 @@ def register_ai_routes(app, mongo):
             print(f"[DEBUG] Error in /api/ai/reminder: {str(e)}")
             return jsonify({"error": str(e), "success": False}), 500
      
+    @app.route('/api/reminder/check_upcoming', methods=['GET'])
+    def check_upcoming_reminders():
+        """
+        Check for reminders scheduled in the next 15 minutes and send notifications.
+        This endpoint is designed to be called by a scheduler every 15 minutes.
+        """
+        try:
+            print("[DEBUG] Checking for upcoming reminders")
+            
+            # Get all users with reminders in the next 15 minutes
+            egypt_tz = pytz.timezone('Africa/Cairo')
+            now = datetime.datetime.now(egypt_tz)
+            fifteen_min_later = now + datetime.timedelta(minutes=15)
+            
+            # Find reminders that are due in the next 15 minutes
+            upcoming_reminders = mongo.db.reminders.find({
+                "start_time": {
+                    "$gte": now,
+                    "$lte": fifteen_min_later
+                }
+            })
+            
+            # Convert cursor to list to avoid cursor timeout
+            upcoming_reminders = list(upcoming_reminders)
+            print(f"[DEBUG] Found {len(upcoming_reminders)} upcoming reminders")
+            
+            notifications_sent = 0
+            
+            # Process each upcoming reminder
+            for reminder in upcoming_reminders:
+                user_id = reminder.get('user_id')
+                reminder_title = reminder.get('title', 'Untitled reminder')
+                
+                # Format the notification text
+                notification_text = f"You have a reminder which is {reminder_title} after 15 minutes, be prepared."
+                
+                # Send the notification to the AI reminder endpoint
+                try:
+                    # Send internal request to the reminder endpoint
+                    notification_data = {
+                        'text': notification_text,
+                        'user_id': user_id,
+                        'reminder_id': str(reminder['_id']),
+                        'is_notification': True
+                    }
+                    
+                    # Make an internal request to the reminder processing function
+                    result = process_reminder_internal(notification_text)
+                    
+                    # Save notification in the database
+                    mongo.db.notifications.insert_one({
+                        'user_id': user_id,
+                        'text': notification_text,
+                        'reminder_id': reminder['_id'],
+                        'created_at': now,
+                        'read': False
+                    })
+                    
+                    notifications_sent += 1
+                    print(f"[DEBUG] Sent notification for reminder '{reminder_title}' to user {user_id}")
+                    
+                except Exception as e:
+                    logger.error(f"Error sending notification for reminder {reminder['_id']}: {str(e)}")
+            
+            return jsonify({
+                "success": True,
+                "upcoming_reminders": len(upcoming_reminders),
+                "notifications_sent": notifications_sent
+            })
+            
+        except Exception as e:
+            logger.error(f"Error checking upcoming reminders: {str(e)}")
+            return jsonify({"error": str(e), "success": False}), 500
+    
     @app.route('/api/reminder', methods=['GET'])
     def get_reminders():
         """Get user's reminders for a specific day"""
