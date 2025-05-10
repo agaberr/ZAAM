@@ -11,9 +11,10 @@ import json
 import logging
 import requests
 from flask_cors import CORS
-from apscheduler.schedulers.background import BackgroundScheduler
-import datetime
-import pytz
+from dotenv import load_dotenv
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from pymongo import MongoClient
+import json
 
 # Configure logging
 logging.basicConfig(
@@ -490,32 +491,6 @@ def main_home():
     </body>
     </html>
     """
-
-# Set up scheduler for recurring tasks
-scheduler = BackgroundScheduler()
-
-def check_upcoming_reminders():
-    """Function to call the reminder check endpoint"""
-    try:
-        base_url = os.getenv("BASE_URL", "http://localhost:5000")
-        logger.info(f"Checking upcoming reminders from {base_url}")
-        response = requests.get(f"{base_url}/api/reminder/check_upcoming")
-        logger.info(f"Scheduled reminder check completed: status={response.status_code}")
-        if response.status_code != 200:
-            logger.error(f"Error checking reminders: {response.text}")
-    except Exception as e:
-        logger.error(f"Failed to execute scheduled reminder check: {str(e)}")
-
-# Start the scheduler after all routes are registered
-def start_scheduler():
-    # Schedule the reminder check every minute for testing (normally would be 15 minutes)
-    scheduler.add_job(check_upcoming_reminders, 'interval', minutes=1)
-    scheduler.start()
-    logger.info("Reminder scheduler started - will check for upcoming reminders every minute")
-
-# Start the scheduler when the app runs
-with app.app_context():
-    start_scheduler()
 
 if __name__ == '__main__':
     print("\n=== ZAAM Server Initialization ===")
