@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Modal, Scrol
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Surface, ActivityIndicator, Chip } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { reminderService } from '../services/reminderService';
 
 interface Message {
   id: string;
@@ -17,6 +18,7 @@ export default function TalkToAIScreen({ setActiveTab }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
+  const lastNotificationTime = useRef<Record<string, number>>({});
 
   // Sample quick phrases
   const quickPhrases = [
@@ -27,6 +29,170 @@ export default function TalkToAIScreen({ setActiveTab }) {
     "Tell me about my family",
     "Help me remember where I put my glasses"
   ];
+
+  // Check for upcoming reminders
+  useEffect(() => {
+    const checkUpcomingReminders = async () => {
+      try {
+        console.log('\n=== Checking Upcoming Reminders ===');
+        
+        // Get current time in Egyptian timezone
+        const egyptianTimezone = 'Africa/Cairo';
+        const now = new Date();
+        const egyptianTime = new Date(now.toLocaleString('en-US', { timeZone: egyptianTimezone }));
+        console.log('Current time (Egypt):', egyptianTime.toLocaleString());
+        
+        // Get reminders using the correct endpoint
+        console.log('Fetching reminders from:', 'http://localhost:5000/api/reminder');
+        const response = await fetch('http://localhost:5000/api/reminder', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          },
+        });
+
+        console.log('Response status:', response.status);
+        const data = await response.json();
+        console.log('\n=== RAW API RESPONSE ===');
+        console.log(JSON.stringify(data, null, 2));
+        
+        if (!data.success) {
+          console.error('API returned error:', data.error);
+          return;
+        }
+
+        if (!data.reminders || !Array.isArray(data.reminders)) {
+          console.error('No reminders array in response:', data);
+          return;
+        }
+
+        console.log('\n=== ALL REMINDERS DETAILS ===');
+        console.log('Total reminders found:', data.reminders.length);
+        
+        data.reminders.forEach((reminder: any, index: number) => {
+          // Convert reminder time to Egyptian timezone
+          const reminderTime = new Date(reminder.start_time);
+          const egyptianReminderTime = new Date(reminderTime.toLocaleString('en-US', { timeZone: egyptianTimezone }));
+          
+          // Calculate time difference
+          const timeDiff = egyptianReminderTime.getTime() - egyptianTime.getTime();
+          const hoursUntilReminder = Math.floor(timeDiff / (1000 * 60 * 60));
+          const minutesUntilReminder = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+          
+          console.log(`\nReminder #${index + 1}:`);
+          console.log('----------------------------------------');
+          console.log('- Title:', reminder.title);
+          console.log('- Original Time:', reminder.start_time);
+          console.log('- Egyptian Time:', egyptianReminderTime.toLocaleString());
+          console.log('- Time Difference:', `${hoursUntilReminder} hours and ${minutesUntilReminder} minutes`);
+          console.log('- Description:', reminder.description || 'No description');
+          console.log('- Status:', reminder.status || 'active');
+          console.log('- Created At:', reminder.created_at);
+          
+          if (timeDiff < 0) {
+            console.log('- Status: PAST REMINDER');
+          } else if (timeDiff <= 60 * 60 * 1000) { // Within 1 hour
+            console.log('- Status: UPCOMING (within 1 hour)');
+          } else {
+            console.log('- Status: FUTURE REMINDER');
+          }
+          console.log('----------------------------------------');
+        });
+
+        const oneHourFromNow = new Date(egyptianTime.getTime() + 60 * 60 * 1000);
+        
+        console.log('\n=== TIME WINDOW CHECK ===');
+        console.log('Current time:', egyptianTime.toLocaleString());
+        console.log('Checking until:', oneHourFromNow.toLocaleString());
+        
+        let foundUpcomingReminders = false;
+        
+        // Check each reminder
+        for (const reminder of data.reminders) {
+          try {
+            const reminderTime = new Date(reminder.start_time);
+            const egyptianReminderTime = new Date(reminderTime.toLocaleString('en-US', { timeZone: egyptianTimezone }));
+            
+            if (isNaN(egyptianReminderTime.getTime())) {
+              console.error('Invalid reminder time:', reminder.start_time);
+              continue;
+            }
+
+            const timeDiff = egyptianReminderTime.getTime() - egyptianTime.getTime();
+            const minutesUntilReminder = Math.floor(timeDiff / (1000 * 60));
+            
+            // If reminder is within next hour and hasn't been notified in the last 5 minutes
+            if (minutesUntilReminder >= 0 && minutesUntilReminder <= 60) {
+              foundUpcomingReminders = true;
+              console.log(`\nFound upcoming reminder: "${reminder.title}"`);
+              console.log('- Time:', egyptianReminderTime.toLocaleString());
+              console.log('- Minutes until reminder:', minutesUntilReminder);
+              
+              const lastNotified = lastNotificationTime.current[reminder._id] || 0;
+              const fiveMinutesAgo = egyptianTime.getTime() - (5 * 60 * 1000);
+              
+              if (lastNotified < fiveMinutesAgo) {
+                console.log('- Action: Sending notification');
+                const notificationMessage: Message = {
+                  id: Date.now().toString(),
+                  text: `Hey, there is a meeting called "${reminder.title}" in the next hour!`,
+                  sender: 'ai',
+                  timestamp: new Date()
+                };
+                
+                setMessages(prev => [...prev, notificationMessage]);
+                lastNotificationTime.current[reminder._id] = egyptianTime.getTime();
+              } else {
+                console.log('- Action: Skipping notification (already notified in last 5 minutes)');
+              }
+            }
+          } catch (reminderError) {
+            console.error('Error processing reminder:', reminder, reminderError);
+          }
+        }
+
+        if (!foundUpcomingReminders) {
+          console.log('\nNo upcoming reminders found within the next hour');
+        }
+        
+        console.log('\n=== End of Reminder Check ===\n');
+      } catch (error) {
+        console.error('Error checking upcoming reminders:', error);
+      }
+    };
+
+    // Check immediately on mount
+    console.log('Starting reminder check interval');
+    checkUpcomingReminders();
+
+    // Function to get random interval between 15-30 minutes
+    const getRandomInterval = () => {
+      const minMinutes = 15;
+      const maxMinutes = 30;
+      const randomMinutes = Math.floor(Math.random() * (maxMinutes - minMinutes + 1)) + minMinutes;
+      console.log(`Next check will be in ${randomMinutes} minutes`);
+      return randomMinutes * 60 * 1000; // Convert to milliseconds
+    };
+
+    // Set up interval with random timing
+    let intervalId: NodeJS.Timeout;
+    const scheduleNextCheck = () => {
+      intervalId = setTimeout(() => {
+        checkUpcomingReminders();
+        scheduleNextCheck(); // Schedule the next check
+      }, getRandomInterval());
+    };
+
+    // Start the first random interval
+    scheduleNextCheck();
+
+    // Cleanup interval on unmount
+    return () => {
+      console.log('Cleaning up reminder check interval');
+      clearTimeout(intervalId);
+    };
+  }, []);
 
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
