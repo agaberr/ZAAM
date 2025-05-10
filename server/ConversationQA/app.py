@@ -2,7 +2,6 @@
 import time
 from flask import Flask, request, jsonify
 from QA import ConversationalQA
-from TopicExtraction.ExtractTopic import ExtractTopic, generate_passage, generate_passage_from_entity_tuple
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import spacy

@@ -108,7 +108,7 @@ def predict_query_type(text, nlp,classifier_model,classifier_vectorizer):
     features = extract_features(text_series,nlp)
     
     # Vectorize
-    text_vectorized = classifier_vectorizer.fit_transform([text])
+    text_vectorized = classifier_vectorizer.transform([text])
 
     
     # Combine features
