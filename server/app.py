@@ -44,16 +44,24 @@ for package in required_packages:
 def verify_models():
     """Check if all required models are available"""
     models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ConversationQA', 'Models')
+    weather_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Weather')
+    
     if not os.path.exists(models_dir):
         os.makedirs(models_dir, exist_ok=True)
+    if not os.path.exists(weather_dir):
+        os.makedirs(weather_dir, exist_ok=True)
         
     required_models = [
         "bert_seq2seq_ner.pt",
         "pronoun_resolution_model_full.pt",
         "extractiveQA.pt",
         "vectorizer.pkl",
-        "classifier_model.pkl"
+        "classifier_model.pkl",
     ]
+    
+    # Add weather model check
+    weather_model = "weather_model.pt"
+    weather_model_path = os.path.join(weather_dir, weather_model)
     
     missing_models = []
     for model_name in required_models:
@@ -61,11 +69,15 @@ def verify_models():
         if not os.path.exists(model_path):
             missing_models.append(model_name)
     
+    # Check weather model
+    if not os.path.exists(weather_model_path):
+        missing_models.append(weather_model)
+    
     if missing_models:
         print("\nWARNING: The following models are missing:")
         for model in missing_models:
             print(f"  - {model}")
-        print("The ConversationQA functionality may not work correctly.\n")
+        print("The ConversationQA and Weather functionality may not work correctly.\n")
         return False, missing_models
     else:
         print("\nAll required AI models are available.\n")
@@ -82,13 +94,15 @@ def download_models(missing_models):
     print("\nDownloading missing models...")
     
     models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ConversationQA', 'Models')
+    weather_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Weather')
     
     # Direct download URLs (not through Google Drive API)
     direct_urls = {
         "bert_seq2seq_ner.zip": "https://drive.google.com/uc?id=1lOSkIPGU4TX7L727OmkBL3f0Fh_W3_Fv&export=download",
         "pronoun_resolution_model_full.zip": "https://drive.google.com/uc?id=1DhlkILm1kzD8gPbEU0NlTUGeDA_uGisk&export=download",
         "extractiveQA.zip": "https://drive.google.com/uc?id=1ph3yhuAz7fmTv8lat8fbdwzlHYSa4y4U&export=download",
-        "vectorizer.zip": "https://drive.google.com/uc?id=1QqxFX0VhLYKdgWWJBYnE9YVnEP6bZKcY&export=download"
+        "vectorizer.zip": "https://drive.google.com/uc?id=1QqxFX0VhLYKdgWWJBYnE9YVnEP6bZKcY&export=download",
+        "weather_model.zip": "https://drive.google.com/uc?id=1KBTMhfV9MaLuM2V7ID2ZEEi7ov5szG6M&export=download"
     }
     
     # Map models to their containing archives
@@ -97,7 +111,13 @@ def download_models(missing_models):
         "pronoun_resolution_model_full.pt": "pronoun_resolution_model_full.zip",
         "extractiveQA.pt": "extractiveQA.zip",
         "vectorizer.pkl": "vectorizer.zip",
-        "classifier_model.pkl": "vectorizer.zip"
+        "classifier_model.pkl": "vectorizer.zip",
+        "weather_model.pt": "weather_model.zip"
+    }
+    
+    # Map models to their target directories
+    model_to_dir = {
+        "weather_model.pt": weather_dir
     }
     
     # Determine which archives to download
@@ -129,24 +149,31 @@ def download_models(missing_models):
                     try:
                         print(f"Extracting {archive}...")
                         
+                        # Determine target directory for extraction
+                        target_dir = models_dir
+                        for model in missing_models:
+                            if model_to_archive.get(model) == archive:
+                                target_dir = model_to_dir.get(model, models_dir)
+                                break
+                        
                         # Handle ZIP extraction
                         try:
                             with zipfile.ZipFile(archive_path) as zf:
-                                zf.extractall(models_dir)
+                                zf.extractall(target_dir)
                             print(f"Extracted {archive} using zipfile")
                         except Exception as e:
                             print(f"zipfile extraction failed: {e}")
                             
                             # Try with subprocess
                             try:
-                                subprocess.run(['unzip', archive_path, '-d', models_dir], check=True)
+                                subprocess.run(['unzip', archive_path, '-d', target_dir], check=True)
                                 print(f"Extracted {archive} using unzip command")
                             except Exception as e2:
                                 print(f"unzip command failed: {e2}")
                                 
                                 # Try with 7z as last resort
                                 try:
-                                    subprocess.run(['7z', 'x', archive_path, f'-o{models_dir}'], check=True)
+                                    subprocess.run(['7z', 'x', archive_path, f'-o{target_dir}'], check=True)
                                     print(f"Extracted {archive} using 7z")
                                 except Exception as e3:
                                     print(f"7z extraction failed: {e3}")
@@ -172,24 +199,31 @@ def download_models(missing_models):
                         try:
                             print(f"Extracting {archive}...")
                             
+                            # Determine target directory for extraction
+                            target_dir = models_dir
+                            for model in missing_models:
+                                if model_to_archive.get(model) == archive:
+                                    target_dir = model_to_dir.get(model, models_dir)
+                                    break
+                            
                             # Handle ZIP extraction
                             try:
                                 with zipfile.ZipFile(archive_path) as zf:
-                                    zf.extractall(models_dir)
+                                    zf.extractall(target_dir)
                                 print(f"Extracted {archive} using zipfile")
                             except Exception as e:
                                 print(f"zipfile extraction failed: {e}")
                                 
                                 # Try with subprocess
                                 try:
-                                    subprocess.run(['unzip', archive_path, '-d', models_dir], check=True)
+                                    subprocess.run(['unzip', archive_path, '-d', target_dir], check=True)
                                     print(f"Extracted {archive} using unzip command")
                                 except Exception as e2:
                                     print(f"unzip command failed: {e2}")
                                     
                                     # Try with 7z as last resort
                                     try:
-                                        subprocess.run(['7z', 'x', archive_path, f'-o{models_dir}'], check=True)
+                                        subprocess.run(['7z', 'x', archive_path, f'-o{target_dir}'], check=True)
                                         print(f"Extracted {archive} using 7z")
                                     except Exception as e3:
                                         print(f"7z extraction failed: {e3}")

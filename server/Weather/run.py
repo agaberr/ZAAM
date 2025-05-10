@@ -184,7 +184,7 @@ optimizer = optim.AdamW(model.parameters(), lr=2e-5)
 #----------
 
 
-best_model_path = os.path.join(WEATHER_DIR, "best_model.pt")
+best_model_path = os.path.join(WEATHER_DIR, "weather_model.pt")
 # Load best model for inference
 print(f"Loading best model from {best_model_path} for inference...")
 checkpoint = torch.load(best_model_path)
