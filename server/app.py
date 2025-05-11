@@ -1,28 +1,46 @@
-#!/usr/bin/env python3
-
-# First apply path fix to ensure imports work correctly
+##################################### IMPORTS START #####################################
 import os
 import sys
+import json
+import logging
 import importlib
 import subprocess
 from pathlib import Path
-from flask import Flask, request, jsonify, session, redirect, url_for, Request, current_app, render_template, make_response
-import json
-import logging
-import requests
 from flask_cors import CORS
 from dotenv import load_dotenv
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from pymongo import MongoClient
-import json
+from flask_session import Session
+from flask_pymongo import PyMongo
+from ConversationQA.qa_initializer import initialize_qa_system # Import QA initializer
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from flask import Flask, request, jsonify, session, redirect, url_for, Request, current_app, render_template, make_response
 
-# Configure logging
+
+
+# Import route modules
+from routes.main_routes import register_main_routes
+from routes.user_routes import register_user_routes
+from routes.auth_routes import register_auth_routes
+from routes.ai_routes import register_ai_routes
+from routes.conversation_qa_routes import register_conversation_qa_routes
+from routes.memory_aid_routes import memory_aid_routes
+
+##################################### IMPORTS END #####################################
+
+##################################### LOGGING START #####################################
+
+# Configure logging for debugging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
+##################################### LOGGING END #####################################
+
+##################################### DOWNLOADING MODELS START #####################################
+
+# The models are so big in size so they are downloaded directly from the drive if not found
 
 # Add project root to sys.path
 project_root = Path(__file__).parent.absolute()
@@ -30,7 +48,6 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
     print(f"Added {project_root} to Python path")
 
-# ==== Model Verification and Download - RUN FIRST ====
 # Ensure required packages are installed
 required_packages = ["gdown", "requests"]
 for package in required_packages:
@@ -246,59 +263,9 @@ def download_models(missing_models):
         print("\nAll models successfully downloaded and verified!")
         return True
 
-# Function to update paths in code files
-def update_model_paths():
-    """Update hardcoded model paths in the code files"""
-    print("Updating model paths in code files...")
-    
-    models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ConversationQA', 'Models')
-    models_dir = models_dir.replace('\\', '\\\\')  # Escape backslashes for string literals
-    
-    # Update QA.py
-    qa_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ConversationQA', 'QA.py')
-    if os.path.exists(qa_path):
-        try:
-            with open(qa_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            content = content.replace(
-                r'D:\College\Senior-2\GP\ZAAM project\ZAAM\server\ConversationQA\Models\bert_seq2seq_ner.pt',
-                f'{models_dir}\\\\bert_seq2seq_ner.pt'
-            )
-            content = content.replace(
-                r'D:\College\Senior-2\GP\ZAAM project\ZAAM\server\ConversationQA\Models\pronoun_resolution_model_full.pt',
-                f'{models_dir}\\\\pronoun_resolution_model_full.pt'
-            )
-            content = content.replace(
-                r'D:\College\Senior-2\GP\ZAAM project\ZAAM\server\ConversationQA\Models\extractiveQA.pt',
-                f'{models_dir}\\\\extractiveQA.pt'
-            )
-            
-            with open(qa_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            
-            print(f"Updated model paths in {qa_path}")
-        except Exception as e:
-            print(f"Error updating QA.py: {e}")
-    
-    # Update TopicExtractionModel.py
-    topic_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ConversationQA', 'NameEntityModel', 'TopicExtractionModel.py')
-    if os.path.exists(topic_path):
-        try:
-            with open(topic_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            content = content.replace(
-                r'D:\College\Senior-2\GP\ZAAM project\ZAAM\server\ConversationQA\Models\bert_seq2seq_ner.pt',
-                f'{models_dir}\\\\bert_seq2seq_ner.pt'
-            )
-            
-            with open(topic_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            
-            print(f"Updated model paths in {topic_path}")
-        except Exception as e:
-            print(f"Error updating TopicExtractionModel.py: {e}")
+##################################### DOWNLOADING MODELS END #####################################
+
+##################################### VERIFY MODELS DOWNLOADED START #####################################
 
 # Run model checks and downloads before importing anything else
 print("\n===== ZAAM Server Initialization =====")
@@ -308,57 +275,16 @@ models_available, missing_models = verify_models()
 if not models_available:
     print("Missing models detected. Attempting to download...")
     if download_models(missing_models):
-        update_model_paths()
         print("Model setup completed successfully!")
-    else:
-        print("WARNING: Failed to download all models. Some features may not work.")
 else:
     print("All models are available!")
-    update_model_paths()
 
-# ===== Continue with regular imports after model checks =====
-from flask import Flask
-from flask_cors import CORS
-from flask_pymongo import PyMongo
-from flask_session import Session
-from dotenv import load_dotenv
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
-from pymongo import MongoClient
-import json
+##################################### VERIFY MODELS DOWNLOADED END #####################################
 
-# Import route modules
-from routes.main_routes import register_main_routes
-from routes.user_routes import register_user_routes
-from routes.auth_routes import register_auth_routes
-from routes.ai_routes import register_ai_routes
-from routes.conversation_qa_routes import register_conversation_qa_routes
-from routes.memory_aid_routes import memory_aid_routes
+##################################### INIT FLASK APP START #####################################
 
 # Load environment variables
 load_dotenv()
-
-# Initialize QA system early to load models at startup
-def initialize_qa_system():
-    """Pre-initialize the QA system to load models at startup"""
-    try:
-        # Add ConversationQA to the path if needed
-        conversation_qa_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ConversationQA")
-        if conversation_qa_path not in sys.path:
-            sys.path.append(conversation_qa_path)
-        
-        # Import and initialize the QA singleton
-        from ConversationQA.qa_singleton import get_qa_instance
-        
-        print("Pre-initializing QA system and loading models...")
-        qa_system = get_qa_instance()
-        print(f"QA system initialized on device: {qa_system.device}")
-        print(f"ConversationQA models loaded successfully!")
-        return True
-    except Exception as e:
-        print(f"Error initializing QA system: {str(e)}")
-        return False
-
-# Continue with the rest of the code...
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -367,17 +293,19 @@ CORS(app, resources={r"/*": {
     "supports_credentials": True,
     "allow_headers": ["Content-Type", "Authorization"],
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-}})  # Allow requests from all origins with credentials
+}})
 
 # Configure session
 app.secret_key = os.getenv("SECRET_KEY", os.getenv("JWT_SECRET", "super-secret-key"))
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour in seconds
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600
 app.config['SESSION_USE_SIGNER'] = True
 
 # Initialize Flask-Session
 Session(app)
+
+
 
 # Configure MongoDB
 mongo_uri = os.getenv("MONGO_URI")
@@ -385,31 +313,9 @@ if not mongo_uri:
     print("Error: MONGO_URI environment variable not set")
     sys.exit(1)
 
-print(f"Connecting to MongoDB at: {mongo_uri}")
-
-# Test MongoDB connection directly first
-try:
-    # Test connection using MongoClient
-    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
-    client.admin.command('ping')
-    print("MongoDB connection test successful!")
-except Exception as e:
-    print(f"MongoDB connection test failed: {e}")
-    sys.exit(1)
-
 # Configure PyMongo
 app.config["MONGO_URI"] = mongo_uri
-app.config["MONGO_CONNECT"] = True  # Ensure we connect explicitly
 mongo = PyMongo(app)
-
-# Test to ensure database is accessible
-try:
-    # Try to access a collection to verify db connection
-    mongo.db.list_collection_names()
-    print("MongoDB collections accessible via PyMongo!")
-except Exception as e:
-    print(f"Error accessing MongoDB via PyMongo: {e}")
-    sys.exit(1)
 
 # Register routes
 register_main_routes(app)
@@ -419,128 +325,19 @@ register_ai_routes(app, mongo)
 register_conversation_qa_routes(app, mongo)
 app.register_blueprint(memory_aid_routes)
 
-# Configure database access for routes that use the Blueprint pattern
+
 @app.before_request
 def before_request():
     app.config["DATABASE"] = mongo.db
 
-# Add a route for the home page
-@app.route('/')
-def main_home():
-    """Serve the home page or redirect to frontend."""
-    return """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>ZAAM Home</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                text-align: center;
-                padding: 50px;
-                background-color: #f5f5f5;
-            }
-            .container {
-                max-width: 800px;
-                margin: 0 auto;
-                background-color: white;
-                padding: 30px;
-                border-radius: 10px;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            }
-            h1 {
-                color: #333;
-            }
-            p {
-                color: #666;
-                line-height: 1.6;
-            }
-            .btn {
-                display: inline-block;
-                background-color: #4CAF50;
-                color: white;
-                padding: 15px 32px;
-                text-align: center;
-                text-decoration: none;
-                font-size: 16px;
-                margin: 20px 10px;
-                cursor: pointer;
-                border-radius: 8px;
-                border: none;
-            }
-            .token-info {
-                background-color: #f8f9fa;
-                padding: 15px;
-                border-radius: 5px;
-                margin-top: 20px;
-                text-align: left;
-                display: none;
-            }
-        </style>
-        <script>
-            window.onload = function() {
-                // Check if we have auth data
-                const authToken = localStorage.getItem('authToken');
-                const userId = localStorage.getItem('userId');
-                const isNewUser = localStorage.getItem('isNewUser');
-                
-                const statusElement = document.getElementById('auth-status');
-                const tokenInfoElement = document.getElementById('token-info');
-                const tokenTextElement = document.getElementById('token-text');
-                
-                if (authToken && userId) {
-                    statusElement.textContent = 'You are authenticated!';
-                    
-                    // Show part of the token for verification
-                    tokenInfoElement.style.display = 'block';
-                    const tokenPreview = authToken.substring(0, 15) + '...' + authToken.substring(authToken.length - 10);
-                    tokenTextElement.textContent = `Token: ${tokenPreview} | User ID: ${userId}`;
-                    
-                    if (isNewUser) {
-                        document.getElementById('new-user-message').style.display = 'block';
-                    }
-                } else {
-                    statusElement.textContent = 'You are not authenticated. Please sign in through the app.';
-                }
-            }
-        </script>
-    </head>
-    <body>
-        <div class="container">
-            <h1>Welcome to ZAAM</h1>
-            <p id="auth-status">Checking authentication status...</p>
-            
-            <div id="new-user-message" style="display: none; margin: 15px; padding: 10px; background-color: #fff3cd; border-radius: 5px;">
-                <p>Welcome new user! You need to complete your profile setup.</p>
-            </div>
-            
-            <div id="token-info" class="token-info">
-                <p id="token-text"></p>
-                <p>This token has been stored in your browser and will be used to authenticate your requests.</p>
-            </div>
-            
-            <p>Please return to the app to continue using ZAAM.</p>
-            <a href="zaam://" class="btn">Open App</a>
-        </div>
-    </body>
-    </html>
-    """
+##################################### INIT FLASK APP END #####################################
 
 if __name__ == '__main__':
     print("\n=== ZAAM Server Initialization ===")
     
-    # Initialize the QA system if models are available
     if models_available:
-        try:
-            initialize_qa_system()
-            print("AI models initialized and ready for use.")
-        except Exception as e:
-            print(f"WARNING: Failed to initialize QA system: {str(e)}")
-            print("ConversationQA features may not be available.")
+        initialize_qa_system()
     
     print("=== Server Initialization Complete ===\n")
-    
-    # from waitress import serve
-    # serve(app, host="0.0.0.0", port=5000)
 
     app.run(host="0.0.0.0", port=5000, debug=True)
