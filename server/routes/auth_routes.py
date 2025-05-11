@@ -44,6 +44,12 @@ def token_required(f):
 
 
 def register_auth_routes(app, mongo):
+
+    ###### AUTH ROUTES ######
+    # POST: /api/auth/login -> Login a user
+    # POST: /api/auth/register -> Register a new user
+
+    ##################################### LOGIN ROUTE START #####################################
     @app.route('/api/auth/login', methods=['POST'])
     def login():
         try:
@@ -63,7 +69,9 @@ def register_auth_routes(app, mongo):
             })
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-            
+    ##################################### LOGIN ROUTE END #####################################
+
+    ##################################### REGISTER ROUTE START #####################################
     @app.route('/api/auth/register', methods=['POST'])
     def register():
         try:
@@ -84,3 +92,4 @@ def register_auth_routes(app, mongo):
             return jsonify({"message": "User registered successfully", "user_id": str(user._id)}), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+    

@@ -42,6 +42,16 @@ def token_required(f):
         
     return decorated
 
+    ###### MEMORY AID ROUTES ######
+    # POST: /api/memory-aids -> Create a new memory aid
+    # GET: /api/memory-aids -> Get all memory aids
+    # GET: /api/memory-aids/<memory_aid_id> -> Get a memory aid by ID
+    # PUT: /api/memory-aids/<memory_aid_id> -> Update a memory aid by ID
+    # DELETE: /api/memory-aids/<memory_aid_id> -> Delete a memory aid by ID
+
+
+##################################### CREATE MEMORY AID ROUTE START #####################################
+
 @memory_aid_routes.route("/api/memory-aids", methods=["POST"])
 @token_required
 def create_memory_aid(user_id):
@@ -78,6 +88,9 @@ def create_memory_aid(user_id):
         
     # Return the created memory aid
     return jsonify(memory_aid.to_dict()), 201
+##################################### CREATE MEMORY AID ROUTE END #####################################
+
+##################################### GET MEMORY AID ROUTE START #####################################  
 
 @memory_aid_routes.route("/api/memory-aids", methods=["GET"])
 @token_required
@@ -93,6 +106,9 @@ def get_memory_aids(user_id):
     memory_aids_data = [memory_aid.to_dict() for memory_aid in memory_aids]
     
     return jsonify(memory_aids_data), 200
+##################################### GET MEMORY AID ROUTE END #####################################  
+
+##################################### GET MEMORY AID ROUTE BY ID START #####################################  
 
 @memory_aid_routes.route("/api/memory-aids/<memory_aid_id>", methods=["GET"])
 @token_required
@@ -112,6 +128,9 @@ def get_memory_aid(user_id, memory_aid_id):
         return jsonify({"error": "You don't have permission to access this memory aid"}), 403
         
     return jsonify(memory_aid.to_dict()), 200
+##################################### GET MEMORY AID ROUTE BY ID END #####################################  
+
+##################################### UPDATE MEMORY AID ROUTE BY ID START #####################################  
 
 @memory_aid_routes.route("/api/memory-aids/<memory_aid_id>", methods=["PUT"])
 @token_required
@@ -155,6 +174,10 @@ def update_memory_aid(user_id, memory_aid_id):
         return jsonify({"error": errors[0] if errors else "Failed to update memory aid"}), 400
         
     return jsonify(memory_aid.to_dict()), 200
+##################################### UPDATE MEMORY AID ROUTE BY ID END #####################################  
+
+##################################### DELETE MEMORY AID ROUTE BY ID START #####################################  
+
 
 @memory_aid_routes.route("/api/memory-aids/<memory_aid_id>", methods=["DELETE"])
 @token_required
@@ -170,3 +193,5 @@ def delete_memory_aid(user_id, memory_aid_id):
         return jsonify({"error": "Memory aid not found or you don't have permission to delete it"}), 404
         
     return jsonify({"message": "Memory aid deleted successfully"}), 200 
+##################################### DELETE MEMORY AID ROUTE BY ID END #####################################  
+

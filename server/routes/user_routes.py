@@ -3,7 +3,16 @@ from bson.objectid import ObjectId
 from models.user import User
 from datetime import datetime
 
+
 def register_user_routes(app, mongo):
+
+    ###### USER ROUTES ######
+    # POST: /api/users -> Create a new user
+    # GET: /api/users/<user_id> -> Get a user by ID
+    # PUT: /api/users/<user_id> -> Update a user by ID
+    # DELETE: /api/users/<user_id> -> Delete a user by ID
+
+    ##################################### CREATE USER ROUTE START #####################################
     @app.route('/api/users', methods=['POST'])
     def create_user():
         try:
@@ -32,6 +41,9 @@ def register_user_routes(app, mongo):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    ##################################### CREATE USER ROUTE END #####################################
+
+    ##################################### GET USER ROUTE START #####################################
     @app.route('/api/users/<user_id>', methods=['GET'])
     def get_user(user_id):
         try:
@@ -52,7 +64,9 @@ def register_user_routes(app, mongo):
             
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-            
+    ##################################### GET USER ROUTE END #####################################
+
+    ##################################### UPDATE USER ROUTE START #####################################
     @app.route('/api/users/<user_id>', methods=['PUT'])
     def update_user(user_id):
         try:
@@ -84,7 +98,9 @@ def register_user_routes(app, mongo):
             
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-            
+    ##################################### UPDATE USER ROUTE END #####################################
+
+    ##################################### DELETE USER ROUTE START #####################################
     @app.route('/api/users/<user_id>', methods=['DELETE'])
     def delete_user(user_id):
         try:
@@ -97,3 +113,4 @@ def register_user_routes(app, mongo):
             
         except Exception as e:
             return jsonify({"error": str(e)}), 500 
+    ##################################### DELETE USER ROUTE END #####################################
