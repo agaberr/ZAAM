@@ -43,8 +43,8 @@ export default function TalkToAIScreen({ setActiveTab }) {
         console.log('Current time (Egypt):', egyptianTime.toLocaleString());
         
         // Get reminders using the correct endpoint
-        console.log('Fetching reminders from:', 'http://localhost:5000/api/reminder');
-        const response = await fetch('http://localhost:5000/api/reminder', {
+        console.log('Fetching reminders from:', 'http://34.57.245.214:5000/api/reminder');
+        const response = await fetch('http://34.57.245.214:5000/api/reminder', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -211,7 +211,7 @@ export default function TalkToAIScreen({ setActiveTab }) {
 
     try {
       // Call the AI processing endpoint
-      const response = await fetch('http://localhost:5000/api/ai/process', {
+      const response = await fetch('http://34.57.245.214:5000/api/ai/process', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
