@@ -27,7 +27,7 @@ export default function SignInScreen() {
       await signIn(email, password);
       // No need to navigate here - the auth context will handle it
     } catch (err) {
-      setError('Invalid username or password. Try using "ahmed" for both.');
+      setError('Invalid username or password.');
       console.error(err);
     } finally {
       setLoading(false);

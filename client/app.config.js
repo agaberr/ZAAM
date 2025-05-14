@@ -1,13 +1,13 @@
 export default {
   expo: {
-    name: "Alzheimer's AI Companion",
-    slug: "alzheimer-ai-companion",
+    name: "ZAAM",
+    slug: "zaam",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/icon.png",
+    icon: "./app/assets/icon.png",
     userInterfaceStyle: "light",
     splash: {
-      image: "./assets/splash.png",
+      image: "./app/assets/splash.png",
       resizeMode: "contain",
       backgroundColor: "#6200ee"
     },
@@ -25,7 +25,7 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
+        foregroundImage: "./app/assets/adaptive-icon.png",
         backgroundColor: "#6200ee"
       },
       package: "com.yourcompany.alzheimerai",
@@ -38,7 +38,8 @@ export default {
       ]
     },
     web: {
-      favicon: "./assets/favicon.png"
+      favicon: "./app/assets/favicon.png",
+      bundler: "metro"
     },
     plugins: [
       [
@@ -46,16 +47,17 @@ export default {
         {
           calendarPermission: "The app needs to access your calendar to add and manage reminders."
         }
-      ]
+      ],
+      "expo-router"
     ],
     extra: {
-      apiUrl: "http://192.168.1.3:5000/api",
+      apiUrl: "http://34.57.245.214:5000/api",
       googleWebClientId: "485643114726-0joadin731ltorui0db3v6dma86rjbvb.apps.googleusercontent.com",
       eas: {
         projectId: "your-project-id"
       }
     },
-    scheme: "alzheimer-ai-companion",
+    scheme: "zaam",
     owner: "zaam"
   }
 };

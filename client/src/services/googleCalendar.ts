@@ -31,7 +31,7 @@ export const useGoogleCalendar = () => {
       // Open the authorization URL in browser
       const result = await WebBrowser.openAuthSessionAsync(
         authorization_url,
-        'http://192.168.1.3:5000/callback'
+        'http://34.57.245.214:5000/callback'
       );
       
       if (result.type === 'success') {

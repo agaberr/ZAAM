@@ -2,7 +2,7 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
 // const API_URL = 'https://zaam-mj7u.onrender.com/api';
-const API_URL = 'http://192.168.1.3:5000/api';
+const API_URL = 'http://34.57.245.214:5000/api';
 
 // Create axios instance
 const api = axios.create({

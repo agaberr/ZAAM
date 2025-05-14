@@ -211,7 +211,7 @@ export default function TalkToAIScreen({ setActiveTab }) {
 
     try {
       // Call the AI processing endpoint
-      const response = await fetch('http://192.168.1.3:5000/api/ai/process', {
+      const response = await fetch('http://localhost:5000/api/ai/process', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

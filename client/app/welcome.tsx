@@ -9,16 +9,6 @@ import { useAuth } from './context/AuthContext';
 const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
-  const { signInWithGoogle } = useAuth();
-
-  const handleGoogleAuth = async () => {
-    try {
-      await signInWithGoogle();
-    } catch (error) {
-      console.error('Google auth error:', error);
-      Alert.alert('Authentication Error', 'Failed to sign in with Google. Please try again.');
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -52,19 +42,9 @@ export default function WelcomeScreen() {
               contentStyle={styles.buttonContent}
               labelStyle={styles.buttonLabel}
             >
-              Create Account
+              Get Started
             </Button>
           </Link>
-          <Button
-            mode="outlined"
-            onPress={handleGoogleAuth}
-            style={[styles.button, styles.googleButton]}
-            contentStyle={styles.buttonContent}
-            labelStyle={styles.googleButtonLabel}
-            icon="google"
-          >
-            Continue with Google
-          </Button>
           <Link href="/auth/signin" asChild>
             <Button
               mode="text"
@@ -138,17 +118,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  googleButton: {
-    backgroundColor: '#fff',
-    borderWidth: 0,
-  },
-  googleButtonLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000',
-  },
   textButton: {
-    marginTop: 8,
+    marginTop: 0,
   },
   textButtonLabel: {
     color: '#fff',

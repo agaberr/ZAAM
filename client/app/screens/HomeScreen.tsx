@@ -13,12 +13,10 @@ export default function HomeScreen({ setActiveTab }) {
 
   const onChangeSearch = (query: string) => setSearchQuery(query);
 
-  // Current time-based greeting
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 18) return 'Good Afternoon';
-    return 'Good Evening';
+  // Get first name from full name
+  const getFirstName = () => {
+    if (!userData?.name) return '';
+    return userData.name.split(' ')[0];
   };
 
   return (
@@ -27,8 +25,8 @@ export default function HomeScreen({ setActiveTab }) {
         {/* Header with greeting */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>{getGreeting()}</Text>
-            <Text style={styles.name}>{userData?.name || 'Amit'}</Text>
+            <Text style={styles.greeting}>Welcome,</Text>
+            <Text style={styles.name}>{getFirstName() || 'Amit'}</Text>
           </View>
           <Avatar.Image 
             size={50} 
