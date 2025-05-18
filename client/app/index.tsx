@@ -1,45 +1,46 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, SafeAreaView, StatusBar } from 'react-native';
-import { useAuth } from './context/AuthContext';
-import { router, useRootNavigationState } from 'expo-router';
+import React, { useState, useEffect } from "react";
+import { StyleSheet, View, SafeAreaView, StatusBar } from "react-native";
+import { useAuth } from "./context/AuthContext";
+import { router, useRootNavigationState } from "expo-router";
 
 // Import screens from your screens directory
-import HomeScreen from './screens/HomeScreen';
-import InsightsScreen from './screens/InsightsScreen';
-import TalkToAIScreen from './screens/TalkToAIScreen';
-import RemindersScreen from './screens/RemindersScreen';
-import ProfileScreen from './screens/ProfileScreen';
+import HomeScreen from "./screens/HomeScreen";
+import InsightsScreen from "./screens/InsightsScreen";
+import TalkToAIScreen from "./screens/TalkToAIScreen";
+import RemindersScreen from "./screens/RemindersScreen";
+import ProfileScreen from "./screens/ProfileScreen";
+import ThreeAvatar from "./screens/ThreeScreen";
 
 // Import components
-import BottomNavigation from './components/BottomNavigation';
+import BottomNavigation from "./components/BottomNavigation";
 
 export default function App() {
   // State to track active tab
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState("home");
   const { isAuthenticated } = useAuth();
   const rootNavigationState = useRootNavigationState();
 
   // Check authentication on mount, but only after root layout is mounted
   useEffect(() => {
     if (!rootNavigationState?.key) return; // Return early if navigation state isn't ready
-    
+
     if (!isAuthenticated) {
-      router.replace('/welcome');
+      router.replace("/welcome");
     }
   }, [isAuthenticated, rootNavigationState?.key]);
 
   // Function to render the active screen
   const renderScreen = () => {
     switch (activeTab) {
-      case 'home':
+      case "home":
         return <HomeScreen setActiveTab={setActiveTab} />;
-      case 'insights':
+      case "insights":
         return <InsightsScreen setActiveTab={setActiveTab} />;
-      case 'ai':
-        return <TalkToAIScreen setActiveTab={setActiveTab} />;
-      case 'reminders':
+      case "ai":
+        return <ThreeAvatar setActiveTab={setActiveTab} />;
+      case "reminders":
         return <RemindersScreen setActiveTab={setActiveTab} />;
-      case 'profile':
+      case "profile":
         return <ProfileScreen setActiveTab={setActiveTab} />;
       default:
         return <HomeScreen setActiveTab={setActiveTab} />;
@@ -54,17 +55,12 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
+
       {/* Main content area */}
-      <View style={styles.content}>
-        {renderScreen()}
-      </View>
-      
+      <View style={styles.content}>{renderScreen()}</View>
+
       {/* Bottom Navigation */}
-      <BottomNavigation 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-      />
+      <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
     </SafeAreaView>
   );
 }
@@ -72,9 +68,9 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   content: {
     flex: 1,
   },
-}); 
+});

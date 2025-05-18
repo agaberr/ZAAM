@@ -1,20 +1,33 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Modal, ScrollView, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Button, Surface, ActivityIndicator, Chip } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { reminderService } from '../services/reminderService';
+import React, { useState, useRef, useEffect } from "react";
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  Animated,
+  Modal,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput,
+} from "react-native";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Button, Surface, ActivityIndicator, Chip } from "react-native-paper";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { reminderService } from "../services/reminderService";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 interface Message {
   id: string;
   text: string;
-  sender: 'user' | 'ai';
+  sender: "user" | "ai";
   timestamp: Date;
 }
 
 export default function TalkToAIScreen({ setActiveTab }) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -27,150 +40,186 @@ export default function TalkToAIScreen({ setActiveTab }) {
     "What's on my schedule?",
     "Call my caregiver",
     "Tell me about my family",
-    "Help me remember where I put my glasses"
+    "Help me remember where I put my glasses",
   ];
 
   // Check for upcoming reminders
   useEffect(() => {
     const checkUpcomingReminders = async () => {
       try {
-        console.log('\n=== Checking Upcoming Reminders ===');
-        
+        console.log("\n=== Checking Upcoming Reminders ===");
+
         // Get current time in Egyptian timezone
-        const egyptianTimezone = 'Africa/Cairo';
+        const egyptianTimezone = "Africa/Cairo";
         const now = new Date();
-        const egyptianTime = new Date(now.toLocaleString('en-US', { timeZone: egyptianTimezone }));
-        console.log('Current time (Egypt):', egyptianTime.toLocaleString());
-        
+        const egyptianTime = new Date(
+          now.toLocaleString("en-US", { timeZone: egyptianTimezone })
+        );
+        console.log("Current time (Egypt):", egyptianTime.toLocaleString());
+
         // Get reminders using the correct endpoint
-        console.log('Fetching reminders from:', 'http://34.57.245.214:5000/api/reminder');
-        const response = await fetch('http://34.57.245.214:5000/api/reminder', {
-          method: 'GET',
+        console.log(
+          "Fetching reminders from:",
+          "http://34.57.245.214:5000/api/reminder"
+        );
+        const response = await fetch("http://34.57.245.214:5000/api/reminder", {
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
           },
         });
 
-        console.log('Response status:', response.status);
+        console.log("Response status:", response.status);
         const data = await response.json();
-        console.log('\n=== RAW API RESPONSE ===');
+        console.log("\n=== RAW API RESPONSE ===");
         console.log(JSON.stringify(data, null, 2));
-        
+
         if (!data.success) {
-          console.error('API returned error:', data.error);
+          console.error("API returned error:", data.error);
           return;
         }
 
         if (!data.reminders || !Array.isArray(data.reminders)) {
-          console.error('No reminders array in response:', data);
+          console.error("No reminders array in response:", data);
           return;
         }
 
-        console.log('\n=== ALL REMINDERS DETAILS ===');
-        console.log('Total reminders found:', data.reminders.length);
-        
+        console.log("\n=== ALL REMINDERS DETAILS ===");
+        console.log("Total reminders found:", data.reminders.length);
+
         data.reminders.forEach((reminder: any, index: number) => {
           // Convert reminder time to Egyptian timezone
           const reminderTime = new Date(reminder.start_time);
-          const egyptianReminderTime = new Date(reminderTime.toLocaleString('en-US', { timeZone: egyptianTimezone }));
-          
+          const egyptianReminderTime = new Date(
+            reminderTime.toLocaleString("en-US", { timeZone: egyptianTimezone })
+          );
+
           // Calculate time difference
-          const timeDiff = egyptianReminderTime.getTime() - egyptianTime.getTime();
+          const timeDiff =
+            egyptianReminderTime.getTime() - egyptianTime.getTime();
           const hoursUntilReminder = Math.floor(timeDiff / (1000 * 60 * 60));
-          const minutesUntilReminder = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
-          
+          const minutesUntilReminder = Math.floor(
+            (timeDiff % (1000 * 60 * 60)) / (1000 * 60)
+          );
+
           console.log(`\nReminder #${index + 1}:`);
-          console.log('----------------------------------------');
-          console.log('- Title:', reminder.title);
-          console.log('- Original Time:', reminder.start_time);
-          console.log('- Egyptian Time:', egyptianReminderTime.toLocaleString());
-          console.log('- Time Difference:', `${hoursUntilReminder} hours and ${minutesUntilReminder} minutes`);
-          console.log('- Description:', reminder.description || 'No description');
-          console.log('- Status:', reminder.status || 'active');
-          console.log('- Created At:', reminder.created_at);
-          
+          console.log("----------------------------------------");
+          console.log("- Title:", reminder.title);
+          console.log("- Original Time:", reminder.start_time);
+          console.log(
+            "- Egyptian Time:",
+            egyptianReminderTime.toLocaleString()
+          );
+          console.log(
+            "- Time Difference:",
+            `${hoursUntilReminder} hours and ${minutesUntilReminder} minutes`
+          );
+          console.log(
+            "- Description:",
+            reminder.description || "No description"
+          );
+          console.log("- Status:", reminder.status || "active");
+          console.log("- Created At:", reminder.created_at);
+
           if (timeDiff < 0) {
-            console.log('- Status: PAST REMINDER');
-          } else if (timeDiff <= 60 * 60 * 1000) { // Within 1 hour
-            console.log('- Status: UPCOMING (within 1 hour)');
+            console.log("- Status: PAST REMINDER");
+          } else if (timeDiff <= 60 * 60 * 1000) {
+            // Within 1 hour
+            console.log("- Status: UPCOMING (within 1 hour)");
           } else {
-            console.log('- Status: FUTURE REMINDER');
+            console.log("- Status: FUTURE REMINDER");
           }
-          console.log('----------------------------------------');
+          console.log("----------------------------------------");
         });
 
-        const oneHourFromNow = new Date(egyptianTime.getTime() + 60 * 60 * 1000);
-        
-        console.log('\n=== TIME WINDOW CHECK ===');
-        console.log('Current time:', egyptianTime.toLocaleString());
-        console.log('Checking until:', oneHourFromNow.toLocaleString());
-        
+        const oneHourFromNow = new Date(
+          egyptianTime.getTime() + 60 * 60 * 1000
+        );
+
+        console.log("\n=== TIME WINDOW CHECK ===");
+        console.log("Current time:", egyptianTime.toLocaleString());
+        console.log("Checking until:", oneHourFromNow.toLocaleString());
+
         let foundUpcomingReminders = false;
-        
+
         // Check each reminder
         for (const reminder of data.reminders) {
           try {
             const reminderTime = new Date(reminder.start_time);
-            const egyptianReminderTime = new Date(reminderTime.toLocaleString('en-US', { timeZone: egyptianTimezone }));
-            
+            const egyptianReminderTime = new Date(
+              reminderTime.toLocaleString("en-US", {
+                timeZone: egyptianTimezone,
+              })
+            );
+
             if (isNaN(egyptianReminderTime.getTime())) {
-              console.error('Invalid reminder time:', reminder.start_time);
+              console.error("Invalid reminder time:", reminder.start_time);
               continue;
             }
 
-            const timeDiff = egyptianReminderTime.getTime() - egyptianTime.getTime();
+            const timeDiff =
+              egyptianReminderTime.getTime() - egyptianTime.getTime();
             const minutesUntilReminder = Math.floor(timeDiff / (1000 * 60));
-            
+
             // If reminder is within next hour and hasn't been notified in the last 5 minutes
             if (minutesUntilReminder >= 0 && minutesUntilReminder <= 60) {
               foundUpcomingReminders = true;
               console.log(`\nFound upcoming reminder: "${reminder.title}"`);
-              console.log('- Time:', egyptianReminderTime.toLocaleString());
-              console.log('- Minutes until reminder:', minutesUntilReminder);
-              
-              const lastNotified = lastNotificationTime.current[reminder._id] || 0;
-              const fiveMinutesAgo = egyptianTime.getTime() - (5 * 60 * 1000);
-              
+              console.log("- Time:", egyptianReminderTime.toLocaleString());
+              console.log("- Minutes until reminder:", minutesUntilReminder);
+
+              const lastNotified =
+                lastNotificationTime.current[reminder._id] || 0;
+              const fiveMinutesAgo = egyptianTime.getTime() - 5 * 60 * 1000;
+
               if (lastNotified < fiveMinutesAgo) {
-                console.log('- Action: Sending notification');
+                console.log("- Action: Sending notification");
                 const notificationMessage: Message = {
                   id: Date.now().toString(),
                   text: `Hey, there is a meeting called "${reminder.title}" in the next hour!`,
-                  sender: 'ai',
-                  timestamp: new Date()
+                  sender: "ai",
+                  timestamp: new Date(),
                 };
-                
-                setMessages(prev => [...prev, notificationMessage]);
-                lastNotificationTime.current[reminder._id] = egyptianTime.getTime();
+
+                setMessages((prev) => [...prev, notificationMessage]);
+                lastNotificationTime.current[reminder._id] =
+                  egyptianTime.getTime();
               } else {
-                console.log('- Action: Skipping notification (already notified in last 5 minutes)');
+                console.log(
+                  "- Action: Skipping notification (already notified in last 5 minutes)"
+                );
               }
             }
           } catch (reminderError) {
-            console.error('Error processing reminder:', reminder, reminderError);
+            console.error(
+              "Error processing reminder:",
+              reminder,
+              reminderError
+            );
           }
         }
 
         if (!foundUpcomingReminders) {
-          console.log('\nNo upcoming reminders found within the next hour');
+          console.log("\nNo upcoming reminders found within the next hour");
         }
-        
-        console.log('\n=== End of Reminder Check ===\n');
+
+        console.log("\n=== End of Reminder Check ===\n");
       } catch (error) {
-        console.error('Error checking upcoming reminders:', error);
+        console.error("Error checking upcoming reminders:", error);
       }
     };
 
     // Check immediately on mount
-    console.log('Starting reminder check interval');
+    console.log("Starting reminder check interval");
     checkUpcomingReminders();
 
     // Function to get random interval between 15-30 minutes
     const getRandomInterval = () => {
       const minMinutes = 15;
       const maxMinutes = 30;
-      const randomMinutes = Math.floor(Math.random() * (maxMinutes - minMinutes + 1)) + minMinutes;
+      const randomMinutes =
+        Math.floor(Math.random() * (maxMinutes - minMinutes + 1)) + minMinutes;
       console.log(`Next check will be in ${randomMinutes} minutes`);
       return randomMinutes * 60 * 1000; // Convert to milliseconds
     };
@@ -189,7 +238,7 @@ export default function TalkToAIScreen({ setActiveTab }) {
 
     // Cleanup interval on unmount
     return () => {
-      console.log('Cleaning up reminder check interval');
+      console.log("Cleaning up reminder check interval");
       clearTimeout(intervalId);
     };
   }, []);
@@ -201,45 +250,45 @@ export default function TalkToAIScreen({ setActiveTab }) {
     const userMessage: Message = {
       id: Date.now().toString(),
       text: text.trim(),
-      sender: 'user',
-      timestamp: new Date()
+      sender: "user",
+      timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputText('');
+    setMessages((prev) => [...prev, userMessage]);
+    setInputText("");
     setIsProcessing(true);
 
     try {
       // Call the AI processing endpoint
-      const response = await fetch('http://34.57.245.214:5000/api/ai/process', {
-        method: 'POST',
+      const response = await fetch("http://34.57.245.214:5000/api/ai/process", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ text: text.trim() }),
       });
 
       const data = await response.json();
 
-      // Add AI response
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: data.response || "I'm here to help you. What would you like to know?",
-        sender: 'ai',
-        timestamp: new Date()
+        text:
+          data.response || "I'm here to help you. What would you like to know?",
+        sender: "ai",
+        timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, aiMessage]);
+      setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
-      console.error('Error processing message:', error);
+      console.error("Error processing message:", error);
       // Add error message
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: "I'm sorry, I couldn't process your request right now. Please try again.",
-        sender: 'ai',
-        timestamp: new Date()
+        sender: "ai",
+        timestamp: new Date(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsProcessing(false);
     }
@@ -260,13 +309,17 @@ export default function TalkToAIScreen({ setActiveTab }) {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Talk to AI</Text>
           <TouchableOpacity onPress={() => setShowControls(!showControls)}>
-            <Ionicons name={showControls ? 'chevron-up' : 'chevron-down'} size={24} color="#000" />
+            <Ionicons
+              name={showControls ? "chevron-up" : "chevron-down"}
+              size={24}
+              color="#000"
+            />
           </TouchableOpacity>
         </View>
 
@@ -280,12 +333,15 @@ export default function TalkToAIScreen({ setActiveTab }) {
               key={message.id}
               style={[
                 styles.messageBubble,
-                message.sender === 'user' ? styles.userBubble : styles.aiBubble
+                message.sender === "user" ? styles.userBubble : styles.aiBubble,
               ]}
             >
               <Text style={styles.messageText}>{message.text}</Text>
               <Text style={styles.timestamp}>
-                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {message.timestamp.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </Text>
             </View>
           ))}
@@ -333,23 +389,23 @@ export default function TalkToAIScreen({ setActiveTab }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
   },
   keyboardAvoidingView: {
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: "#eee",
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   messagesContainer: {
     flex: 1,
@@ -358,41 +414,41 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   messageBubble: {
-    maxWidth: '80%',
+    maxWidth: "80%",
     padding: 12,
     borderRadius: 16,
     marginBottom: 8,
   },
   userBubble: {
-    backgroundColor: '#007AFF',
-    alignSelf: 'flex-end',
+    backgroundColor: "#007AFF",
+    alignSelf: "flex-end",
   },
   aiBubble: {
-    backgroundColor: '#fff',
-    alignSelf: 'flex-start',
+    backgroundColor: "#fff",
+    alignSelf: "flex-start",
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: "#eee",
   },
   messageText: {
     fontSize: 16,
-    color: '#000',
+    color: "#000",
   },
   timestamp: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
     marginTop: 4,
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   inputContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: "#eee",
   },
   input: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -400,19 +456,19 @@ const styles = StyleSheet.create({
     maxHeight: 100,
   },
   sendButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   quickPhrasesContainer: {
     padding: 8,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   quickPhrase: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
@@ -420,6 +476,6 @@ const styles = StyleSheet.create({
   },
   quickPhraseText: {
     fontSize: 14,
-    color: '#333',
+    color: "#333",
   },
-}); 
+});
