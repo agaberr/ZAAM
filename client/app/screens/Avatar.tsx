@@ -4,8 +4,8 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import * as THREE from "three";
 
 export function Avatar(props) {
-  const { nodes, materials, scene } = useGLTF("/MAN_LAST.glb");
-  const { animations } = useGLTF("/animation.glb");
+  const { nodes, materials, scene } = useGLTF("/models/MAN_LAST.glb");
+  const { animations } = useGLTF("/models/animation.glb");
 
   const group = useRef();
   const { actions, mixer } = useAnimations(animations, group);

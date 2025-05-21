@@ -3,7 +3,7 @@ import { StyleSheet, View, ScrollView, TouchableOpacity, FlatList, Alert, Modal,
 import { Text, Button, Card, FAB, Chip, Avatar, IconButton, Divider, Menu, Portal, ActivityIndicator } from 'react-native-paper';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import ReminderForm from '../components/ReminderForm';
 import { reminderService, ReminderData, ReminderType, googleCalendarService } from '../services/reminderService';
 

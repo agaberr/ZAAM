@@ -57,9 +57,9 @@ export default function UI({ setActiveTab, setIsTalking, setAudioData }) {
         // Get reminders using the correct endpoint
         console.log(
           "Fetching reminders from:",
-          "http://34.57.245.214:5000/api/reminder"
+          "http://localhost:5000/api/reminder"
         );
-        const response = await fetch("http://34.57.245.214:5000/api/reminder", {
+        const response = await fetch("http://localhost:5000/api/reminder", {
           method: "GET",
           headers: {
             "Content-Type": "application/json",

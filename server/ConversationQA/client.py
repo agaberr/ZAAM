@@ -4,7 +4,7 @@ import json
 import time
 
 class ConversationalQAClient:
-    def __init__(self, base_url="http://34.57.245.214:5000"):
+    def __init__(self, base_url="http://localhost:5000"):
         self.base_url = base_url
         self.session = requests.Session()
         
