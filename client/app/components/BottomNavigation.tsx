@@ -14,7 +14,6 @@ export default function BottomNavigation({
   // Navigation items
   const navItems = [
     { id: "home", label: "Home", icon: "home" },
-    { id: "insights", label: "Insights", icon: "analytics" },
     { id: "ai", label: "AI", icon: "chatbubble-ellipses" },
     { id: "reminders", label: "Reminders", icon: "calendar" },
     { id: "profile", label: "Profile", icon: "person" },

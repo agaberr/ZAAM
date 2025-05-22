@@ -5,7 +5,6 @@ import { router, useRootNavigationState } from "expo-router";
 
 // Import screens from your screens directory
 import HomeScreen from "./screens/HomeScreen";
-import InsightsScreen from "./screens/InsightsScreen";
 import TalkToAIScreen from "./screens/TalkToAIScreen";
 import RemindersScreen from "./screens/RemindersScreen";
 import ProfileScreen from "./screens/ProfileScreen";
@@ -34,8 +33,6 @@ export default function App() {
     switch (activeTab) {
       case "home":
         return <HomeScreen setActiveTab={setActiveTab} />;
-      case "insights":
-        return <InsightsScreen setActiveTab={setActiveTab} />;
       case "ai":
         return <ThreeAvatar setActiveTab={setActiveTab} />;
       case "reminders":
