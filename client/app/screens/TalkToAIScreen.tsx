@@ -16,7 +16,6 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Button, Surface, ActivityIndicator, Chip } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { reminderService } from "../services/reminderService";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 interface Message {
   id: string;
@@ -25,7 +24,13 @@ interface Message {
   timestamp: Date;
 }
 
-export default function TalkToAIScreen({ setActiveTab }) {
+interface TalkToAIScreenProps {
+  setActiveTab: (tab: string) => void;
+  setIsTalking?: (isTalking: boolean) => void;
+  setAudioData?: (audioData: string) => void;
+}
+
+export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioData }: TalkToAIScreenProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -244,6 +249,11 @@ export default function TalkToAIScreen({ setActiveTab }) {
   }, []);
 
   const sendMessage = async (text: string) => {
+    // Activate avatar talking if prop is provided
+    if (setIsTalking) {
+      setIsTalking(true);
+    }
+    
     if (!text.trim()) return;
 
     // Add user message
@@ -270,15 +280,30 @@ export default function TalkToAIScreen({ setActiveTab }) {
 
       const data = await response.json();
 
+      const responseText = data.response || "I'm here to help you. What would you like to know?";
+      
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text:
-          data.response || "I'm here to help you. What would you like to know?",
+        text: responseText,
         sender: "ai",
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+      
+      // Provide dummy audio data for the avatar if prop is provided
+      if (setAudioData) {
+        setAudioData("dummyAudioData");
+      }
+
+      // Set a timeout to stop the avatar talking animation after a delay
+      // proportional to the response length
+      if (setIsTalking) {
+        const talkingDuration = Math.min(Math.max(responseText.length * 50, 2000), 10000);
+        setTimeout(() => {
+          setIsTalking(false);
+        }, talkingDuration);
+      }
     } catch (error) {
       console.error("Error processing message:", error);
       // Add error message
@@ -289,6 +314,11 @@ export default function TalkToAIScreen({ setActiveTab }) {
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
+      
+      // Stop talking animation on error
+      if (setIsTalking) {
+        setIsTalking(false);
+      }
     } finally {
       setIsProcessing(false);
     }

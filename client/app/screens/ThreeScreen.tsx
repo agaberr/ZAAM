@@ -2,7 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment, ContactShadows } from "@react-three/drei";
 import { Suspense, useState } from "react";
 import { Avatar } from "./Avatar";
-import UI from "./UI";
+import TalkToAIScreen from "./TalkToAIScreen";
 
 export default function ThreeAvatar({ setActiveTab }) {
   const [isTalking, setIsTalking] = useState(false);
@@ -57,7 +57,7 @@ export default function ThreeAvatar({ setActiveTab }) {
           justifyContent: "center",
         }}
       >
-        <UI
+        <TalkToAIScreen
           setActiveTab={setActiveTab}
           setIsTalking={setIsTalking}
           setAudioData={setAudioData}
