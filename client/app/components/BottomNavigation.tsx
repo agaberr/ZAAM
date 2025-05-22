@@ -7,15 +7,21 @@ interface BottomNavigationProps {
   setActiveTab: (tab: string) => void;
 }
 
+// Define the type for navigation items
+interface NavItem {
+  id: string;
+  label: string;
+  icon: "home" | "analytics" | "chatbubble-ellipses" | "calendar" | "person";
+}
+
 export default function BottomNavigation({
   activeTab,
   setActiveTab,
 }: BottomNavigationProps) {
   // Navigation items
-  const navItems = [
-    { id: "home", label: "Home", icon: "home" },
-    { id: "ai", label: "AI", icon: "chatbubble-ellipses" },
+  const navItems: NavItem[] = [
     { id: "reminders", label: "Reminders", icon: "calendar" },
+    { id: "ai", label: "AI", icon: "chatbubble-ellipses" },
     { id: "profile", label: "Profile", icon: "person" },
   ];
 

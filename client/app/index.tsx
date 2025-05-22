@@ -4,7 +4,6 @@ import { useAuth } from "./context/AuthContext";
 import { router, useRootNavigationState } from "expo-router";
 
 // Import screens from your screens directory
-import HomeScreen from "./screens/HomeScreen";
 import TalkToAIScreen from "./screens/TalkToAIScreen";
 import RemindersScreen from "./screens/RemindersScreen";
 import ProfileScreen from "./screens/ProfileScreen";
@@ -14,8 +13,8 @@ import ThreeAvatar from "./screens/ThreeScreen";
 import BottomNavigation from "./components/BottomNavigation";
 
 export default function App() {
-  // State to track active tab
-  const [activeTab, setActiveTab] = useState("home");
+  // State to track active tab - set default to "ai"
+  const [activeTab, setActiveTab] = useState("ai");
   const { isAuthenticated } = useAuth();
   const rootNavigationState = useRootNavigationState();
 
@@ -31,8 +30,7 @@ export default function App() {
   // Function to render the active screen
   const renderScreen = () => {
     switch (activeTab) {
-      case "home":
-        return <HomeScreen setActiveTab={setActiveTab} />;
+      // Remove home case
       case "ai":
         return <ThreeAvatar setActiveTab={setActiveTab} />;
       case "reminders":
@@ -40,7 +38,7 @@ export default function App() {
       case "profile":
         return <ProfileScreen setActiveTab={setActiveTab} />;
       default:
-        return <HomeScreen setActiveTab={setActiveTab} />;
+        return <ThreeAvatar setActiveTab={setActiveTab} />;
     }
   };
 
