@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { StyleSheet, View, KeyboardAvoidingView, Platform, ScrollView, Dimensions } from 'react-native';
 import { Text, TextInput, Button, IconButton } from 'react-native-paper';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
+
+const { width, height } = Dimensions.get('window');
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
@@ -40,11 +42,33 @@ export default function SignInScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Main gradient background */}
       <LinearGradient
-        colors={['#4285F4', '#34A853']}
-        style={styles.background}
+        colors={['#1e3c72', '#2a5298', '#4facfe']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
+        style={styles.backgroundGradient}
+      />
+      
+      {/* Decorative geometric shapes */}
+      <View style={styles.decorativeShapes}>
+        <View style={[styles.circle, styles.circle1]} />
+        <View style={[styles.circle, styles.circle2]} />
+        <View style={[styles.circle, styles.circle3]} />
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+          style={[styles.shape, styles.shape1]}
+        />
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.03)']}
+          style={[styles.shape, styles.shape2]}
+        />
+      </View>
+
+      {/* Content overlay */}
+      <LinearGradient
+        colors={['rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0.05)', 'rgba(0, 0, 0, 0.1)']}
+        style={styles.contentOverlay}
       />
       
       <IconButton
@@ -146,8 +170,63 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#1e3c72',
   },
-  background: {
+  backgroundGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  decorativeShapes: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+  },
+  circle: {
+    position: 'absolute',
+    borderRadius: 1000,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  circle1: {
+    width: 200,
+    height: 200,
+    top: -100,
+    right: -50,
+  },
+  circle2: {
+    width: 150,
+    height: 150,
+    bottom: 100,
+    left: -75,
+  },
+  circle3: {
+    width: 100,
+    height: 100,
+    top: height * 0.3,
+    right: 20,
+  },
+  shape: {
+    position: 'absolute',
+  },
+  shape1: {
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    top: -150,
+    left: -100,
+    transform: [{ rotate: '45deg' }],
+  },
+  shape2: {
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    bottom: -125,
+    right: -50,
+    transform: [{ rotate: '-30deg' }],
+  },
+  contentOverlay: {
     position: 'absolute',
     left: 0,
     right: 0,
@@ -172,15 +251,18 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignSelf: 'center',
+    zIndex: 5,
   },
   title: {
     color: 'white',
     fontWeight: 'bold',
     marginBottom: 8,
+    textShadow: '0px 2px 4px rgba(0,0,0,0.3)',
   },
   subtitle: {
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.9)',
     marginBottom: 32,
+    textShadow: '0px 1px 3px rgba(0,0,0,0.3)',
   },
   errorText: {
     color: '#FF3B30',
@@ -201,20 +283,29 @@ const styles = StyleSheet.create({
   button: {
     marginTop: 16,
     backgroundColor: 'white',
-    borderRadius: 12,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 8,
   },
   buttonContent: {
-    height: 56,
+    height: 60,
   },
   buttonLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#4285F4',
+    color: '#1e3c72',
   },
   forgotButton: {
     marginTop: 16,
   },
   forgotButtonLabel: {
     color: 'white',
+    textShadow: '0px 1px 2px rgba(0,0,0,0.3)',
   },
 }); 
