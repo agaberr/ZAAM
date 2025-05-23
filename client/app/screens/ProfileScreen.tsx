@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, Image, TouchableOpacity, Switch, Alert, ActivityIndicator, Modal } from 'react-native';
+import { StyleSheet, View, ScrollView, Image, TouchableOpacity, Switch, Alert, ActivityIndicator, Modal, Animated, Dimensions } from 'react-native';
 import { Text, Button, Card, Avatar, TextInput, Divider, List, IconButton, Chip, Portal, Dialog } from 'react-native-paper';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { userStatsService, UserStats } from '../services/userStatsService';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width } = Dimensions.get('window');
 
 interface Medication {
   id: string;
@@ -82,6 +85,32 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
     memoryAids: false,
     account: false
   });
+
+  // Animation values
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(50));
+  const [scaleAnim] = useState(new Animated.Value(0.9));
+  
+  // Initialize animations
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
   
   // Fetch user data from the backend
   useEffect(() => {
@@ -456,7 +485,7 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4285F4" />
+        <ActivityIndicator size="large" color="#6366F1" />
         <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
     );
@@ -464,81 +493,125 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
   
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.header}>
-          <View style={styles.profileImageContainer}>
-            {profileImage ? (
-              <Image source={{ uri: profileImage }} style={styles.profileImage} />
-            ) : (
-              <Avatar.Text 
-                size={80} 
-                label={name.split(' ').map(n => n[0]).join('')} 
-                style={styles.avatar}
-              />
-            )}
-          </View>
-          
-          <View style={styles.profileNameContainer}>
-            <Text style={styles.profileName}>{name}</Text>
-            <Text style={styles.profileEmail}>{email}</Text>
-          </View>
-          
-          <TouchableOpacity 
-            style={styles.editButton}
-            onPress={() => setEditMode(!editMode)}
-          >
-            <Text style={styles.editButtonText}>{editMode ? 'Cancel' : 'Edit'}</Text>
-          </TouchableOpacity>
-        </View>
-        
-        {/* Activity Stats */}
-        <Card style={styles.statsCard}>
-          <Card.Content>
-            <View style={styles.statsHeader}>
-              <Text style={styles.statsTitle}>Activity Statistics</Text>
-              <TouchableOpacity 
-                onPress={refreshStats} 
-                disabled={statsLoading}
-                style={styles.refreshButton}
-              >
-                <Ionicons 
-                  name="refresh" 
-                  size={20} 
-                  color={statsLoading ? "#ccc" : "#4285F4"} 
-                />
-              </TouchableOpacity>
+      {/* Modern Header with Solid Blue */}
+      <Animated.View 
+        style={[
+          styles.headerContainer, 
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }]
+          }
+        ]}
+      >
+        <View style={styles.headerBackground}>
+          <View style={styles.headerContent}>
+            <View style={styles.profileSection}>
+              <View style={styles.avatarContainer}>
+                {profileImage ? (
+                  <Image source={{ uri: profileImage }} style={styles.profileImage} />
+                ) : (
+                  <Avatar.Text 
+                    size={60} 
+                    label={name.split(' ').map(n => n[0]).join('')} 
+                    style={styles.avatar}
+                  />
+                )}
+                <View style={styles.onlineIndicator} />
+              </View>
+              
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName}>{name || 'User'}</Text>
+                <Text style={styles.profileEmail}>{email || 'No email'}</Text>
+                <View style={styles.badgeContainer}>
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>Active</Text>
+                  </View>
+                </View>
+              </View>
             </View>
             
-            {statsLoading ? (
-              <View style={styles.statsLoadingContainer}>
-                <ActivityIndicator size="small" color="#4285F4" />
-                <Text style={styles.statsLoadingText}>Loading statistics...</Text>
+            <TouchableOpacity 
+              style={styles.editButton}
+              onPress={() => setEditMode(!editMode)}
+              activeOpacity={0.8}
+            >
+              <Ionicons 
+                name={editMode ? "close" : "pencil"} 
+                size={20} 
+                color="white" 
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Animated.View>
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Modern Activity Stats */}
+        <Animated.View 
+          style={[
+            styles.statsSection,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }]
+            }
+          ]}
+        >
+          <View style={styles.statsHeader}>
+            <Text style={styles.sectionTitle}>Activity Overview</Text>
+            <TouchableOpacity 
+              onPress={refreshStats} 
+              disabled={statsLoading}
+              style={styles.refreshButton}
+            >
+              <Ionicons 
+                name="refresh" 
+                size={20} 
+                color={statsLoading ? "#CBD5E1" : "#6366F1"} 
+              />
+            </TouchableOpacity>
+          </View>
+          
+          {statsLoading ? (
+            <View style={styles.statsLoadingContainer}>
+              <ActivityIndicator size="small" color="#6366F1" />
+              <Text style={styles.statsLoadingText}>Loading statistics...</Text>
+            </View>
+          ) : (
+            <View style={styles.statsGrid}>
+              <View style={[styles.statCard, styles.statCard1]}>
+                <View style={styles.statIconContainer}>
+                  <Ionicons name="calendar" size={24} color="#6366F1" />
+                </View>
+                <Text style={styles.statValue}>{activityStats.daysActive}</Text>
+                <Text style={styles.statLabel}>Days Active</Text>
               </View>
-            ) : (
-              <View style={styles.statsContainer}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{activityStats.daysActive}</Text>
-                  <Text style={styles.statLabel}>Days Active</Text>
+              
+              <View style={[styles.statCard, styles.statCard2]}>
+                <View style={styles.statIconContainer}>
+                  <Ionicons name="medical" size={24} color="#10B981" />
                 </View>
-                
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{Math.round(activityStats.medicationAdherence)}%</Text>
-                  <Text style={styles.statLabel}>Medication</Text>
-                </View>
-                
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{activityStats.aiInteractions}</Text>
-                  <Text style={styles.statLabel}>AI Chats</Text>
-                </View>
-                
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{Math.round(activityStats.reminderCompletion)}%</Text>
-                  <Text style={styles.statLabel}>Reminders</Text>
-                </View>
+                <Text style={styles.statValue}>{Math.round(activityStats.medicationAdherence)}%</Text>
+                <Text style={styles.statLabel}>Medication</Text>
               </View>
-            )}
-          </Card.Content>
-        </Card>
+              
+              <View style={[styles.statCard, styles.statCard3]}>
+                <View style={styles.statIconContainer}>
+                  <Ionicons name="chatbubbles" size={24} color="#F59E0B" />
+                </View>
+                <Text style={styles.statValue}>{activityStats.aiInteractions}</Text>
+                <Text style={styles.statLabel}>AI Chats</Text>
+              </View>
+              
+              <View style={[styles.statCard, styles.statCard4]}>
+                <View style={styles.statIconContainer}>
+                  <Ionicons name="notifications" size={24} color="#EF4444" />
+                </View>
+                <Text style={styles.statValue}>{Math.round(activityStats.reminderCompletion)}%</Text>
+                <Text style={styles.statLabel}>Reminders</Text>
+              </View>
+            </View>
+          )}
+        </Animated.View>
         
         {/* Personal Information Section */}
         <List.Accordion
@@ -975,151 +1048,284 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F5F7FA',
   },
-  header: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6366F1',
+    marginTop: 10,
+  },
+  headerContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    height: 140,
+  },
+  headerBackground: {
+    backgroundColor: '#6366F1',
+    paddingTop: 50, // Account for status bar
+    paddingBottom: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#6366F1',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    flex: 1,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E1E1E1',
   },
-  profileImageContainer: {
+  profileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatarContainer: {
     position: 'relative',
-    marginRight: 20,
+    marginRight: 15,
   },
   profileImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   avatar: {
-    backgroundColor: '#4285F4',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-  profileNameContainer: {
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  profileInfo: {
     flex: 1,
-    justifyContent: 'center',
+    marginRight: 10,
   },
   profileName: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 5,
+    fontSize: 18,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 4,
   },
   profileEmail: {
     fontSize: 14,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 8,
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+  },
+  badge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
   editButton: {
-    padding: 10,
-    backgroundColor: '#4285F4',
-    borderRadius: 5,
-  },
-  editButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   scrollView: {
     flex: 1,
+    paddingTop: 140, // Space for header
   },
-  statsCard: {
-    marginHorizontal: 10,
-    marginVertical: 10,
-    borderRadius: 10,
-    overflow: 'hidden',
+  statsSection: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 20,
   },
   statsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 10,
+    marginBottom: 16,
   },
-  statsTitle: {
-    fontSize: 16,
-    fontWeight: '500',
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
   },
   refreshButton: {
-    padding: 5,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
   },
   statsLoadingContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 10,
+    paddingVertical: 40,
   },
   statsLoadingText: {
     fontSize: 14,
-    color: '#666',
-    marginLeft: 10,
+    color: '#64748B',
+    marginLeft: 12,
   },
-  statsContainer: {
+  statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 12,
   },
-  statItem: {
+  statCard: {
+    flex: 1,
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 16,
     alignItems: 'center',
-    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  statCard1: {
+    borderTopWidth: 3,
+    borderTopColor: '#6366F1',
+  },
+  statCard2: {
+    borderTopWidth: 3,
+    borderTopColor: '#10B981',
+  },
+  statCard3: {
+    borderTopWidth: 3,
+    borderTopColor: '#F59E0B',
+  },
+  statCard4: {
+    borderTopWidth: 3,
+    borderTopColor: '#EF4444',
+  },
+  statIconContainer: {
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
   },
   statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#4285F4',
-    marginBottom: 5,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    color: '#64748B',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   accordion: {
-    marginHorizontal: 10,
-    marginBottom: 10,
-    borderRadius: 10,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   accordionTitle: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#1F2937',
   },
   accordionContent: {
-    padding: 15,
+    padding: 20,
   },
   input: {
-    marginBottom: 10,
-    backgroundColor: 'white',
+    marginBottom: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   saveButton: {
-    marginTop: 10,
-    borderRadius: 5,
-    backgroundColor: '#4285F4',
+    marginTop: 16,
+    borderRadius: 12,
+    backgroundColor: '#6366F1',
+    paddingVertical: 4,
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#F1F5F9',
   },
   infoLabel: {
     fontSize: 16,
-    color: '#333',
+    color: '#374151',
     fontWeight: '500',
   },
   infoValue: {
     fontSize: 16,
-    color: '#666',
+    color: '#64748B',
     textAlign: 'right',
+    flex: 1,
+    marginLeft: 16,
   },
   contactCard: {
-    marginBottom: 10,
-    borderRadius: 8,
-    backgroundColor: 'white',
-    elevation: 2,
+    marginBottom: 12,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   contactHeader: {
     flexDirection: 'row',
@@ -1131,82 +1337,102 @@ const styles = StyleSheet.create({
   },
   contactName: {
     fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 5,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 4,
   },
   contactDetail: {
     fontSize: 14,
-    color: '#666',
+    color: '#64748B',
     marginBottom: 2,
   },
   emptyListText: {
     fontSize: 14,
-    color: '#666',
+    color: '#9CA3AF',
     textAlign: 'center',
-    paddingVertical: 20,
+    paddingVertical: 32,
+    fontStyle: 'italic',
   },
   memoryCard: {
-    marginBottom: 10,
-    borderRadius: 8,
+    marginBottom: 12,
+    borderRadius: 12,
     backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 2,
   },
   memoryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   memoryLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   memoryActions: {
     flexDirection: 'row',
   },
   memoryTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 10,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginLeft: 12,
+    flex: 1,
   },
   memoryDescription: {
     fontSize: 14,
-    color: '#333',
-    marginTop: 5,
+    color: '#64748B',
+    lineHeight: 20,
+    marginTop: 4,
   },
   memoryDate: {
     fontSize: 12,
-    color: '#666',
+    color: '#9CA3AF',
     marginTop: 8,
+    fontWeight: '500',
   },
   inputLabel: {
     fontSize: 14,
     marginBottom: 8,
     marginTop: 8,
-    color: '#666',
+    color: '#374151',
+    fontWeight: '500',
   },
   typeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 20,
+    gap: 8,
   },
   typeButton: {
     flexDirection: 'column',
     alignItems: 'center',
-    padding: 10,
+    padding: 12,
     borderWidth: 1,
-    borderColor: '#E1E1E1',
-    borderRadius: 8,
-    width: '22%',
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    flex: 1,
   },
   selectedTypeButton: {
-    backgroundColor: '#4285F4',
-    borderColor: '#4285F4',
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
   },
   typeButtonText: {
     fontSize: 12,
-    marginTop: 5,
-    color: '#333',
+    marginTop: 6,
+    color: '#64748B',
+    fontWeight: '500',
   },
   selectedTypeButtonText: {
     color: 'white',
@@ -1218,38 +1444,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderRadius: 8,
   },
   accountOptionInfo: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   accountOptionIcon: {
-    marginRight: 15,
+    marginRight: 16,
   },
   accountOptionLabel: {
     fontSize: 16,
+    fontWeight: '500',
   },
   logoutText: {
-    color: '#FF3B30',
+    color: '#EF4444',
   },
   divider: {
     marginVertical: 10,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#4285F4',
-    marginTop: 10,
-  },
   addButton: {
-    marginTop: 15,
-    borderColor: '#4285F4',
-    borderRadius: 5,
+    marginTop: 16,
+    borderColor: '#6366F1',
+    borderRadius: 12,
+    borderWidth: 2,
   },
   modalOverlay: {
     flex: 1,
@@ -1258,27 +1478,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    width: '85%',
+    width: '90%',
     backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
-    elevation: 5,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 15,
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 20,
     textAlign: 'center',
+    color: '#1F2937',
   },
   modalInput: {
-    marginBottom: 12,
+    marginBottom: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 20,
+    gap: 12,
   },
   modalButton: {
-    width: '48%',
+    flex: 1,
+    borderRadius: 12,
   },
 }); 

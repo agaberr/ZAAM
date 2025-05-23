@@ -56,10 +56,14 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     height: 60,
-    backgroundColor: "#0B0804",
-    borderTopWidth: 1,
-    borderTopColor: "#57452F",
+    backgroundColor: "#fff",
+    borderTopWidth: 0,
     paddingHorizontal: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 8,
   },
   navItem: {
     flex: 1,

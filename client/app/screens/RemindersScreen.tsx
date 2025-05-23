@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, FlatList, Alert, Modal, TextInput } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, FlatList, Alert, Modal, TextInput, Dimensions } from 'react-native';
 import { Text, Button, Card, FAB, Chip, Avatar, IconButton, Divider, Menu, Portal, ActivityIndicator } from 'react-native-paper';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import { useFocusEffect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import ReminderForm from '../components/ReminderForm';
 import { reminderService, ReminderData, ReminderType, ReminderStats } from '../services/reminderService';
 import { format, parseISO } from 'date-fns';
+
+const { width } = Dimensions.get('window');
 
 type ReminderCategory = 'medication' | 'appointment' | 'activity' | 'hydration';
 
@@ -30,7 +33,7 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
   // State for date selection and calendar
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [markedDates, setMarkedDates] = useState<MarkedDates>({
-    [format(new Date(), 'yyyy-MM-dd')]: { selected: true, selectedColor: '#4285F4' },
+    [format(new Date(), 'yyyy-MM-dd')]: { selected: true, selectedColor: '#6366F1' },
   });
   
   // UI state
@@ -40,6 +43,7 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
   const [filterVisible, setFilterVisible] = useState(false);
   const [activeFilter, setActiveFilter] = useState<ReminderCategory | 'all'>('all');
   const [menuVisible, setMenuVisible] = useState(false);
+  const [completedExpanded, setCompletedExpanded] = useState(false);
   
   // Form state
   const [formVisible, setFormVisible] = useState(false);
@@ -149,14 +153,8 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
     try {
       await reminderService.toggleCompletion(id, !completed);
       
-      // Update local state
-      setReminders(prevReminders => 
-        prevReminders.map(reminder => 
-          reminder.id === id 
-            ? { ...reminder, completed: !completed } 
-            : reminder
-        )
-      );
+      // Refresh the reminders to remove completed items from view
+      fetchReminders();
       
       // Refresh statistics after toggling completion
       fetchStatistics();
@@ -202,17 +200,23 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
   
   // Edit reminder
   const handleEditReminder = (reminder: ReminderType) => {
-    // Convert ReminderType to ReminderData for the form
-    const reminderData: ReminderData = {
-      _id: reminder.id,
-      title: reminder.title,
-      description: reminder.description,
-      start_time: parseISO(reminder.date + 'T' + reminder.time).toISOString(),
-      // Keep other fields as needed
-    };
-    
-    setEditingReminder(reminderData);
-    setFormVisible(true);
+    try {
+      // Convert ReminderType to ReminderData for the form
+      const dateTimeString = `${reminder.date}T${reminder.time}`;
+      const reminderData: ReminderData = {
+        _id: reminder.id,
+        title: reminder.title,
+        description: reminder.description,
+        start_time: new Date(dateTimeString).toISOString(),
+        recurrence: reminder.recurring ? 'daily' : null, // Default to daily if recurring
+      };
+      
+      setEditingReminder(reminderData);
+      setFormVisible(true);
+    } catch (error) {
+      console.error('Error preparing reminder for edit:', error);
+      Alert.alert('Error', 'Failed to load reminder for editing');
+    }
   };
   
   // Initialize
@@ -229,241 +233,432 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
     }, [fetchReminders])
   );
   
-  // Filter reminders based on active filter
-  const filteredReminders = activeFilter === 'all' 
-    ? reminders 
-    : reminders.filter(reminder => reminder.type === activeFilter);
+  // Filter reminders based on active filter - separate pending and completed
+  const pendingReminders = activeFilter === 'all' 
+    ? reminders.filter(reminder => !reminder.completed)
+    : reminders.filter(reminder => reminder.type === activeFilter && !reminder.completed);
+    
+  const completedReminders = activeFilter === 'all' 
+    ? reminders.filter(reminder => reminder.completed)
+    : reminders.filter(reminder => reminder.type === activeFilter && reminder.completed);
   
-  // Get reminders by type from local data
+  // Get reminders by type from local data (excluding completed)
   const getRemindersCountByType = (type: ReminderCategory): number => {
-    return reminders.filter(r => r.type === type).length;
+    return reminders.filter(r => r.type === type && !r.completed).length;
   };
   
-  // Render reminder item
+  // Render reminder item (works for both pending and completed)
   const renderReminderItem = ({ item }: { item: ReminderType }) => (
-    <Card style={[styles.reminderCard, { backgroundColor: getTypeColor(item.type) }]}>
-      <Card.Content>
-        <View style={styles.reminderHeader}>
-          <View style={styles.reminderTypeContainer}>
+    <View style={[styles.modernReminderCard, item.completed && styles.completedReminderCard]}>
+      <View style={styles.cardHeader}>
+        <View style={styles.leftSection}>
+          <View style={[styles.modernTypeIcon, { backgroundColor: getTypeColor(item.type) }]}>
             {getTypeIcon(item.type)}
           </View>
-          <View style={styles.reminderInfo}>
-            <Text style={styles.reminderTitle}>{item.title}</Text>
-            <Text style={styles.reminderTime}>{item.time}</Text>
-          </View>
-          <TouchableOpacity 
-            style={[styles.completionButton, item.completed ? styles.completedButton : {}]}
-            onPress={() => toggleReminderCompletion(item.id, item.completed)}>
-            {item.completed ? (
-              <Ionicons name="checkmark" size={20} color="white" />
-            ) : null}
-          </TouchableOpacity>
-        </View>
-        
-        {item.description ? (
-          <Text style={styles.reminderDescription}>{item.description}</Text>
-        ) : null}
-        
-        {item.location ? (
-          <View style={styles.locationContainer}>
-            <Ionicons name="location" size={16} color="#777" />
-            <Text style={styles.locationText}>{item.location}</Text>
-          </View>
-        ) : null}
-        
-        <View style={styles.reminderMetaContainer}>
-          {item.recurring && (
-            <View style={styles.recurrenceContainer}>
-              <Ionicons name="repeat" size={16} color="#757575" />
-              <Text style={styles.recurrenceText}>{item.recurrencePattern}</Text>
+          <View style={styles.reminderDetails}>
+            <Text style={[styles.modernTitle, item.completed && styles.completedTitle]}>
+              {item.title}
+            </Text>
+            <View style={styles.timeContainer}>
+              <Ionicons name="time-outline" size={14} color="#64748B" />
+              <Text style={styles.modernTime}>{item.time}</Text>
             </View>
-          )}
+            {item.description && (
+              <Text style={styles.modernDescription} numberOfLines={2}>
+                {item.description}
+              </Text>
+            )}
+          </View>
         </View>
         
-        <View style={styles.reminderActions}>
-          <Button 
-            mode="text" 
-            compact 
-            onPress={() => handleEditReminder(item)}
-            style={styles.actionButton}
-            labelStyle={styles.actionButtonLabel}>
-            Edit
-          </Button>
-          <Button 
-            mode="text" 
-            compact 
-            onPress={() => handleDeleteReminder(item.id)}
-            style={styles.actionButton}
-            labelStyle={[styles.actionButtonLabel, {color: '#FF3B30'}]}>
-            Delete
-          </Button>
+        <TouchableOpacity 
+          style={[styles.modernCompletionButton, item.completed && styles.modernCompletedButton]}
+          onPress={() => toggleReminderCompletion(item.id, item.completed)}
+          activeOpacity={0.8}
+        >
+          {item.completed ? (
+            <Ionicons name="checkmark" size={20} color="white" />
+          ) : (
+            <View style={styles.incompleteDot} />
+          )}
+        </TouchableOpacity>
+      </View>
+      
+      {item.recurring && (
+        <View style={styles.recurrenceBadge}>
+          <Ionicons name="repeat" size={12} color="#6366F1" />
+          <Text style={styles.recurrenceBadgeText}>{item.recurrencePattern}</Text>
         </View>
-      </Card.Content>
-    </Card>
+      )}
+      
+      <View style={styles.modernActions}>
+        <TouchableOpacity 
+          style={styles.modernActionButton}
+          onPress={() => handleEditReminder(item)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="pencil" size={16} color="#6366F1" />
+          <Text style={styles.modernActionText}>Edit</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.modernActionButton, styles.deleteAction]}
+          onPress={() => handleDeleteReminder(item.id)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="trash-outline" size={16} color="#EF4444" />
+          <Text style={[styles.modernActionText, styles.deleteActionText]}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
   
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Reminders</Text>
-        <Menu
-          visible={menuVisible}
-          onDismiss={() => setMenuVisible(false)}
-          anchor={
-            <IconButton
-              icon="dots-vertical"
-              size={24}
-              onPress={() => setMenuVisible(true)}
-            />
-          }
-          contentStyle={styles.menuContent}
-        >
-          <Menu.Item 
-            onPress={() => { 
-              setMenuVisible(false);
-              setFormVisible(true);
-            }} 
-            title="Add new reminder" 
-            leadingIcon="plus"
-          />
-          <Divider />
-        </Menu>
+      {/* Modern Header with Solid Blue */}
+      <View 
+        style={styles.headerContainer}
+      >
+        <View style={styles.headerBackground}>
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.headerTitle}>Reminders</Text>
+              <Text style={styles.headerSubtitle}>
+                {format(new Date(selectedDate), 'EEEE, MMM d')}
+              </Text>
+            </View>
+            
+            <View style={styles.headerRight}>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => {
+                  setEditingReminder(undefined);
+                  setFormVisible(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={24} color="white" />
+              </TouchableOpacity>
+              
+              <Menu
+                visible={menuVisible}
+                onDismiss={() => setMenuVisible(false)}
+                anchor={
+                  <TouchableOpacity
+                    style={styles.menuButton}
+                    onPress={() => setMenuVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={20} color="white" />
+                  </TouchableOpacity>
+                }
+                contentStyle={styles.menuContent}
+              >
+                <Menu.Item 
+                  onPress={() => { 
+                    setMenuVisible(false);
+                    fetchReminders();
+                  }} 
+                  title="Refresh" 
+                  leadingIcon="refresh"
+                />
+                <Divider />
+                <Menu.Item 
+                  onPress={() => { 
+                    setMenuVisible(false);
+                    fetchStatistics();
+                  }} 
+                  title="Update Stats" 
+                  leadingIcon="chart-line"
+                />
+              </Menu>
+            </View>
+          </View>
+        </View>
       </View>
 
-      <ScrollView style={styles.scrollView}>
-        {/* Calendar section */}
-        <Card style={styles.calendarCard}>
-          <Card.Content>
-            <View style={styles.calendarHeader}>
-              <Text style={styles.calendarTitle}>Calendar</Text>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Stats Overview */}
+        <View 
+          style={styles.statsSection}
+        >
+          <View style={styles.statsHeader}>
+            <Text style={styles.sectionTitle}>Today's Overview</Text>
+          </View>
+          
+          <View style={styles.statsGrid}>
+            <View style={[styles.statCard, styles.statCard1]}>
+              <View style={styles.statIconContainer}>
+                <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+              </View>
+              <Text style={styles.statValue}>{stats.completedCount}</Text>
+              <Text style={styles.statLabel}>Completed</Text>
             </View>
+            
+            <View style={[styles.statCard, styles.statCard2]}>
+              <View style={styles.statIconContainer}>
+                <Ionicons name="time" size={24} color="#F59E0B" />
+              </View>
+              <Text style={styles.statValue}>{stats.pendingCount}</Text>
+              <Text style={styles.statLabel}>Pending</Text>
+            </View>
+            
+            <View style={[styles.statCard, styles.statCard3]}>
+              <View style={styles.statIconContainer}>
+                <Ionicons name="trending-up" size={24} color="#6366F1" />
+              </View>
+              <Text style={styles.statValue}>{stats.completionRate}%</Text>
+              <Text style={styles.statLabel}>Success Rate</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Filter Chips */}
+        <View 
+          style={styles.filterSection}
+        >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScrollView}>
+            <TouchableOpacity
+              style={[
+                styles.modernFilterChip,
+                activeFilter === 'all' && styles.activeFilterChip
+              ]}
+              onPress={() => setActiveFilter('all')}
+            >
+              <Text style={[
+                styles.filterChipText,
+                activeFilter === 'all' && styles.activeFilterChipText
+              ]}>
+                All ({reminders.filter(r => !r.completed).length})
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.modernFilterChip,
+                activeFilter === 'medication' && styles.activeFilterChip
+              ]}
+              onPress={() => setActiveFilter('medication')}
+            >
+              <Ionicons name="medical" size={16} color={activeFilter === 'medication' ? 'white' : '#64748B'} />
+              <Text style={[
+                styles.filterChipText,
+                activeFilter === 'medication' && styles.activeFilterChipText
+              ]}>
+                Medication ({getRemindersCountByType('medication')})
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.modernFilterChip,
+                activeFilter === 'appointment' && styles.activeFilterChip
+              ]}
+              onPress={() => setActiveFilter('appointment')}
+            >
+              <Ionicons name="calendar" size={16} color={activeFilter === 'appointment' ? 'white' : '#64748B'} />
+              <Text style={[
+                styles.filterChipText,
+                activeFilter === 'appointment' && styles.activeFilterChipText
+              ]}>
+                Appointments ({getRemindersCountByType('appointment')})
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.modernFilterChip,
+                activeFilter === 'activity' && styles.activeFilterChip
+              ]}
+              onPress={() => setActiveFilter('activity')}
+            >
+              <Ionicons name="fitness" size={16} color={activeFilter === 'activity' ? 'white' : '#64748B'} />
+              <Text style={[
+                styles.filterChipText,
+                activeFilter === 'activity' && styles.activeFilterChipText
+              ]}>
+                Activities ({getRemindersCountByType('activity')})
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.modernFilterChip,
+                activeFilter === 'hydration' && styles.activeFilterChip
+              ]}
+              onPress={() => setActiveFilter('hydration')}
+            >
+              <Ionicons name="water" size={16} color={activeFilter === 'hydration' ? 'white' : '#64748B'} />
+              <Text style={[
+                styles.filterChipText,
+                activeFilter === 'hydration' && styles.activeFilterChipText
+              ]}>
+                Hydration ({getRemindersCountByType('hydration')})
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
+        {/* Calendar Section */}
+        <View 
+          style={styles.calendarSection}
+        >
+          <View style={styles.calendarCard}>
             <Calendar
               current={selectedDate}
               onDayPress={handleDateSelect}
               markedDates={markedDates}
               theme={{
-                todayTextColor: '#4285F4',
+                backgroundColor: 'white',
+                calendarBackground: 'white',
+                textSectionTitleColor: '#6366F1',
+                selectedDayBackgroundColor: '#6366F1',
+                selectedDayTextColor: 'white',
+                todayTextColor: '#6366F1',
+                dayTextColor: '#1F2937',
+                textDisabledColor: '#D1D5DB',
+                dotColor: '#6366F1',
+                selectedDotColor: 'white',
+                arrowColor: '#6366F1',
+                disabledArrowColor: '#D1D5DB',
+                monthTextColor: '#1F2937',
+                indicatorColor: '#6366F1',
                 textDayFontFamily: 'System',
                 textMonthFontFamily: 'System',
                 textDayHeaderFontFamily: 'System',
-                arrowColor: '#4285F4'
+                textDayFontWeight: '400',
+                textMonthFontWeight: '600',
+                textDayHeaderFontWeight: '500',
+                textDayFontSize: 16,
+                textMonthFontSize: 18,
+                textDayHeaderFontSize: 14
               }}
             />
-          </Card.Content>
-        </Card>
-
-        {/* Filter chips */}
-        <View style={styles.filterContainer}>
-          <Text style={styles.filterTitle}>Filter by:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScrollView}>
-            <Chip 
-              selected={activeFilter === 'all'}
-              onPress={() => setActiveFilter('all')}
-              style={styles.filterChip}
-              selectedColor="#4285F4">
-              All ({reminders.length})
-            </Chip>
-            <Chip 
-              selected={activeFilter === 'medication'}
-              onPress={() => setActiveFilter('medication')}
-              style={styles.filterChip}
-              selectedColor="#FF9500">
-              Medications ({getRemindersCountByType('medication')})
-            </Chip>
-            <Chip 
-              selected={activeFilter === 'appointment'}
-              onPress={() => setActiveFilter('appointment')}
-              style={styles.filterChip}
-              selectedColor="#FF3B30">
-              Appointments ({getRemindersCountByType('appointment')})
-            </Chip>
-            <Chip 
-              selected={activeFilter === 'activity'}
-              onPress={() => setActiveFilter('activity')}
-              style={styles.filterChip}
-              selectedColor="#34C759">
-              Activities ({getRemindersCountByType('activity')})
-            </Chip>
-            <Chip 
-              selected={activeFilter === 'hydration'}
-              onPress={() => setActiveFilter('hydration')}
-              style={styles.filterChip}
-              selectedColor="#4285F4">
-              Hydration ({getRemindersCountByType('hydration')})
-            </Chip>
-          </ScrollView>
+          </View>
         </View>
 
-        {/* Reminders list */}
-        <View style={styles.remindersSection}>
-          <Text style={styles.sectionTitle}>
-            Upcoming Reminders for {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-          </Text>
+        {/* Reminders List */}
+        <View 
+          style={styles.remindersSection}
+        >
+          <View style={styles.remindersHeader}>
+            <Text style={styles.sectionTitle}>
+              {format(new Date(selectedDate), 'EEEE, MMMM d')}
+            </Text>
+            <Text style={styles.reminderCount}>
+              {pendingReminders.length + completedReminders.length} reminder{pendingReminders.length + completedReminders.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
           
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#4285F4" />
+              <ActivityIndicator size="large" color="#6366F1" />
               <Text style={styles.loadingText}>Loading reminders...</Text>
             </View>
-          ) : filteredReminders.length > 0 ? (
-            <FlatList
-              data={filteredReminders}
-              renderItem={renderReminderItem}
-              keyExtractor={item => item.id}
-              scrollEnabled={false}
-              contentContainerStyle={styles.remindersList}
-            />
+          ) : pendingReminders.length + completedReminders.length > 0 ? (
+            <>
+              {/* Pending Reminders Section */}
+              {pendingReminders.length > 0 ? (
+                <View style={styles.reminderSubsection}>
+                  <View style={styles.subsectionHeader}>
+                    <Text style={styles.subsectionTitle}>Pending</Text>
+                    <Text style={styles.subsectionCount}>
+                      {pendingReminders.length} reminder{pendingReminders.length !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <FlatList
+                    data={pendingReminders}
+                    renderItem={renderReminderItem}
+                    keyExtractor={item => item.id}
+                    scrollEnabled={false}
+                    contentContainerStyle={styles.remindersList}
+                    showsVerticalScrollIndicator={false}
+                  />
+                </View>
+              ) : (
+                <View style={styles.addReminderPrompt}>
+                  <View style={styles.addReminderContent}>
+                    <View style={styles.addReminderIcon}>
+                      <Ionicons name="calendar-outline" size={60} color="#CBD5E1" />
+                    </View>
+                    <Text style={styles.addReminderTitle}>No reminders yet</Text>
+                    <Text style={styles.addReminderText}>
+                      Start by adding your first reminder for this day
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.addReminderButton}
+                      onPress={() => {
+                        setEditingReminder(undefined);
+                        setFormVisible(true);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="add" size={20} color="white" />
+                      <Text style={styles.addReminderButtonText}>Add Reminder</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              
+              {/* Completed Reminders Section */}
+              {completedReminders.length > 0 && (
+                <View style={styles.reminderSubsection}>
+                  <TouchableOpacity 
+                    style={styles.subsectionHeader}
+                    onPress={() => setCompletedExpanded(!completedExpanded)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.subsectionHeaderLeft}>
+                      <Text style={styles.subsectionTitle}>Completed</Text>
+                      <Text style={styles.subsectionCount}>
+                        {completedReminders.length} reminder{completedReminders.length !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                    <Ionicons 
+                      name={completedExpanded ? "chevron-up" : "chevron-down"} 
+                      size={20} 
+                      color="#64748B" 
+                    />
+                  </TouchableOpacity>
+                  
+                  {completedExpanded && (
+                    <FlatList
+                      data={completedReminders}
+                      renderItem={renderReminderItem}
+                      keyExtractor={item => item.id}
+                      scrollEnabled={false}
+                      contentContainerStyle={styles.remindersList}
+                      showsVerticalScrollIndicator={false}
+                    />
+                  )}
+                </View>
+              )}
+            </>
           ) : (
-            <Card style={styles.emptyStateCard}>
-              <Card.Content style={styles.emptyStateContent}>
-                <MaterialCommunityIcons name="calendar-blank" size={50} color="#CCCCCC" />
-                <Text style={styles.emptyStateText}>No reminders for this day</Text>
-                <Button 
-                  mode="contained" 
+            <View style={styles.emptyStateCard}>
+              <View style={styles.emptyStateContent}>
+                <View style={styles.emptyStateIcon}>
+                  <Ionicons name="calendar-outline" size={60} color="#CBD5E1" />
+                </View>
+                <Text style={styles.emptyStateTitle}>No reminders yet</Text>
+                <Text style={styles.emptyStateText}>
+                  Start by adding your first reminder for this day
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyStateButton}
                   onPress={() => {
                     setEditingReminder(undefined);
                     setFormVisible(true);
                   }}
-                  style={styles.emptyStateButton}>
-                  Add Reminder
-                </Button>
-              </Card.Content>
-            </Card>
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add" size={20} color="white" />
+                  <Text style={styles.emptyStateButtonText}>Add Reminder</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
         </View>
-
-        {/* Reminder statistics */}
-        <Card style={styles.statsCard}>
-          <Card.Content>
-            <Text style={styles.statsTitle}>Reminder Statistics</Text>
-            {loadingStats ? (
-              <View style={styles.statsLoadingContainer}>
-                <ActivityIndicator size="small" color="#4285F4" />
-                <Text style={styles.statsLoadingText}>Loading statistics...</Text>
-              </View>
-            ) : (
-              <View style={styles.statsContainer}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{stats.completionRate}%</Text>
-                  <Text style={styles.statLabel}>Completion Rate</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{stats.totalCount}</Text>
-                  <Text style={styles.statLabel}>Total Reminders</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{stats.pendingCount}</Text>
-                  <Text style={styles.statLabel}>Pending</Text>
-                </View>
-              </View>
-            )}
-          </Card.Content>
-        </Card>
-
-        {/* Bottom spacer */}
-        <View style={styles.bottomSpacer} />
       </ScrollView>
 
       {/* Reminder Form Modal */}
@@ -511,30 +706,81 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F7FA',
   },
-  header: {
+  headerContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    height: 140,
+  },
+  headerBackground: {
+    backgroundColor: '#6366F1',
+    paddingTop: 50, // Account for status bar
+    paddingBottom: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#6366F1',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  headerContent: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E1E1E1',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  headerLeft: {
+    flexDirection: 'column',
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  addButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  menuButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   menuContent: {
-    marginTop: 40,
+    marginTop: 60,
+    borderRadius: 12,
   },
   scrollView: {
     flex: 1,
-  },
-  calendarCard: {
-    margin: 16,
-    borderRadius: 12,
-    elevation: 2,
+    paddingTop: 140, // Space for header
   },
   calendarHeader: {
     flexDirection: 'row',
@@ -568,170 +814,425 @@ const styles = StyleSheet.create({
   filterChip: {
     marginRight: 8,
   },
-  remindersSection: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 12,
+    color: '#1F2937',
+  },
+  remindersSection: {
+    marginHorizontal: 16,
+    marginBottom: 16,
   },
   remindersList: {
     gap: 12,
   },
-  reminderCard: {
-    borderRadius: 12,
-    elevation: 1,
-  },
-  reminderHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  reminderTypeContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  modernReminderCard: {
     backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
-  reminderInfo: {
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  leftSection: {
+    flexDirection: 'row',
     flex: 1,
   },
-  reminderTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  reminderTime: {
-    fontSize: 14,
-    color: '#777',
-  },
-  completionButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#4285F4',
+  modernTypeIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  completedButton: {
-    backgroundColor: '#4285F4',
+  reminderDetails: {
+    flex: 1,
   },
-  reminderDescription: {
-    fontSize: 14,
-    marginBottom: 8,
-    paddingLeft: 52,
+  modernTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 6,
+    lineHeight: 24,
   },
-  locationContainer: {
+  timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-    paddingLeft: 52,
-  },
-  locationText: {
-    fontSize: 14,
-    color: '#777',
-    marginLeft: 4,
-  },
-  reminderMetaContainer: {
     marginBottom: 8,
-    paddingLeft: 52,
   },
-  recurrenceContainer: {
+  modernTime: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748B',
+    marginLeft: 6,
+  },
+  modernDescription: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  modernCompletionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    shadowColor: '#6366F1',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  incompleteDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#6366F1',
+  },
+  recurrenceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
   },
-  recurrenceText: {
-    fontSize: 14,
-    color: '#777',
+  recurrenceBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6366F1',
     marginLeft: 4,
   },
-  reminderActions: {
+  modernActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    gap: 8,
   },
-  actionButton: {
-    marginLeft: 8,
+  modernActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  actionButtonLabel: {
-    fontSize: 14,
-    color: '#4285F4',
+  modernActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6366F1',
+    marginLeft: 4,
+  },
+  deleteAction: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  deleteActionText: {
+    color: '#EF4444',
   },
   emptyStateCard: {
-    borderRadius: 12,
-    marginBottom: 16,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   emptyStateContent: {
     alignItems: 'center',
-    padding: 20,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyStateIcon: {
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 8,
+    textAlign: 'center',
   },
   emptyStateText: {
-    fontSize: 16,
-    color: '#777',
-    marginVertical: 10,
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
   },
   emptyStateButton: {
-    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: '#6366F1',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  statsCard: {
+  emptyStateButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+    marginLeft: 8,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6366F1',
+    marginTop: 12,
+    fontWeight: '500',
+  },
+  statsSection: {
     marginHorizontal: 16,
     marginBottom: 16,
-    borderRadius: 12,
   },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  statsContainer: {
+  statsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
-  statItem: {
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statCard: {
     flex: 1,
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statCard1: {
+    borderTopWidth: 3,
+    borderTopColor: '#10B981',
+  },
+  statCard2: {
+    borderTopWidth: 3,
+    borderTopColor: '#F59E0B',
+  },
+  statCard3: {
+    borderTopWidth: 3,
+    borderTopColor: '#6366F1',
+  },
+  statIconContainer: {
+    marginBottom: 8,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#4285F4',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1F2937',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#777',
+    color: '#64748B',
+    fontWeight: '500',
     textAlign: 'center',
   },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#E1E1E1',
+  filterSection: {
+    marginHorizontal: 16,
+    marginBottom: 16,
   },
-  statsLoadingContainer: {
-    height: 70,
-    justifyContent: 'center',
+  modernFilterChip: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  statsLoadingText: {
+  activeFilterChip: {
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
+  },
+  filterChipText: {
     fontSize: 12,
-    color: '#777',
-    marginTop: 8,
+    fontWeight: '600',
+    color: '#64748B',
+    marginLeft: 4,
   },
-  bottomSpacer: {
-    height: 80,
+  activeFilterChipText: {
+    color: 'white',
   },
-  loadingContainer: {
-    padding: 20,
+  calendarSection: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+  },
+  calendarCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  remindersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 16,
   },
-  loadingText: {
-    marginTop: 10,
+  reminderCount: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  completedReminderCard: {
+    backgroundColor: '#F8FAFC',
+  },
+  completedTitle: {
+    color: '#6366F1',
+  },
+  modernCompletedButton: {
+    backgroundColor: '#6366F1',
+  },
+  reminderSubsection: {
+    marginBottom: 16,
+  },
+  subsectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  subsectionHeaderLeft: {
+    flexDirection: 'column',
+    flex: 1,
+  },
+  subsectionTitle: {
     fontSize: 16,
-    color: '#777',
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  subsectionCount: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  addReminderPrompt: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  addReminderContent: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  addReminderIcon: {
+    marginBottom: 16,
+  },
+  addReminderTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  addReminderText: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  addReminderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: '#6366F1',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  addReminderButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+    marginLeft: 8,
   },
 }); 
