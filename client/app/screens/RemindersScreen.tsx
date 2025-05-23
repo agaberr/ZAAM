@@ -39,10 +39,6 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
   const [filterVisible, setFilterVisible] = useState(false);
   const [activeFilter, setActiveFilter] = useState<ReminderCategory | 'all'>('all');
   const [menuVisible, setMenuVisible] = useState(false);
-  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
-  const [voicePrompt, setVoicePrompt] = useState('');
-  const [processing, setProcessing] = useState(false);
-  const [aiResponse, setAiResponse] = useState('');
   
   // Form state
   const [formVisible, setFormVisible] = useState(false);
@@ -183,42 +179,6 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
     setFormVisible(true);
   };
   
-  // Process voice reminder input
-  const processVoiceReminder = async () => {
-    if (!voicePrompt.trim()) {
-      setAiResponse('Please enter a reminder text');
-      return;
-    }
-  
-    setProcessing(true);
-    setAiResponse('Processing your request...');
-  
-    try {
-      const result = await reminderService.setVoiceReminder(voicePrompt);
-  
-      if (result.success) {
-        setAiResponse('Reminder set! ' + result.message);
-        
-        // Refresh the reminders list
-        fetchReminders();
-        
-        // Reset input after successful processing
-        setTimeout(() => {
-          setVoicePrompt('');
-          setProcessing(false);
-          setVoiceModalVisible(false);
-        }, 3000);
-      } else {
-        setAiResponse(result.message || 'Failed to process reminder');
-        setProcessing(false);
-      }
-    } catch (error) {
-      console.error('Error processing voice reminder:', error);
-      setAiResponse('Error connecting to the server');
-      setProcessing(false);
-    }
-  };
-  
   // Initialize
   useEffect(() => {
     // Load reminders for the initial date
@@ -305,55 +265,6 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
     </Card>
   );
   
-  // Render voice reminder modal
-  const renderVoiceReminderModal = () => {
-    return (
-      <Portal>
-        <Modal
-          visible={voiceModalVisible}
-          onDismiss={() => setVoiceModalVisible(false)}
-          style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Set a Reminder with Voice</Text>
-            <Text style={styles.modalSubtitle}>
-              Type your reminder in natural language
-            </Text>
-            <Text style={styles.exampleText}>
-              "Remind me to take my medicine at 3 pm"
-            </Text>
-            
-            <TextInput
-              style={styles.voiceInput}
-              placeholder="Enter your reminder here..."
-              value={voicePrompt}
-              onChangeText={setVoicePrompt}
-              multiline
-            />
-            
-            <Text style={styles.aiResponseText}>{aiResponse}</Text>
-            
-            <View style={styles.modalActions}>
-              <Button
-                mode="outlined"
-                onPress={() => setVoiceModalVisible(false)}
-                style={styles.modalButton}>
-                Cancel
-              </Button>
-              <Button
-                mode="contained"
-                onPress={processVoiceReminder}
-                style={styles.modalButton}
-                loading={processing}
-                disabled={processing || !voicePrompt.trim()}>
-                Process
-              </Button>
-            </View>
-          </View>
-        </Modal>
-      </Portal>
-    );
-  };
-  
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -377,14 +288,6 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
             }} 
             title="Add new reminder" 
             leadingIcon="plus"
-          />
-          <Menu.Item 
-            onPress={() => {
-              setMenuVisible(false);
-              setVoiceModalVisible(true);
-            }} 
-            title="Add voice reminder" 
-            leadingIcon="microphone"
           />
           <Divider />
         </Menu>
@@ -492,33 +395,6 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
           )}
         </View>
 
-        {/* Voice reminders section */}
-        <Card style={styles.voiceReminderCard}>
-          <Card.Content>
-            <View style={styles.voiceReminderContent}>
-              <View style={styles.voiceReminderTextContainer}>
-                <Text style={styles.voiceReminderTitle}>Set reminders with your voice</Text>
-                <Text style={styles.voiceReminderDescription}>
-                  Just say "Set a reminder" to your AI companion
-                </Text>
-                <Button
-                  mode="contained"
-                  onPress={() => setVoiceModalVisible(true)}
-                  icon="microphone"
-                  style={styles.voiceReminderButton}>
-                  Try Voice Reminder
-                </Button>
-              </View>
-              <View style={styles.voiceReminderImageContainer}>
-                <MaterialCommunityIcons name="microphone" size={72} color="#4285F4" />
-              </View>
-            </View>
-          </Card.Content>
-        </Card>
-
-        {/* Render the voice reminder modal */}
-        {renderVoiceReminderModal()}
-
         {/* Reminder statistics */}
         <Card style={styles.statsCard}>
           <Card.Content>
@@ -546,17 +422,6 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
-      {/* FAB for adding new reminders */}
-      <FAB
-        icon="plus"
-        style={styles.fab}
-        onPress={() => {
-          setEditingReminder(undefined);
-          setFormVisible(true);
-        }}
-        color="white"
-      />
-      
       {/* Reminder Form Modal */}
       <ReminderForm
         visible={formVisible}
@@ -836,62 +701,6 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 80,
-  },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 80,
-    backgroundColor: '#4285F4',
-  },
-  modalContainer: {
-    backgroundColor: 'white',
-    margin: 20,
-    borderRadius: 10,
-    padding: 20,
-    elevation: 5,
-  },
-  modalContent: {
-    alignItems: 'stretch',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontSize: 16,
-    color: '#555',
-    marginBottom: 5,
-  },
-  exampleText: {
-    fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
-    marginBottom: 15,
-  },
-  voiceInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 10,
-    minHeight: 80,
-    fontSize: 16,
-    marginBottom: 15,
-  },
-  aiResponseText: {
-    padding: 12,
-    fontSize: 14,
-    color: '#444',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  modalButton: {
-    flex: 1,
-    margin: 5,
   },
   loadingContainer: {
     padding: 20,
