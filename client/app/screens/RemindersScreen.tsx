@@ -5,7 +5,7 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-ico
 import { Calendar } from 'react-native-calendars';
 import { useFocusEffect } from 'expo-router';
 import ReminderForm from '../components/ReminderForm';
-import { reminderService, ReminderData, ReminderType } from '../services/reminderService';
+import { reminderService, ReminderData, ReminderType, ReminderStats } from '../services/reminderService';
 import { format, parseISO } from 'date-fns';
 
 type ReminderCategory = 'medication' | 'appointment' | 'activity' | 'hydration';
@@ -35,6 +35,7 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
   
   // UI state
   const [loading, setLoading] = useState(true);
+  const [loadingStats, setLoadingStats] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
   const [activeFilter, setActiveFilter] = useState<ReminderCategory | 'all'>('all');
@@ -46,6 +47,32 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
   
   // Data state
   const [reminders, setReminders] = useState<ReminderType[]>([]);
+  const [stats, setStats] = useState<ReminderStats>({
+    totalCount: 0,
+    completedCount: 0,
+    pendingCount: 0,
+    upcomingCount: 0,
+    completionRate: 0,
+    byType: {
+      medication: 0,
+      appointment: 0,
+      activity: 0,
+      hydration: 0
+    }
+  });
+  
+  // Fetch global statistics
+  const fetchStatistics = useCallback(async () => {
+    try {
+      setLoadingStats(true);
+      const statsData = await reminderService.getStatistics();
+      setStats(statsData);
+    } catch (error) {
+      console.error('Error fetching statistics:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
   
   // Fetch reminders for the selected date
   const fetchReminders = useCallback(async () => {
@@ -59,13 +86,16 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
       
       // Update marked dates with the new data
       updateCalendarMarkers();
+      
+      // Refresh statistics whenever reminders are fetched
+      fetchStatistics();
     } catch (error) {
       console.error('Error fetching reminders:', error);
       Alert.alert('Error', 'Failed to load reminders');
     } finally {
       setLoading(false);
     }
-  }, [selectedDate]);
+  }, [selectedDate, fetchStatistics]);
   
   // Update calendar markers
   const updateCalendarMarkers = () => {
@@ -127,6 +157,9 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
             : reminder
         )
       );
+      
+      // Refresh statistics after toggling completion
+      fetchStatistics();
     } catch (error) {
       console.error('Error toggling completion:', error);
       Alert.alert('Error', 'Failed to update reminder status');
@@ -154,6 +187,9 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
               
               // Update calendar markers
               updateCalendarMarkers();
+              
+              // Refresh statistics after deletion
+              fetchStatistics();
             } catch (error) {
               console.error('Error deleting reminder:', error);
               Alert.alert('Error', 'Failed to delete reminder');
@@ -181,25 +217,26 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
   
   // Initialize
   useEffect(() => {
-    // Load reminders for the initial date
+    // Load reminders for the initial date and get statistics
     fetchReminders();
   }, [fetchReminders]);
+  
+  // Focus effect to refresh data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchReminders();
+      return () => {};
+    }, [fetchReminders])
+  );
   
   // Filter reminders based on active filter
   const filteredReminders = activeFilter === 'all' 
     ? reminders 
     : reminders.filter(reminder => reminder.type === activeFilter);
   
-  // Get reminders by type
+  // Get reminders by type from local data
   const getRemindersCountByType = (type: ReminderCategory): number => {
     return reminders.filter(r => r.type === type).length;
-  };
-  
-  // Get completion statistics
-  const getCompletionRate = (): number => {
-    if (reminders.length === 0) return 0;
-    const completedCount = reminders.filter(r => r.completed).length;
-    return Math.round((completedCount / reminders.length) * 100);
   };
   
   // Render reminder item
@@ -399,22 +436,29 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
         <Card style={styles.statsCard}>
           <Card.Content>
             <Text style={styles.statsTitle}>Reminder Statistics</Text>
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{getCompletionRate()}%</Text>
-                <Text style={styles.statLabel}>Completion Rate</Text>
+            {loadingStats ? (
+              <View style={styles.statsLoadingContainer}>
+                <ActivityIndicator size="small" color="#4285F4" />
+                <Text style={styles.statsLoadingText}>Loading statistics...</Text>
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{reminders.length}</Text>
-                <Text style={styles.statLabel}>Today's Reminders</Text>
+            ) : (
+              <View style={styles.statsContainer}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{stats.completionRate}%</Text>
+                  <Text style={styles.statLabel}>Completion Rate</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{stats.totalCount}</Text>
+                  <Text style={styles.statLabel}>Total Reminders</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{stats.pendingCount}</Text>
+                  <Text style={styles.statLabel}>Pending</Text>
+                </View>
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{reminders.filter(r => !r.completed).length}</Text>
-                <Text style={styles.statLabel}>Pending</Text>
-              </View>
-            </View>
+            )}
           </Card.Content>
         </Card>
 
@@ -633,37 +677,6 @@ const styles = StyleSheet.create({
   emptyStateButton: {
     marginTop: 16,
   },
-  voiceReminderCard: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 12,
-    backgroundColor: '#E8F1FF',
-  },
-  voiceReminderContent: {
-    flexDirection: 'row',
-  },
-  voiceReminderTextContainer: {
-    flex: 2,
-  },
-  voiceReminderTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  voiceReminderDescription: {
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  voiceReminderButton: {
-    backgroundColor: '#4285F4',
-    borderRadius: 20,
-    width: 180,
-  },
-  voiceReminderImageContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   statsCard: {
     marginHorizontal: 16,
     marginBottom: 16,
@@ -698,6 +711,16 @@ const styles = StyleSheet.create({
     width: 1,
     height: 40,
     backgroundColor: '#E1E1E1',
+  },
+  statsLoadingContainer: {
+    height: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statsLoadingText: {
+    fontSize: 12,
+    color: '#777',
+    marginTop: 8,
   },
   bottomSpacer: {
     height: 80,

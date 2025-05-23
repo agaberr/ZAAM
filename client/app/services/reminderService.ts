@@ -6,6 +6,21 @@ import { format } from 'date-fns';
 // const API_URL = 'https://zaam-mj7u.onrender.com/api';
 const API_URL = 'http://localhost:5000/api';
 
+// Statistics interface
+export interface ReminderStats {
+  totalCount: number;
+  completedCount: number;
+  pendingCount: number;
+  upcomingCount: number;
+  completionRate: number;
+  byType: {
+    medication: number;
+    appointment: number;
+    activity: number;
+    hydration: number;
+  };
+}
+
 // Reminder interface that matches the server model
 export interface ReminderData {
   _id?: string; // MongoDB ID (undefined for new reminders)
@@ -126,9 +141,18 @@ export const reminderService = {
   getAllReminders: async (): Promise<ReminderType[]> => {
     try {
       const api = await createAuthAPI();
-      const response = await api.get('/reminders');
+      const response = await api.get('/reminder');
       
-      return response.data.map(formatReminderForUI);
+      // Backend returns {success, reminders, count, date} format
+      if (response.data && response.data.success && response.data.reminders) {
+        return response.data.reminders.map(formatReminderForUI);
+      } else if (Array.isArray(response.data)) {
+        // Fallback if backend returns array directly
+        return response.data.map(formatReminderForUI);
+      } else {
+        console.error('Unexpected response format:', response.data);
+        return [];
+      }
     } catch (error) {
       console.error('Error fetching reminders:', error);
       throw error;
@@ -141,10 +165,28 @@ export const reminderService = {
       console.log(`Getting reminders for date: ${date}`);
       const api = await createAuthAPI();
       console.log('API instance created, sending request...');
-      const response = await api.get(`/reminders?date=${date}`);
+      
+      // Calculate days offset from today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset to start of day
+      
+      const targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0); // Reset to start of day
+      
+      const timeDiff = targetDate.getTime() - today.getTime();
+      const daysDiff = Math.round(timeDiff / (1000 * 3600 * 24));
+      
+      console.log(`Days offset: ${daysDiff} (from ${today.toDateString()} to ${targetDate.toDateString()})`);
+      
+      const response = await api.get(`/reminder?days_offset=${daysDiff}`);
       console.log('Response received:', response.status);
       
-      if (response.data && Array.isArray(response.data)) {
+      // Backend returns {success, reminders, count, date} format
+      if (response.data && response.data.success && response.data.reminders) {
+        console.log(`Received ${response.data.reminders.length} reminders`);
+        return response.data.reminders.map(formatReminderForUI);
+      } else if (Array.isArray(response.data)) {
+        // Fallback if backend returns array directly
         console.log(`Received ${response.data.length} reminders`);
         return response.data.map(formatReminderForUI);
       } else {
@@ -167,22 +209,66 @@ export const reminderService = {
   getTodayReminders: async (): Promise<ReminderType[]> => {
     try {
       const api = await createAuthAPI();
-      const response = await api.get('/reminders/today');
+      // Use days_offset=0 for today
+      const response = await api.get('/reminder?days_offset=0');
       
-      return response.data.map(formatReminderForUI);
+      // Backend returns {success, reminders, count, date} format
+      if (response.data && response.data.success && response.data.reminders) {
+        return response.data.reminders.map(formatReminderForUI);
+      } else if (Array.isArray(response.data)) {
+        // Fallback if backend returns array directly
+        return response.data.map(formatReminderForUI);
+      } else {
+        console.error('Unexpected response format:', response.data);
+        return [];
+      }
     } catch (error) {
       console.error('Error fetching today\'s reminders:', error);
       throw error;
     }
   },
   
-  // Create a new reminder
+  // Create a new reminder using AI endpoint
   createReminder: async (reminder: ReminderData): Promise<ReminderCreateResponse> => {
     try {
       const api = await createAuthAPI();
-      const response = await api.post('/reminders', reminder);
       
-      return response.data;
+      // Since there's no direct POST /api/reminder endpoint, 
+      // we use the AI endpoint with a formatted text
+      const timeStr = new Date(reminder.start_time).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      
+      const dateStr = new Date(reminder.start_time).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      
+      let reminderText = `Remind me to ${reminder.title}`;
+      if (reminder.start_time) {
+        reminderText += ` at ${timeStr}`;
+        // Check if it's not today
+        const today = new Date();
+        const reminderDate = new Date(reminder.start_time);
+        if (reminderDate.toDateString() !== today.toDateString()) {
+          reminderText += ` on ${dateStr}`;
+        }
+      }
+      
+      const response = await api.post('/ai/reminder', { text: reminderText });
+      
+      if (response.data && response.data.success) {
+        return {
+          message: response.data.message || 'Reminder created successfully',
+          reminder_id: response.data.reminder?.id || 'unknown'
+        };
+      } else {
+        throw new Error(response.data?.response || 'Failed to create reminder');
+      }
     } catch (error) {
       console.error('Error creating reminder:', error);
       throw error;
@@ -193,7 +279,7 @@ export const reminderService = {
   updateReminder: async (reminderId: string, reminder: Partial<ReminderData>): Promise<void> => {
     try {
       const api = await createAuthAPI();
-      await api.put(`/reminders/${reminderId}`, reminder);
+      await api.put(`/reminder/${reminderId}`, reminder);
     } catch (error) {
       console.error('Error updating reminder:', error);
       throw error;
@@ -204,7 +290,7 @@ export const reminderService = {
   toggleCompletion: async (reminderId: string, completed: boolean): Promise<void> => {
     try {
       const api = await createAuthAPI();
-      await api.put(`/reminders/${reminderId}`, { completed });
+      await api.put(`/reminder/${reminderId}`, { completed });
     } catch (error) {
       console.error('Error toggling reminder completion:', error);
       throw error;
@@ -215,7 +301,7 @@ export const reminderService = {
   deleteReminder: async (reminderId: string): Promise<void> => {
     try {
       const api = await createAuthAPI();
-      await api.delete(`/reminders/${reminderId}`);
+      await api.delete(`/reminder/${reminderId}`);
     } catch (error) {
       console.error('Error deleting reminder:', error);
       throw error;
@@ -230,11 +316,56 @@ export const reminderService = {
       
       return {
         success: response.data.success || false,
-        message: response.data.message || 'Reminder created'
+        message: response.data.message || response.data.response || 'Reminder created'
       };
     } catch (error) {
       console.error('Error setting voice reminder:', error);
       throw error;
+    }
+  },
+  
+  // Get global reminder statistics (calculated from all reminders since backend doesn't have stats endpoint)
+  getStatistics: async (): Promise<ReminderStats> => {
+    try {
+      // Since backend doesn't have /reminder/stats endpoint, calculate from all reminders
+      const allReminders = await reminderService.getAllReminders();
+      
+      const completedCount = allReminders.filter(r => r.completed).length;
+      const pendingCount = allReminders.filter(r => !r.completed).length;
+      
+      // Calculate counts by type
+      const byType = {
+        medication: allReminders.filter(r => r.type === 'medication').length,
+        appointment: allReminders.filter(r => r.type === 'appointment').length,
+        activity: allReminders.filter(r => r.type === 'activity').length,
+        hydration: allReminders.filter(r => r.type === 'hydration').length,
+      };
+      
+      return {
+        totalCount: allReminders.length,
+        completedCount,
+        pendingCount,
+        upcomingCount: pendingCount, // Same as pending for now
+        completionRate: allReminders.length ? Math.round((completedCount / allReminders.length) * 100) : 0,
+        byType
+      };
+    } catch (error) {
+      console.error('Error fetching reminder statistics:', error);
+      
+      // Return default stats on error
+      return {
+        totalCount: 0,
+        completedCount: 0,
+        pendingCount: 0,
+        upcomingCount: 0,
+        completionRate: 0,
+        byType: {
+          medication: 0,
+          appointment: 0,
+          activity: 0,
+          hydration: 0
+        }
+      };
     }
   }
 }; 
