@@ -18,6 +18,7 @@ import { Button, Surface, ActivityIndicator, Chip } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { reminderService } from "../services/reminderService";
 import { userStatsService } from "../services/userStatsService";
+import { aiService } from "../services/aiService";
 
 interface Message {
   id: string;
@@ -271,18 +272,10 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
     setIsProcessing(true);
 
     try {
-      // Call the AI processing endpoint
-      const response = await fetch("http://localhost:5000/api/ai/process", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text: text.trim() }),
-      });
+      // Use the AI service with proper authentication
+      const aiResponse = await aiService.processAIRequest(text.trim());
 
-      const data = await response.json();
-
-      const responseText = data.response || "I'm here to help you. What would you like to know?";
+      const responseText = aiResponse.response || "I'm here to help you. What would you like to know?";
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),

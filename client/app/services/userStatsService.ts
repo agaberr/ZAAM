@@ -164,13 +164,8 @@ export const userStatsService = {
 
       console.log(`AI interactions incremented to: ${newCount}`);
 
-      // Try to sync with backend if available
-      try {
-        const api = await createAuthAPI();
-        await api.post('/user/stats/ai-interaction');
-      } catch (backendError: any) {
-        console.log('Could not sync AI interaction with backend:', backendError.message);
-      }
+      // Note: AI interactions are tracked locally only
+      // AI requests go to /api/ai/process endpoint instead
     } catch (error) {
       console.error('Error incrementing AI interactions:', error);
     }
