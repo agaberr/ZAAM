@@ -3,6 +3,7 @@ import { StyleSheet, View, ScrollView, Image, TouchableOpacity, Switch, Alert, A
 import { Text, Button, Card, Avatar, TextInput, Divider, List, IconButton, Chip, Portal, Dialog } from 'react-native-paper';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import { userStatsService, UserStats } from '../services/userStatsService';
 
 interface Medication {
   id: string;
@@ -64,13 +65,14 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
   });
   const [editingMemoryAidId, setEditingMemoryAidId] = useState<string | null>(null);
   
-  // Activity stats (creative addition)
-  const [activityStats, setActivityStats] = useState({
-    daysActive: 24,
-    medicationAdherence: 92,
-    aiInteractions: 78,
-    reminderCompletion: 85
+  // Activity stats (now dynamic)
+  const [activityStats, setActivityStats] = useState<UserStats>({
+    daysActive: 0,
+    aiInteractions: 0,
+    medicationAdherence: 0,
+    reminderCompletion: 0
   });
+  const [statsLoading, setStatsLoading] = useState(true);
   
   // Sections expanded state
   const [expandedSections, setExpandedSections] = useState({
@@ -136,6 +138,27 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
     
     if (userData?.id) {
       loadMemoryAids();
+    }
+  }, [userData?.id]);
+  
+  // Fetch user statistics
+  useEffect(() => {
+    const loadUserStats = async () => {
+      try {
+        setStatsLoading(true);
+        const stats = await userStatsService.getStats();
+        setActivityStats(stats);
+        console.log('Loaded user stats:', stats);
+      } catch (error) {
+        console.error('Failed to load user stats:', error);
+        // Keep default values on error
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    if (userData?.id) {
+      loadUserStats();
     }
   }, [userData?.id]);
   
@@ -415,6 +438,21 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
     }
   };
   
+  // Function to refresh stats (can be called manually)
+  const refreshStats = async () => {
+    try {
+      setStatsLoading(true);
+      const stats = await userStatsService.getStats();
+      setActivityStats(stats);
+      console.log('Refreshed user stats:', stats);
+    } catch (error) {
+      console.error('Failed to refresh user stats:', error);
+      Alert.alert('Error', 'Failed to refresh statistics');
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+  
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -456,27 +494,49 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
         {/* Activity Stats */}
         <Card style={styles.statsCard}>
           <Card.Content>
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{activityStats.daysActive}</Text>
-                <Text style={styles.statLabel}>Days Active</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{activityStats.medicationAdherence}%</Text>
-                <Text style={styles.statLabel}>Medication</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{activityStats.aiInteractions}</Text>
-                <Text style={styles.statLabel}>AI Chats</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{activityStats.reminderCompletion}%</Text>
-                <Text style={styles.statLabel}>Reminders</Text>
-              </View>
+            <View style={styles.statsHeader}>
+              <Text style={styles.statsTitle}>Activity Statistics</Text>
+              <TouchableOpacity 
+                onPress={refreshStats} 
+                disabled={statsLoading}
+                style={styles.refreshButton}
+              >
+                <Ionicons 
+                  name="refresh" 
+                  size={20} 
+                  color={statsLoading ? "#ccc" : "#4285F4"} 
+                />
+              </TouchableOpacity>
             </View>
+            
+            {statsLoading ? (
+              <View style={styles.statsLoadingContainer}>
+                <ActivityIndicator size="small" color="#4285F4" />
+                <Text style={styles.statsLoadingText}>Loading statistics...</Text>
+              </View>
+            ) : (
+              <View style={styles.statsContainer}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{activityStats.daysActive}</Text>
+                  <Text style={styles.statLabel}>Days Active</Text>
+                </View>
+                
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{Math.round(activityStats.medicationAdherence)}%</Text>
+                  <Text style={styles.statLabel}>Medication</Text>
+                </View>
+                
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{activityStats.aiInteractions}</Text>
+                  <Text style={styles.statLabel}>AI Chats</Text>
+                </View>
+                
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{Math.round(activityStats.reminderCompletion)}%</Text>
+                  <Text style={styles.statLabel}>Reminders</Text>
+                </View>
+              </View>
+            )}
           </Card.Content>
         </Card>
         
@@ -970,6 +1030,30 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     borderRadius: 10,
     overflow: 'hidden',
+  },
+  statsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+  },
+  statsTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  refreshButton: {
+    padding: 5,
+  },
+  statsLoadingContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 10,
+  },
+  statsLoadingText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 10,
   },
   statsContainer: {
     flexDirection: 'row',

@@ -11,11 +11,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   TextInput,
+  Alert,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Button, Surface, ActivityIndicator, Chip } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { reminderService } from "../services/reminderService";
+import { userStatsService } from "../services/userStatsService";
 
 interface Message {
   id: string;
@@ -304,6 +306,9 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
           setIsTalking(false);
         }, talkingDuration);
       }
+
+      // Increment AI interactions
+      userStatsService.incrementAIInteractions();
     } catch (error) {
       console.error("Error processing message:", error);
       // Add error message
