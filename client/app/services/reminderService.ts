@@ -15,7 +15,6 @@ export interface ReminderData {
   end_time?: string; // ISO date string or null
   recurrence?: 'daily' | 'weekly' | 'monthly' | 'yearly' | null;
   completed?: boolean;
-  google_event_id?: string; // Will be filled by server if Google sync is enabled
 }
 
 export interface ReminderCreateResponse {
@@ -34,7 +33,6 @@ export interface ReminderType {
   completed: boolean;
   recurring?: boolean;
   recurrencePattern?: string;
-  google_event_id?: string;
 }
 
 // Get auth token from async storage
@@ -86,7 +84,6 @@ const formatReminderForUI = (apiReminder: any): ReminderType => {
     completed: apiReminder.completed || false,
     recurring: !!apiReminder.recurrence,
     recurrencePattern: formatRecurrencePattern(apiReminder.recurrence),
-    google_event_id: apiReminder.google_event_id
   };
 };
 
@@ -238,87 +235,6 @@ export const reminderService = {
     } catch (error) {
       console.error('Error setting voice reminder:', error);
       throw error;
-    }
-  }
-};
-
-// Google Calendar specific service
-export const googleCalendarService = {
-  // Check if user has connected Google Calendar
-  checkConnection: async (): Promise<boolean> => {
-    try {
-      const api = await createAuthAPI();
-      const response = await api.get('/auth/google/status');
-      
-      return response.data.connected || false;
-    } catch (error) {
-      console.error('Error checking Google Calendar connection:', error);
-      return false;
-    }
-  },
-  
-  // Get Google auth URL
-  getAuthURL: async (): Promise<string | null> => {
-    try {
-      const api = await createAuthAPI();
-      const response = await api.get('/auth/google/connect');
-      
-      return response.data.authorization_url || null;
-    } catch (error) {
-      console.error('Error getting Google auth URL:', error);
-      return null;
-    }
-  },
-  
-  // Disconnect Google Calendar
-  disconnect: async (): Promise<boolean> => {
-    try {
-      const api = await createAuthAPI();
-      await api.post('/auth/google/disconnect');
-      return true;
-    } catch (error) {
-      console.error('Error disconnecting Google Calendar:', error);
-      return false;
-    }
-  },
-  
-  // Sync reminders with Google Calendar
-  syncReminders: async (): Promise<{success: boolean, message: string, stats?: any}> => {
-    try {
-      const api = await createAuthAPI();
-      const response = await api.post('/reminders/sync');
-      
-      return {
-        success: response.data.success || false,
-        message: response.data.message || 'Reminders synced successfully',
-        stats: response.data.stats
-      };
-    } catch (error: any) {
-      console.error('Error syncing reminders:', error);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to sync with Google Calendar'
-      };
-    }
-  },
-  
-  // Import events from Google Calendar
-  importEvents: async (days: number = 30): Promise<{success: boolean, message: string, stats?: any}> => {
-    try {
-      const api = await createAuthAPI();
-      const response = await api.post('/reminders/import-from-google', { days });
-      
-      return {
-        success: response.data.success || false,
-        message: response.data.message || 'Events imported successfully',
-        stats: response.data.stats
-      };
-    } catch (error: any) {
-      console.error('Error importing Google Calendar events:', error);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to import events from Google Calendar'
-      };
     }
   }
 }; 

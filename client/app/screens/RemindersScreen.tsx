@@ -5,7 +5,8 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-ico
 import { Calendar } from 'react-native-calendars';
 import { useFocusEffect } from 'expo-router';
 import ReminderForm from '../components/ReminderForm';
-import { reminderService, ReminderData, ReminderType, googleCalendarService } from '../services/reminderService';
+import { reminderService, ReminderData, ReminderType } from '../services/reminderService';
+import { format, parseISO } from 'date-fns';
 
 type ReminderCategory = 'medication' | 'appointment' | 'activity' | 'hydration';
 
@@ -27,9 +28,9 @@ interface RemindersScreenProps {
 
 export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) {
   // State for date selection and calendar
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [markedDates, setMarkedDates] = useState<MarkedDates>({
-    [selectedDate]: { selected: true, selectedColor: '#4285F4' },
+    [format(new Date(), 'yyyy-MM-dd')]: { selected: true, selectedColor: '#4285F4' },
   });
   
   // UI state
@@ -39,34 +40,16 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
   const [activeFilter, setActiveFilter] = useState<ReminderCategory | 'all'>('all');
   const [menuVisible, setMenuVisible] = useState(false);
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
-  const [voiceInput, setVoiceInput] = useState('');
-  const [processingVoice, setProcessingVoice] = useState(false);
+  const [voicePrompt, setVoicePrompt] = useState('');
+  const [processing, setProcessing] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
   
   // Form state
   const [formVisible, setFormVisible] = useState(false);
   const [editingReminder, setEditingReminder] = useState<ReminderData | undefined>(undefined);
   
-  // Google Calendar state
-  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
-  const [syncingWithGoogle, setSyncingWithGoogle] = useState(false);
-  
   // Data state
   const [reminders, setReminders] = useState<ReminderType[]>([]);
-  
-  // Check Google Calendar connection
-  const checkGoogleConnection = useCallback(async () => {
-    try {
-      console.log('Checking Google Calendar connection...');
-      const connected = await googleCalendarService.checkConnection();
-      console.log('Google Calendar connection status:', connected);
-      setIsGoogleConnected(connected);
-    } catch (error: any) {
-      console.error('Error checking Google connection:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-      Alert.alert('Connection Error', `Failed to check Google Calendar status: ${errorMessage}`);
-    }
-  }, []);
   
   // Fetch reminders for the selected date
   const fetchReminders = useCallback(async () => {
@@ -74,196 +57,61 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
       console.log('Fetching reminders for date:', selectedDate);
       setLoading(true);
       const data = await reminderService.getRemindersForDate(selectedDate);
-      console.log('Fetched reminders:', data.length);
+      
+      console.log('Fetched reminders:', data);
       setReminders(data);
       
-      // Update calendar markers based on all reminders
+      // Update marked dates with the new data
       updateCalendarMarkers();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching reminders:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-      Alert.alert('Data Error', `Failed to load reminders: ${errorMessage}`);
+      Alert.alert('Error', 'Failed to load reminders');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, [selectedDate]);
   
   // Update calendar markers
-  const updateCalendarMarkers = useCallback(async () => {
-    try {
-      // Get all reminders to mark dates in calendar
-      const allReminders = await reminderService.getAllReminders();
-      
-      // Group reminders by date
-      const dateMap: Record<string, ReminderType[]> = {};
-      allReminders.forEach(reminder => {
-        if (!dateMap[reminder.date]) {
-          dateMap[reminder.date] = [];
-        }
-        dateMap[reminder.date].push(reminder);
-      });
-      
-      // Create marked dates for calendar
-      const newMarkedDates: MarkedDates = {
-        [selectedDate]: { selected: true, selectedColor: '#4285F4' }
-      };
-      
-      // Add dots for dates with reminders
-      Object.keys(dateMap).forEach(date => {
-        const remindersForDate = dateMap[date];
-        
-        // Skip currently selected date (we already marked it as selected)
-        if (date === selectedDate) {
-          newMarkedDates[date] = {
-            ...newMarkedDates[date],
-            marked: true,
-            dotColor: '#4285F4'
-          };
-          return;
-        }
-        
-        // For other dates, just mark them
-        newMarkedDates[date] = {
-          marked: true,
-          dotColor: '#4285F4'
+  const updateCalendarMarkers = () => {
+    const newMarkedDates: MarkedDates = {
+      [selectedDate]: { selected: true, selectedColor: '#4285F4' }
+    };
+    
+    // Mark dates that have reminders
+    reminders.forEach(reminder => {
+      const date = reminder.date;
+      if (date !== selectedDate) {
+        newMarkedDates[date] = { 
+          ...newMarkedDates[date],
+          marked: true, 
+          dotColor: '#4285F4' 
         };
-      });
-      
-      setMarkedDates(newMarkedDates);
-    } catch (error) {
-      console.error('Error updating calendar markers:', error);
-    }
-  }, [selectedDate]);
-  
-  // Sync reminders with Google Calendar
-  const syncWithGoogleCalendar = async () => {
-    try {
-      setSyncingWithGoogle(true);
-      const result = await googleCalendarService.syncReminders();
-      
-      if (result.success) {
-        Alert.alert(
-          'Sync Complete',
-          result.message,
-          [{ text: 'OK', onPress: () => fetchReminders() }]
-        );
-      } else {
-        Alert.alert('Sync Failed', result.message);
       }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to sync with Google Calendar');
-    } finally {
-      setSyncingWithGoogle(false);
-    }
-  };
-  
-  // Import events from Google Calendar
-  const importFromGoogleCalendar = async () => {
-    try {
-      setSyncingWithGoogle(true);
-      const result = await googleCalendarService.importEvents(30);
-      
-      if (result.success) {
-        Alert.alert(
-          'Import Complete',
-          result.message,
-          [{ text: 'OK', onPress: () => {
-            fetchReminders();
-            updateCalendarMarkers();
-          }}]
-        );
-      } else {
-        Alert.alert('Import Failed', result.message);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to import events from Google Calendar');
-    } finally {
-      setSyncingWithGoogle(false);
-    }
-  };
-  
-  // Connect to Google Calendar
-  const connectToGoogleCalendar = async () => {
-    try {
-      const authUrl = await googleCalendarService.getAuthURL();
-      if (authUrl) {
-        // Open Google auth URL in a browser
-        Alert.alert(
-          'Connect to Google Calendar',
-          'You will be redirected to Google to authorize access to your calendar. After authorization, please return to the app.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Continue', 
-              onPress: () => {
-                // Use Linking.openURL in a real app
-                Alert.alert('Open URL', `Would open: ${authUrl}`);
-                // This would actually be implemented with Linking from react-native
-                // Linking.openURL(authUrl);
-              } 
-            }
-          ]
-        );
-      } else {
-        Alert.alert('Error', 'Failed to get authorization URL');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to connect to Google Calendar');
-    }
-  };
-  
-  // Disconnect from Google Calendar
-  const disconnectFromGoogleCalendar = () => {
-    Alert.alert(
-      'Disconnect Google Calendar',
-      'Are you sure you want to disconnect your Google Calendar? Your reminders will no longer sync.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Disconnect', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const success = await googleCalendarService.disconnect();
-              if (success) {
-                setIsGoogleConnected(false);
-                Alert.alert('Success', 'Your Google Calendar has been disconnected');
-              } else {
-                Alert.alert('Error', 'Failed to disconnect your Google Calendar');
-              }
-            } catch (error) {
-              Alert.alert('Error', 'Failed to disconnect from Google Calendar');
-            }
-          }
-        }
-      ]
-    );
+    });
+    
+    setMarkedDates(newMarkedDates);
   };
   
   // Handle date selection in calendar
   const handleDateSelect = (day: any) => {
     const selectedDay = day.dateString;
     
-    // Update marked dates
-    const updatedMarkedDates: MarkedDates = { ...markedDates };
+    // Update selected date in marked dates
+    const updatedMarkedDates = {
+      ...markedDates,
+    };
     
-    // Remove previous selection
+    // Remove selection from previous date
     if (markedDates[selectedDate]) {
       const { selected, selectedColor, ...rest } = markedDates[selectedDate];
       updatedMarkedDates[selectedDate] = rest;
-      
-      // If there are no other properties, remove the date
-      if (Object.keys(updatedMarkedDates[selectedDate]).length === 0) {
-        delete updatedMarkedDates[selectedDate];
-      }
     }
     
-    // Add new selection
-    updatedMarkedDates[selectedDay] = { 
-      ...(updatedMarkedDates[selectedDay] || {}),
-      selected: true, 
-      selectedColor: '#4285F4' 
+    // Add selection to new date
+    updatedMarkedDates[selectedDay] = {
+      ...updatedMarkedDates[selectedDay],
+      selected: true,
+      selectedColor: '#4285F4'
     };
     
     setMarkedDates(updatedMarkedDates);
@@ -307,6 +155,9 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
               setReminders(prevReminders => 
                 prevReminders.filter(reminder => reminder.id !== id)
               );
+              
+              // Update calendar markers
+              updateCalendarMarkers();
             } catch (error) {
               console.error('Error deleting reminder:', error);
               Alert.alert('Error', 'Failed to delete reminder');
@@ -319,73 +170,60 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
   
   // Edit reminder
   const handleEditReminder = (reminder: ReminderType) => {
-    // Convert UI reminder to API format
-    const apiReminder: ReminderData = {
+    // Convert ReminderType to ReminderData for the form
+    const reminderData: ReminderData = {
       _id: reminder.id,
       title: reminder.title,
       description: reminder.description,
-      start_time: new Date(`${reminder.date}T${reminder.time}`).toISOString(),
-      recurrence: reminder.recurring ? (reminder.recurrencePattern?.toLowerCase() as any) : null,
-      completed: reminder.completed,
-      google_event_id: reminder.google_event_id
+      start_time: parseISO(reminder.date + 'T' + reminder.time).toISOString(),
+      // Keep other fields as needed
     };
     
-    setEditingReminder(apiReminder);
+    setEditingReminder(reminderData);
     setFormVisible(true);
   };
   
   // Process voice reminder input
   const processVoiceReminder = async () => {
-    if (!voiceInput.trim()) {
+    if (!voicePrompt.trim()) {
       setAiResponse('Please enter a reminder text');
       return;
     }
-
-    setProcessingVoice(true);
+  
+    setProcessing(true);
     setAiResponse('Processing your request...');
-
+  
     try {
-      const result = await reminderService.setVoiceReminder(voiceInput);
-
+      const result = await reminderService.setVoiceReminder(voicePrompt);
+  
       if (result.success) {
-        setAiResponse(result.message);
+        setAiResponse('Reminder set! ' + result.message);
         
-        // Refresh reminders list
-        setTimeout(() => {
-          fetchReminders();
-        }, 1000);
+        // Refresh the reminders list
+        fetchReminders();
         
         // Reset input after successful processing
         setTimeout(() => {
-          setVoiceInput('');
-          setProcessingVoice(false);
+          setVoicePrompt('');
+          setProcessing(false);
           setVoiceModalVisible(false);
         }, 3000);
       } else {
         setAiResponse(result.message || 'Failed to process reminder');
-        setProcessingVoice(false);
+        setProcessing(false);
       }
     } catch (error) {
       console.error('Error processing voice reminder:', error);
       setAiResponse('Error connecting to the server');
-      setProcessingVoice(false);
+      setProcessing(false);
     }
   };
   
   // Initialize
   useEffect(() => {
-    checkGoogleConnection();
+    // Load reminders for the initial date
     fetchReminders();
-  }, [fetchReminders, checkGoogleConnection]);
-  
-  // Refresh data when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      checkGoogleConnection();
-      fetchReminders();
-      return () => {};
-    }, [fetchReminders, checkGoogleConnection])
-  );
+  }, [fetchReminders]);
   
   // Filter reminders based on active filter
   const filteredReminders = activeFilter === 'all' 
@@ -436,19 +274,14 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
           </View>
         ) : null}
         
-        {item.recurring ? (
-          <View style={styles.recurrenceContainer}>
-            <Ionicons name="repeat" size={16} color="#777" />
-            <Text style={styles.recurrenceText}>{item.recurrencePattern}</Text>
-          </View>
-        ) : null}
-        
-        {item.google_event_id && (
-          <View style={styles.recurrenceContainer}>
-            <Ionicons name="logo-google" size={16} color="#777" />
-            <Text style={styles.recurrenceText}>Synced with Google Calendar</Text>
-          </View>
-        )}
+        <View style={styles.reminderMetaContainer}>
+          {item.recurring && (
+            <View style={styles.recurrenceContainer}>
+              <Ionicons name="repeat" size={16} color="#757575" />
+              <Text style={styles.recurrenceText}>{item.recurrencePattern}</Text>
+            </View>
+          )}
+        </View>
         
         <View style={styles.reminderActions}>
           <Button 
@@ -483,7 +316,7 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Set a Reminder with Voice</Text>
             <Text style={styles.modalSubtitle}>
-              Type your reminder as you would say it, for example:
+              Type your reminder in natural language
             </Text>
             <Text style={styles.exampleText}>
               "Remind me to take my medicine at 3 pm"
@@ -492,16 +325,12 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
             <TextInput
               style={styles.voiceInput}
               placeholder="Enter your reminder here..."
-              value={voiceInput}
-              onChangeText={setVoiceInput}
+              value={voicePrompt}
+              onChangeText={setVoicePrompt}
               multiline
             />
             
-            {aiResponse ? (
-              <View style={styles.responseContainer}>
-                <Text style={styles.responseText}>{aiResponse}</Text>
-              </View>
-            ) : null}
+            <Text style={styles.aiResponseText}>{aiResponse}</Text>
             
             <View style={styles.modalActions}>
               <Button
@@ -514,8 +343,8 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
                 mode="contained"
                 onPress={processVoiceReminder}
                 style={styles.modalButton}
-                loading={processingVoice}
-                disabled={processingVoice || !voiceInput.trim()}>
+                loading={processing}
+                disabled={processing || !voicePrompt.trim()}>
                 Process
               </Button>
             </View>
@@ -541,36 +370,23 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
           }
           contentStyle={styles.menuContent}
         >
-          {isGoogleConnected ? (
-            <>
-              <Menu.Item 
-                onPress={syncWithGoogleCalendar} 
-                title="Sync with Google Calendar" 
-                leadingIcon="sync"
-                disabled={syncingWithGoogle}
-              />
-              <Menu.Item 
-                onPress={disconnectFromGoogleCalendar}
-                title="Disconnect Google Calendar" 
-                leadingIcon="google"
-              />
-            </>
-          ) : (
-            <Menu.Item 
-              onPress={connectToGoogleCalendar}
-              title="Connect Google Calendar" 
-              leadingIcon="google"
-            />
-          )}
-          <Divider />
+          <Menu.Item 
+            onPress={() => { 
+              setMenuVisible(false);
+              setFormVisible(true);
+            }} 
+            title="Add new reminder" 
+            leadingIcon="plus"
+          />
           <Menu.Item 
             onPress={() => {
-              console.log('Settings');
               setMenuVisible(false);
+              setVoiceModalVisible(true);
             }} 
-            title="Reminder settings" 
-            leadingIcon="cog"
+            title="Add voice reminder" 
+            leadingIcon="microphone"
           />
+          <Divider />
         </Menu>
       </View>
 
@@ -580,25 +396,18 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
           <Card.Content>
             <View style={styles.calendarHeader}>
               <Text style={styles.calendarTitle}>Calendar</Text>
-              {isGoogleConnected && (
-                <Chip 
-                  icon="google" 
-                  mode="outlined" 
-                  style={styles.syncChip}>
-                  Google Synced
-                </Chip>
-              )}
             </View>
             <Calendar
-              markedDates={markedDates}
+              current={selectedDate}
               onDayPress={handleDateSelect}
+              markedDates={markedDates}
               theme={{
                 todayTextColor: '#4285F4',
-                selectedDayBackgroundColor: '#4285F4',
-                dotColor: '#4285F4',
-                arrowColor: '#4285F4',
+                textDayFontFamily: 'System',
+                textMonthFontFamily: 'System',
+                textDayHeaderFontFamily: 'System',
+                arrowColor: '#4285F4'
               }}
-              style={styles.calendar}
             />
           </Card.Content>
         </Card>
@@ -644,83 +453,6 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
             </Chip>
           </ScrollView>
         </View>
-
-        {/* Google Calendar Integration Section */}
-        <Card style={styles.googleCalendarCard}>
-          <Card.Content>
-            <View style={styles.googleCalendarHeader}>
-              <View style={styles.googleCalendarTitleContainer}>
-                <Ionicons name="logo-google" size={24} color="#4285F4" style={styles.googleIcon} />
-                <Text style={styles.googleCalendarTitle}>Google Calendar</Text>
-              </View>
-              
-              {isGoogleConnected ? (
-                <Chip 
-                  icon="check-circle" 
-                  mode="outlined" 
-                  style={styles.connectedChip}>
-                  Connected
-                </Chip>
-              ) : (
-                <Chip 
-                  icon="close-circle" 
-                  mode="outlined" 
-                  style={styles.disconnectedChip}>
-                  Not Connected
-                </Chip>
-              )}
-            </View>
-            
-            <Text style={styles.googleCalendarDescription}>
-              {isGoogleConnected 
-                ? 'Sync your reminders with Google Calendar to keep everything in one place.'
-                : 'Connect your Google Calendar to sync your reminders across devices.'}
-            </Text>
-            
-            <View style={styles.googleCalendarActions}>
-              {isGoogleConnected ? (
-                <>
-                  <Button 
-                    mode="contained" 
-                    icon="sync"
-                    loading={syncingWithGoogle}
-                    disabled={syncingWithGoogle}
-                    onPress={syncWithGoogleCalendar}
-                    style={styles.syncButton}>
-                    Sync Reminders
-                  </Button>
-                  
-                  <Button 
-                    mode="outlined" 
-                    icon="download"
-                    loading={syncingWithGoogle}
-                    disabled={syncingWithGoogle}
-                    onPress={importFromGoogleCalendar}
-                    style={styles.importButton}>
-                    Import Events
-                  </Button>
-                  
-                  <Button 
-                    mode="text" 
-                    onPress={disconnectFromGoogleCalendar}
-                    disabled={syncingWithGoogle}
-                    style={styles.disconnectButton}
-                    labelStyle={{color: '#FF3B30'}}>
-                    Disconnect
-                  </Button>
-                </>
-              ) : (
-                <Button 
-                  mode="contained" 
-                  icon="google"
-                  onPress={connectToGoogleCalendar}
-                  style={styles.connectButton}>
-                  Connect with Google
-                </Button>
-              )}
-            </View>
-          </Card.Content>
-        </Card>
 
         {/* Reminders list */}
         <View style={styles.remindersSection}>
@@ -996,11 +728,13 @@ const styles = StyleSheet.create({
     color: '#777',
     marginLeft: 4,
   },
+  reminderMetaContainer: {
+    marginBottom: 8,
+    paddingLeft: 52,
+  },
   recurrenceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    paddingLeft: 52,
   },
   recurrenceText: {
     fontSize: 14,
@@ -1032,8 +766,7 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   emptyStateButton: {
-    marginTop: 10,
-    backgroundColor: '#4285F4',
+    marginTop: 16,
   },
   voiceReminderCard: {
     marginHorizontal: 16,
@@ -1147,13 +880,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 15,
   },
-  responseContainer: {
-    backgroundColor: '#f5f5f5',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 15,
-  },
-  responseText: {
+  aiResponseText: {
+    padding: 12,
     fontSize: 14,
     color: '#444',
   },
@@ -1173,59 +901,5 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: '#777',
-  },
-  // Google Calendar styles
-  googleCalendarCard: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 12,
-    elevation: 3,
-  },
-  googleCalendarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  googleCalendarTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  googleIcon: {
-    marginRight: 8,
-  },
-  googleCalendarTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  connectedChip: {
-    backgroundColor: '#E5F3E8',
-    borderColor: '#34C759',
-  },
-  disconnectedChip: {
-    backgroundColor: '#FFEAEA',
-    borderColor: '#FF3B30',
-  },
-  googleCalendarDescription: {
-    fontSize: 14,
-    color: '#777',
-    marginBottom: 16,
-  },
-  googleCalendarActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    gap: 10,
-  },
-  syncButton: {
-    backgroundColor: '#4285F4',
-  },
-  importButton: {
-    borderColor: '#4285F4',
-  },
-  disconnectButton: {
-  },
-  connectButton: {
-    backgroundColor: '#4285F4',
   },
 }); 
