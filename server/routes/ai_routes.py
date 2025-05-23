@@ -209,38 +209,8 @@ def register_ai_routes(app, mongo):
                 }
                 
             elif predicted_intent == "create_event":
-                # Always try to extract a meaningful title from the original text
-                cleaned_text = re.sub(r'^(remind me to|set a reminder to|remind me|set reminder|remind)\s+', '', text.lower())
-                
-                # Remove time related parts
-                time_pattern = r'\b(at|on|for|by)\s+\d{1,2}(?::)?\d{0,2}\s*(am|pm|a\.m\.|p\.m\.)\b'
-                cleaned_text = re.sub(time_pattern, '', cleaned_text)
-                
-                # Remove date related parts
-                for date_exp in reminder_nlp.TIME_EXPRESSIONS:
-                    if date_exp in cleaned_text.lower():
-                        cleaned_text = re.sub(r'\b' + re.escape(date_exp) + r'\b', '', cleaned_text, flags=re.IGNORECASE)
-                
-                # Clean up any duplicate spaces
-                cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
-                
-                # Check if ML action contains problematic patterns that indicate wrong extraction
-                ml_action_issues = (
-                    not action or
-                    'me to' in action or 
-                    'to me' in action or
-                    action.startswith('me ') or
-                    action.endswith(' me') or
-                    len(action.split()) <= 2
-                )
-                
-                # Use cleaned text if:
-                # 1. ML action has issues AND cleaned text is meaningful
-                # 2. Or cleaned text is significantly longer and meaningful
-                # 3. Or we don't have a good ML action
-                if (ml_action_issues and len(cleaned_text.split()) >= 2) or (len(cleaned_text) > len(action) + 3) or not action:
-                    print(f"[DEBUG] Using cleaned text '{cleaned_text}' over ML action '{action}'")
-                    action = cleaned_text
+                # Use the ML model's predicted action directly without regex cleaning
+                # Let the model handle the full sentence and extract the action properly
                 
                 # Validate the action (reminder title)
                 if not action:
@@ -250,6 +220,8 @@ def register_ai_routes(app, mongo):
                         "success": False,
                         "intent": "create_event"
                     }
+                
+                print(f"[DEBUG] Using ML predicted action: '{action}'")
                 
                 # Use Egypt timezone
                 egypt_tz = pytz.timezone('Africa/Cairo')

@@ -243,6 +243,11 @@ class ReminderNLP:
         current_action = []
         current_time = []
         
+        # Debug: Print token-slot pairs to understand what the model is predicting
+        print(f"[DEBUG] Token-Slot pairs:")
+        for token, slot in zip(predicted_tokens, predicted_slots):
+            print(f"  '{token}' -> '{slot}'")
+        
         for token, slot in zip(predicted_tokens, predicted_slots):
             # Handle time slots
             if slot == 'B-TIME':
@@ -268,13 +273,59 @@ class ReminderNLP:
         if current_action:
             predicted_action.append(' '.join(current_action))
         
+        # Post-process action to fix common ML tagging errors
+        final_action = None
+        if predicted_action:
+            raw_action = " ".join(predicted_action)
+            print(f"[DEBUG] Raw ML action: '{raw_action}'")
+            
+            # Fix common patterns where the model incorrectly tags action boundaries
+            # Pattern 1: "me to [actual_action]" -> extract just the actual action
+            if raw_action.startswith('me to '):
+                # Look for the real action after "me to"
+                remaining_tokens = predicted_tokens[:]
+                start_idx = -1
+                
+                # Find where "me to" sequence ends in the original tokens
+                for i in range(len(predicted_tokens) - 1):
+                    if predicted_tokens[i] == 'me' and predicted_tokens[i + 1] == 'to':
+                        start_idx = i + 2  # Start after "me to"
+                        break
+                
+                if start_idx >= 0 and start_idx < len(predicted_tokens):
+                    # Extract remaining meaningful words (skip pronouns and articles at the start)
+                    meaningful_tokens = []
+                    for token in predicted_tokens[start_idx:]:
+                        # Skip common stopwords that shouldn't be part of action
+                        if token not in ['at', 'on', 'for', 'by', 'in', 'the', 'a', 'an']:
+                            meaningful_tokens.append(token)
+                        else:
+                            break  # Stop at time/date prepositions
+                    
+                    if meaningful_tokens:
+                        final_action = ' '.join(meaningful_tokens)
+                        print(f"[DEBUG] Fixed 'me to' pattern: '{raw_action}' -> '{final_action}'")
+            
+            # Pattern 2: Action ends with "me" or other incorrect endings
+            elif raw_action.endswith(' me') or raw_action.endswith(' to'):
+                # Remove the incorrect ending
+                final_action = raw_action.rsplit(' ', 1)[0]
+                print(f"[DEBUG] Fixed incorrect ending: '{raw_action}' -> '{final_action}'")
+            
+            # If no fixes applied, use the raw action
+            if not final_action:
+                final_action = raw_action
+        else:
+            final_action = None
+        
         result = {
             "text": " ".join(predicted_tokens),
             "predicted_intent": predicted_intent,
             "predicted_time": " ".join(predicted_time) if predicted_time else None,
-            "predicted_action": " ".join(predicted_action) if predicted_action else None
+            "predicted_action": final_action
         }
         
+        print(f"[DEBUG] Final processed result: {result}")
         return result
     
     def process_text(self, text):
