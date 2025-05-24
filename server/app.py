@@ -23,6 +23,7 @@ from routes.user_routes import register_user_routes
 from routes.auth_routes import register_auth_routes
 from routes.ai_routes import register_ai_routes
 from routes.memory_aid_routes import memory_aid_routes
+from routes.cognitive_game_routes import cognitive_game_routes
 
 ##################################### IMPORTS END #####################################
 
@@ -322,6 +323,7 @@ register_user_routes(app, mongo)
 register_auth_routes(app, mongo)
 register_ai_routes(app, mongo)
 app.register_blueprint(memory_aid_routes)
+app.register_blueprint(cognitive_game_routes)
 
 
 @app.before_request

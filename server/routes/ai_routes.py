@@ -36,6 +36,9 @@ from ConversationQA.qa_singleton import get_qa_instance
 # Get the singleton instance
 qa_system = get_qa_instance()
 
+# Add imports for cognitive game functionality
+from cognitive_game import CognitiveGame
+
 def register_ai_routes(app, mongo):
     """Register AI processing routes."""
     
@@ -327,6 +330,160 @@ def register_ai_routes(app, mongo):
             print(f"[DEBUG] Error in process_weather_internal: {str(e)}")
             return {"response": f"Error processing weather query: {str(e)}", "success": False}
     
+    # Internal function to process cognitive game queries
+    def process_game_internal(text):
+        """Internal function to process cognitive game-related queries"""
+        try:
+            print(f"[DEBUG] process_game_internal called with: '{text}'")
+            
+            # Get the authenticated user ID
+            user_id = get_authenticated_user_id()
+            if not user_id:
+                return {
+                    "response": "You must be logged in to play the cognitive game.",
+                    "category": "game",
+                    "success": False,
+                    "needs_auth": True
+                }
+            
+            # Get database connection
+            db = app.config.get("DATABASE")
+            if db is None:
+                return {
+                    "response": "Database connection not available.",
+                    "category": "game", 
+                    "success": False
+                }
+            
+            # Check if user wants to stop the game
+            if any(phrase in text.lower() for phrase in ["stop game", "end game", "quit game", "finish game"]):
+                # Check if game is active
+                if not session.get('game_active') or session.get('game_user_id') != user_id:
+                    return {
+                        "response": "No active game session to stop.",
+                        "category": "game",
+                        "success": True
+                    }
+                
+                # Get final stats
+                final_score = session.get('game_score', 0)
+                total_questions = session.get('game_questions_asked', 0)
+                accuracy = round((final_score / total_questions) * 100, 2) if total_questions > 0 else 0
+                
+                # Clear game session
+                session.pop('game_active', None)
+                session.pop('game_user_id', None)
+                session.pop('game_score', None)
+                session.pop('game_questions_asked', None)
+                session.pop('current_question', None)
+                
+                return {
+                    "response": f"Game session ended! Final stats: You scored {final_score} out of {total_questions} questions ({accuracy}% accuracy). Great job exercising your memory!",
+                    "category": "game",
+                    "success": True,
+                    "game_ended": True,
+                    "final_stats": {
+                        "score": final_score,
+                        "total_questions": total_questions,
+                        "accuracy": accuracy
+                    }
+                }
+            
+            # Check if game is already active
+            if session.get('game_active') and session.get('game_user_id') == user_id:
+                # User has an active game, treat text as an answer
+                current_question = session.get('current_question')
+                if not current_question:
+                    return {
+                        "response": "Something went wrong with your game session. Please start a new game.",
+                        "category": "game",
+                        "success": False
+                    }
+                
+                # Initialize the game and check the answer
+                game = CognitiveGame(db, user_id)
+                result = game.check_answer(current_question, text)
+                
+                # Update session data
+                session['game_questions_asked'] = session.get('game_questions_asked', 0) + 1
+                
+                if result.get('correct', False):
+                    session['game_score'] = session.get('game_score', 0) + 1
+                
+                # Generate next question
+                next_question = game.generate_random_question()
+                session['current_question'] = next_question
+                
+                # Prepare response
+                feedback = result.get('feedback', 'Thank you for your answer!')
+                score = session.get('game_score', 0)
+                questions_asked = session.get('game_questions_asked', 0)
+                accuracy = round((score / questions_asked) * 100, 2)
+                
+                response_text = f"{feedback}\n\nScore: {score}/{questions_asked} ({accuracy}% accuracy)\n\nNext question: {next_question}"
+                
+                return {
+                    "response": response_text,
+                    "category": "game",
+                    "success": True,
+                    "game_active": True,
+                    "validation_result": result,
+                    "score": score,
+                    "questions_asked": questions_asked,
+                    "accuracy": accuracy,
+                    "next_question": next_question
+                }
+            
+            # Check if user wants to start a game
+            if any(phrase in text.lower() for phrase in ["game", "play", "memory game", "cognitive game", "test my memory"]):
+                # Initialize the game for the user
+                game = CognitiveGame(db, user_id)
+                
+                # Check if user has any memory aids
+                memory_aids = game.get_all_memory_aids()
+                if not memory_aids:
+                    return {
+                        "response": "You don't have any memory aids yet. Please add some people or places to your memory aids before playing the game!",
+                        "category": "game",
+                        "success": False,
+                        "needs_memory_aids": True
+                    }
+                
+                # Store game session in session storage
+                session['game_active'] = True
+                session['game_user_id'] = user_id
+                session['game_score'] = 0
+                session['game_questions_asked'] = 0
+                
+                # Generate first question
+                question = game.generate_random_question()
+                session['current_question'] = question
+                
+                response_text = f"Cognitive game started! Let's test your memory!\n\nI found {len(memory_aids)} memory aids in your collection.\n\nHere's your first question: {question}\n\nJust type your answer and I'll check it for you. Say 'stop game' when you want to end."
+                
+                return {
+                    "response": response_text,
+                    "category": "game",
+                    "success": True,
+                    "game_started": True,
+                    "question": question,
+                    "memory_aids_count": len(memory_aids),
+                    "score": 0,
+                    "questions_asked": 0
+                }
+            
+            # If we get here, it's a general game-related query but not starting a game
+            return {
+                "response": "I can help you with memory games! Say 'play game' or 'start game' to begin testing your memory with your memory aids. You can also say 'stop game' to end an active session.",
+                "category": "game",
+                "success": True
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in process_game_internal: {str(e)}")
+            print(f"[DEBUG] Error in process_game_internal: {str(e)}")
+            return {"response": f"Error processing game request: {str(e)}", "success": False}
+
     @app.route('/api/ai/process', methods=['POST'])
     def process_ai_request():
         """
@@ -347,6 +504,37 @@ def register_ai_routes(app, mongo):
             user_id = get_authenticated_user_id()
             print(f"[DEBUG] User ID: {user_id}")
             
+            # PRIORITY 1: Check for cognitive game processing
+            # Game takes priority when active or when game keywords are detected
+            game_keywords = ["game", "play", "memory game", "cognitive game", "test my memory", "stop game", "end game", "quit game", "finish game"]
+            is_game_active = session.get('game_active') and session.get('game_user_id') == user_id
+            has_game_keywords = any(keyword in text.lower() for keyword in game_keywords)
+            
+            print(f"[DEBUG] Game active: {is_game_active}, Has game keywords: {has_game_keywords}")
+            
+            if is_game_active or has_game_keywords:
+                print(f"[DEBUG] Processing as game request")
+                game_result = process_game_internal(text)
+                
+                # Return game response directly
+                return jsonify({
+                    "response": game_result["response"],
+                    "category": "game",
+                    "success": game_result["success"],
+                    "game_data": {
+                        "game_active": game_result.get("game_active", False),
+                        "game_started": game_result.get("game_started", False),
+                        "game_ended": game_result.get("game_ended", False),
+                        "score": game_result.get("score"),
+                        "questions_asked": game_result.get("questions_asked"),
+                        "accuracy": game_result.get("accuracy"),
+                        "validation_result": game_result.get("validation_result"),
+                        "next_question": game_result.get("next_question"),
+                        "final_stats": game_result.get("final_stats")
+                    }
+                })
+            
+            # PRIORITY 2: Process other categories if not a game request
             # Categorize text into different segments
             ai_processor = AIProcessor()
             segments = ai_processor.segment_sentences(text)

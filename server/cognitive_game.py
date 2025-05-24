@@ -37,6 +37,20 @@ class CognitiveGame:
             "type": "place"
         }))
     
+    def get_user_objects(self):
+        """Get all object memory aids for the current user"""
+        return list(self.memory_aids_collection.find({
+            "user_id": self.user_id, 
+            "type": "object"
+        }))
+    
+    def get_user_events(self):
+        """Get all event memory aids for the current user"""
+        return list(self.memory_aids_collection.find({
+            "user_id": self.user_id, 
+            "type": "event"
+        }))
+    
     def get_all_memory_aids(self):
         """Get all memory aids for the current user"""
         return list(self.memory_aids_collection.find({
@@ -152,25 +166,265 @@ class CognitiveGame:
         else:
             return f"What do you remember most about {target_place.get('title')}?"
     
-    def generate_mixed_question(self):
-        """Generate a question that combines people and places"""
-        people = self.get_user_people()
-        places = self.get_user_places()
+    def generate_object_question(self):
+        """Generate a question related to objects"""
+        objects = self.get_user_objects()
         
-        if not people or not places:
-            return "Not enough data to generate mixed questions."
+        if not objects:
+            return "No objects in your memory aids to generate questions about."
         
-        person = random.choice(people)
-        place = random.choice(places)
+        # Choose a random object
+        obj = random.choice(objects)
         
+        # Different question types
         question_types = [
-            f"Have you been to {place.get('title')} with {person.get('title')}?",
-            f"What did {person.get('title')} think about {place.get('title')}?",
-            f"Did you talk to {person.get('title')} about {place.get('title')}?",
-            f"What memories do you have of {person.get('title')} and {place.get('title')} together?"
+            # Basic recall
+            lambda o: f"Tell me about {o.get('title')}.",
+            lambda o: f"What is {o.get('title')}?",
+            lambda o: f"Describe {o.get('title')}.",
+            lambda o: f"What do you remember about {o.get('title')}?",
+            lambda o: f"Why is {o.get('title')} important to you?",
+            
+            # Detail-oriented questions
+            lambda o: self._generate_object_detail_question(o),
+            
+            # Comparing objects
+            lambda o: self._generate_multi_object_question(o, objects)
         ]
         
-        return random.choice(question_types)
+        # Select a question type
+        question_func = random.choice(question_types)
+        return question_func(obj)
+    
+    def _generate_object_detail_question(self, obj):
+        """Generate a detail-oriented question about an object"""
+        description = obj.get('description', '')
+        
+        # Extract potential detail words from description
+        words = description.split()
+        potential_details = [word for word in words if len(word) > 4]
+        
+        if potential_details:
+            detail = random.choice(potential_details)
+            return f"What was the {detail} you mentioned about {obj.get('title')}?"
+        else:
+            return f"Can you describe the details of {obj.get('title')}?"
+    
+    def _generate_multi_object_question(self, target_obj, all_objects):
+        """Generate a question that involves multiple objects"""
+        if len(all_objects) < 2:
+            return f"What do you remember most about {target_obj.get('title')}?"
+        
+        # Get another random object different from target
+        other_objects = [o for o in all_objects if o["_id"] != target_obj["_id"]]
+        if other_objects:
+            other_obj = random.choice(other_objects)
+            
+            question_types = [
+                f"Which do you use more often: {target_obj.get('title')} or {other_obj.get('title')}?",
+                f"Compare {target_obj.get('title')} and {other_obj.get('title')}.",
+                f"What's the difference between {target_obj.get('title')} and {other_obj.get('title')}?"
+            ]
+            
+            return random.choice(question_types)
+        else:
+            return f"What do you remember most about {target_obj.get('title')}?"
+    
+    def generate_event_question(self):
+        """Generate a question related to events"""
+        events = self.get_user_events()
+        
+        if not events:
+            return "No events in your memory aids to generate questions about."
+        
+        # Choose a random event
+        event = random.choice(events)
+        
+        # Different question types
+        question_types = [
+            # Basic recall
+            lambda e: f"Tell me about {e.get('title')}.",
+            lambda e: f"What happened at {e.get('title')}?",
+            lambda e: f"Describe your experience at {e.get('title')}.",
+            lambda e: f"What do you remember about {e.get('title')}?",
+            lambda e: f"How did you feel during {e.get('title')}?",
+            
+            # Detail-oriented questions
+            lambda e: self._generate_event_detail_question(e),
+            
+            # Comparing events
+            lambda e: self._generate_multi_event_question(e, events)
+        ]
+        
+        # Select a question type
+        question_func = random.choice(question_types)
+        return question_func(event)
+    
+    def _generate_event_detail_question(self, event):
+        """Generate a detail-oriented question about an event"""
+        description = event.get('description', '')
+        
+        # Extract potential detail words from description
+        words = description.split()
+        potential_details = [word for word in words if len(word) > 4]
+        
+        if potential_details:
+            detail = random.choice(potential_details)
+            return f"What was the {detail} you mentioned about {event.get('title')}?"
+        else:
+            return f"Can you describe what happened during {event.get('title')}?"
+    
+    def _generate_multi_event_question(self, target_event, all_events):
+        """Generate a question that involves multiple events"""
+        if len(all_events) < 2:
+            return f"What do you remember most about {target_event.get('title')}?"
+        
+        # Get another random event different from target
+        other_events = [e for e in all_events if e["_id"] != target_event["_id"]]
+        if other_events:
+            other_event = random.choice(other_events)
+            
+            question_types = [
+                f"Which happened first: {target_event.get('title')} or {other_event.get('title')}?",
+                f"Compare your experiences at {target_event.get('title')} and {other_event.get('title')}.",
+                f"What's the difference between {target_event.get('title')} and {other_event.get('title')}?",
+                f"Which was more memorable: {target_event.get('title')} or {other_event.get('title')}?"
+            ]
+            
+            return random.choice(question_types)
+        else:
+            return f"What do you remember most about {target_event.get('title')}?"
+    
+    def generate_mixed_question(self):
+        """Generate a question that combines different types of memory aids"""
+        people = self.get_user_people()
+        places = self.get_user_places()
+        objects = self.get_user_objects()
+        events = self.get_user_events()
+        
+        # Create a list of available memory aid types
+        available_types = []
+        if people:
+            available_types.append(('people', people))
+        if places:
+            available_types.append(('places', places))
+        if objects:
+            available_types.append(('objects', objects))
+        if events:
+            available_types.append(('events', events))
+        
+        # Need at least 2 types for mixed questions
+        if len(available_types) < 2:
+            return "Not enough different types of memory aids to generate mixed questions."
+        
+        # Select two random types
+        type1, aids1 = random.choice(available_types)
+        remaining_types = [t for t in available_types if t[0] != type1]
+        type2, aids2 = random.choice(remaining_types)
+        
+        # Select random items from each type
+        aid1 = random.choice(aids1)
+        aid2 = random.choice(aids2)
+        
+        # Generate different question combinations
+        question_types = []
+        
+        # People + Places
+        if type1 == 'people' and type2 == 'places':
+            question_types = [
+                f"Have you been to {aid2.get('title')} with {aid1.get('title')}?",
+                f"What did {aid1.get('title')} think about {aid2.get('title')}?",
+                f"Did you talk to {aid1.get('title')} about {aid2.get('title')}?",
+                f"What memories do you have of {aid1.get('title')} and {aid2.get('title')} together?"
+            ]
+        elif type1 == 'places' and type2 == 'people':
+            question_types = [
+                f"Have you been to {aid1.get('title')} with {aid2.get('title')}?",
+                f"What did {aid2.get('title')} think about {aid1.get('title')}?",
+                f"Did you talk to {aid2.get('title')} about {aid1.get('title')}?",
+                f"What memories do you have of {aid2.get('title')} and {aid1.get('title')} together?"
+            ]
+        
+        # People + Objects
+        elif type1 == 'people' and type2 == 'objects':
+            question_types = [
+                f"Did {aid1.get('title')} give you {aid2.get('title')}?",
+                f"Have you used {aid2.get('title')} with {aid1.get('title')}?",
+                f"What does {aid1.get('title')} think about {aid2.get('title')}?",
+                f"Did you share {aid2.get('title')} with {aid1.get('title')}?"
+            ]
+        elif type1 == 'objects' and type2 == 'people':
+            question_types = [
+                f"Did {aid2.get('title')} give you {aid1.get('title')}?",
+                f"Have you used {aid1.get('title')} with {aid2.get('title')}?",
+                f"What does {aid2.get('title')} think about {aid1.get('title')}?",
+                f"Did you share {aid1.get('title')} with {aid2.get('title')}?"
+            ]
+        
+        # People + Events
+        elif type1 == 'people' and type2 == 'events':
+            question_types = [
+                f"Was {aid1.get('title')} at {aid2.get('title')}?",
+                f"Did you attend {aid2.get('title')} with {aid1.get('title')}?",
+                f"What did {aid1.get('title')} think about {aid2.get('title')}?",
+                f"How did {aid1.get('title')} react during {aid2.get('title')}?"
+            ]
+        elif type1 == 'events' and type2 == 'people':
+            question_types = [
+                f"Was {aid2.get('title')} at {aid1.get('title')}?",
+                f"Did you attend {aid1.get('title')} with {aid2.get('title')}?",
+                f"What did {aid2.get('title')} think about {aid1.get('title')}?",
+                f"How did {aid2.get('title')} react during {aid1.get('title')}?"
+            ]
+        
+        # Places + Objects
+        elif type1 == 'places' and type2 == 'objects':
+            question_types = [
+                f"Did you use {aid2.get('title')} at {aid1.get('title')}?",
+                f"Did you see {aid2.get('title')} at {aid1.get('title')}?",
+                f"Did you bring {aid2.get('title')} to {aid1.get('title')}?",
+                f"Is {aid2.get('title')} from {aid1.get('title')}?"
+            ]
+        elif type1 == 'objects' and type2 == 'places':
+            question_types = [
+                f"Did you use {aid1.get('title')} at {aid2.get('title')}?",
+                f"Did you see {aid1.get('title')} at {aid2.get('title')}?",
+                f"Did you bring {aid1.get('title')} to {aid2.get('title')}?",
+                f"Is {aid1.get('title')} from {aid2.get('title')}?"
+            ]
+        
+        # Places + Events
+        elif type1 == 'places' and type2 == 'events':
+            question_types = [
+                f"Did {aid2.get('title')} happen at {aid1.get('title')}?",
+                f"Were you at {aid1.get('title')} during {aid2.get('title')}?",
+                f"Did you visit {aid1.get('title')} for {aid2.get('title')}?"
+            ]
+        elif type1 == 'events' and type2 == 'places':
+            question_types = [
+                f"Did {aid1.get('title')} happen at {aid2.get('title')}?",
+                f"Were you at {aid2.get('title')} during {aid1.get('title')}?",
+                f"Did you visit {aid2.get('title')} for {aid1.get('title')}?"
+            ]
+        
+        # Objects + Events
+        elif type1 == 'objects' and type2 == 'events':
+            question_types = [
+                f"Did you use {aid1.get('title')} during {aid2.get('title')}?",
+                f"Did you get {aid1.get('title')} at {aid2.get('title')}?",
+                f"Was {aid1.get('title')} involved in {aid2.get('title')}?"
+            ]
+        elif type1 == 'events' and type2 == 'objects':
+            question_types = [
+                f"Did you use {aid2.get('title')} during {aid1.get('title')}?",
+                f"Did you get {aid2.get('title')} at {aid1.get('title')}?",
+                f"Was {aid2.get('title')} involved in {aid1.get('title')}?"
+            ]
+        
+        if question_types:
+            return random.choice(question_types)
+        else:
+            return f"How are {aid1.get('title')} and {aid2.get('title')} related in your memory?"
     
     def generate_random_question(self):
         """Generate a random question selecting from all types"""
@@ -183,11 +437,28 @@ class CognitiveGame:
         if self.get_user_places():
             question_generators.append(self.generate_place_question)
         
-        if self.get_user_people() and self.get_user_places():
+        if self.get_user_objects():
+            question_generators.append(self.generate_object_question)
+        
+        if self.get_user_events():
+            question_generators.append(self.generate_event_question)
+        
+        # Add mixed questions if we have at least 2 different types
+        available_types = 0
+        if self.get_user_people():
+            available_types += 1
+        if self.get_user_places():
+            available_types += 1
+        if self.get_user_objects():
+            available_types += 1
+        if self.get_user_events():
+            available_types += 1
+            
+        if available_types >= 2:
             question_generators.append(self.generate_mixed_question)
         
         if not question_generators:
-            return "You don't have any memory aids yet. Add some people or places to your memory aids to play the cognitive game!"
+            return "You don't have any memory aids yet. Add some people, places, objects, or events to your memory aids to play the cognitive game!"
         
         # Select a random question type
         generator = random.choice(question_generators)
@@ -272,6 +543,64 @@ class CognitiveGame:
                     else:
                         result["correct"] = False
                         result["feedback"] = f"Your description of {place_name} doesn't match what you recorded very well."
+                    
+                    result["correct_answer"] = expected_description
+                    break
+        
+        # Handle object-related questions
+        elif any(phrase in question.lower() for phrase in ["tell me about", "what is", "remember about"]):
+            # Extract object name from question
+            for object in self.get_user_objects():
+                object_name = object.get('title', '')
+                if object_name.lower() in question.lower():
+                    expected_description = object.get('description', '')
+                    print(f"Found object: {object_name}, expected: {expected_description}")
+                    
+                    similarity = self.calculate_text_similarity(expected_description, user_answer, relationshipQuestion=False)
+                    result["similarity_score"] = similarity
+                    
+                    # Provide feedback based on similarity
+                    if similarity > 0.7:
+                        result["correct"] = True
+                        result["feedback"] = f"Excellent! Your description of {object_name} matches well with what you recorded."
+                    elif similarity > 0.5:
+                        result["correct"] = True
+                        result["feedback"] = f"Good! Your description of {object_name} contains many key elements."
+                    elif similarity > 0.3:
+                        result["correct"] = True
+                        result["feedback"] = f"Partially correct. Your description of {object_name} includes some elements."
+                    else:
+                        result["correct"] = False
+                        result["feedback"] = f"Your description of {object_name} doesn't match what you recorded very well."
+                    
+                    result["correct_answer"] = expected_description
+                    break
+        
+        # Handle event-related questions
+        elif any(phrase in question.lower() for phrase in ["tell me about", "what happened at", "experience at", "remember about"]):
+            # Extract event name from question
+            for event in self.get_user_events():
+                event_name = event.get('title', '')
+                if event_name.lower() in question.lower():
+                    expected_description = event.get('description', '')
+                    print(f"Found event: {event_name}, expected: {expected_description}")
+                    
+                    similarity = self.calculate_text_similarity(expected_description, user_answer, relationshipQuestion=False)
+                    result["similarity_score"] = similarity
+                    
+                    # Provide feedback based on similarity
+                    if similarity > 0.7:
+                        result["correct"] = True
+                        result["feedback"] = f"Excellent! Your description of {event_name} matches well with what you recorded."
+                    elif similarity > 0.5:
+                        result["correct"] = True
+                        result["feedback"] = f"Good! Your description of {event_name} contains many key elements."
+                    elif similarity > 0.3:
+                        result["correct"] = True
+                        result["feedback"] = f"Partially correct. Your description of {event_name} includes some elements."
+                    else:
+                        result["correct"] = False
+                        result["feedback"] = f"Your description of {event_name} doesn't match what you recorded very well."
                     
                     result["correct_answer"] = expected_description
                     break
