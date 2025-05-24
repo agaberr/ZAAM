@@ -10,6 +10,7 @@ export interface AIResponse {
   category_responses?: Record<string, string>;
   categories?: string[];
   success: boolean;
+  audio?: string; // Add audio field for base64 audio data
 }
 
 // Get auth token from async storage
@@ -59,7 +60,8 @@ export const aiService = {
           response: response.data.response || "I'm here to help you. What would you like to know?",
           category_responses: response.data.category_responses,
           categories: response.data.categories,
-          success: response.data.success || false
+          success: response.data.success || false,
+          audio: response.data.audio_data // Include audio data from the server
         };
       } else {
         throw new Error('Invalid response format');

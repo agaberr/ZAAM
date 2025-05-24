@@ -34,9 +34,11 @@ def lip_sync_message(message):
     start_time = time.time()
     print(f"Starting conversion for message {message}")
 
-    mp3_path = f"audios/message_{message}.mp3"
-    wav_path = f"audios/message_{message}.wav"
-    json_path = f"audios/message_{message}.json"
+    # Generate timestamp-based unique file names
+    timestamp = int(time.time() * 1000)
+    mp3_path = f"audios/message_{timestamp}.mp3"
+    wav_path = f"audios/message_{timestamp}.wav"
+    json_path = f"audios/message_{timestamp}.json"
 
     # Convert MP3 to WAV
     exec_command(f"ffmpeg -y -i {mp3_path} {wav_path}")
@@ -45,6 +47,8 @@ def lip_sync_message(message):
     # Generate lip sync JSON using Rhubarb
     exec_command(f"./bin/rhubarb -f json -o {json_path} {wav_path} -r phonetic")
     print(f"Lip sync done in {int((time.time() - start_time) * 1000)}ms")
+    
+    return wav_path, json_path
 
 # Helper functions
 def audio_file_to_base64(file_path):
@@ -122,61 +126,17 @@ def chat():
     data = request.json
     user_message = data.get('message', '')
     
-    # if not user_message:
-    #     # Handle empty message with default responses
-    #     responses = []
-    #     for idx, resp in enumerate(DEFAULT_RESPONSES):
-    #         response_data = {
-    #             "text": resp["text"],
-    #             "facialExpression": resp["facialExpression"],
-    #             "animation": resp["animation"]
-    #         }
-            
-    #         # Try to load pre-recorded audio and lipsync data
-    #         try:
-    #             audio_path = f"audios/intro_{idx}.wav"
-    #             json_path = f"audios/intro_{idx}.json"
-                
-    #             audio_base64 = audio_file_to_base64(audio_path)
-    #             lipsync_data = read_json_transcript(json_path)
-                
-    #             if audio_base64:
-    #                 response_data["audio"] = audio_base64
-    #             if lipsync_data:
-    #                 response_data["lipsync"] = lipsync_data
-    #         except Exception as e:
-    #             logger.error(f"Error loading pre-recorded data: {e}")
-            
-    #         responses.append(response_data)
-        
-    #     return jsonify({"messages": responses})
-    
     # Process user message and generate response
     # This is a simplified example - you would typically connect to an AI service here
     response_text = f"{user_message}"
     
     # Generate audio from Eleven Labs
     audio_base64 = generate_audio_from_eleven_labs(response_text)
-   
-    # Decode the base64 audio
-    audio_bytes = base64.b64decode(audio_base64)
-
-    # Define output path
-    output_path = "audios/output.wav"
-
-    # Make sure the directory exists
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-    # Write the decoded audio to a file
-    with open(output_path, "wb") as f:
-        f.write(audio_bytes)
-
-    print(f"Audio saved to {output_path}")
     
-    # For this example, we're not generating actual lipsync data
-    # In a real application, you might use another service to generate this
-    lipsync_placeholder = {"mouthCues": [{"start": 0, "end": 0.5, "value": "A"}]}
+    if not audio_base64:
+        return jsonify({"error": "Failed to generate audio"}), 500
     
+    # Return response with audio data directly - no need to save to disk
     response = {
         "messages": [
             {

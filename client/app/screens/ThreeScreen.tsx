@@ -25,7 +25,7 @@ export default function ThreeAvatar({ setActiveTab }) {
             position={[-1.5, -1.0, 0]}
             scale={2}
             isTalking={isTalking}
-            audio="./OUT.wav"
+            audio={audioData}
             setIsTalking={setIsTalking}
           />
           <ContactShadows

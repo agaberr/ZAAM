@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { reminderService } from "../services/reminderService";
 import { userStatsService } from "../services/userStatsService";
 import { aiService } from "../services/aiService";
+import { voiceService, VoiceServiceCallbacks } from "../services/voiceService";
 
 interface Message {
   id: string;
@@ -41,6 +42,12 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
   const scrollViewRef = useRef<ScrollView>(null);
   const lastNotificationTime = useRef<Record<string, number>>({});
 
+  // Voice-related state
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speechAvailable, setSpeechAvailable] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+
   // Sample quick phrases
   const quickPhrases = [
     "What day is it today?",
@@ -50,6 +57,38 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
     "Tell me about my family",
     "Help me remember where I put my glasses",
   ];
+
+  // Initialize voice service
+  useEffect(() => {
+    const initializeVoice = () => {
+      setSpeechAvailable(voiceService.isSpeechAvailable());
+      
+      const callbacks: VoiceServiceCallbacks = {
+        onSpeechStart: () => {
+          setIsListening(true);
+          setVoiceError(null);
+        },
+        onSpeechEnd: () => {
+          setIsListening(false);
+        },
+        onSpeechResult: (text: string) => {
+          setInputText(text);
+          setIsListening(false);
+          // Automatically send the message
+          sendMessage(text);
+        },
+        onSpeechError: (error: string) => {
+          setIsListening(false);
+          setVoiceError(error);
+          console.error('Speech recognition error:', error);
+        },
+      };
+      
+      voiceService.setCallbacks(callbacks);
+    };
+
+    initializeVoice();
+  }, []);
 
   // Check for upcoming reminders
   useEffect(() => {
@@ -251,6 +290,59 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
     };
   }, []);
 
+  // Voice control functions
+  const startVoiceRecording = async () => {
+    try {
+      if (!speechAvailable) {
+        Alert.alert('Speech Recognition', 'Speech recognition is not available on this device.');
+        return;
+      }
+      
+      await voiceService.startListening();
+    } catch (error) {
+      console.error('Error starting voice recording:', error);
+      Alert.alert('Error', 'Failed to start voice recording. Please try again.');
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    voiceService.stopListening();
+  };
+
+  const speakResponse = async (text: string) => {
+    try {
+      setIsSpeaking(true);
+      if (setIsTalking) {
+        setIsTalking(true);
+      }
+      
+      await voiceService.speak(text, {
+        language: 'en-US',
+        pitch: 1.0,
+        rate: 0.8,
+      });
+    } catch (error) {
+      console.error('Error speaking response:', error);
+    } finally {
+      setIsSpeaking(false);
+      if (setIsTalking) {
+        setIsTalking(false);
+      }
+    }
+  };
+
+  const stopSpeaking = async () => {
+    try {
+      await voiceService.stopSpeaking();
+      setIsSpeaking(false);
+      if (setIsTalking) {
+        setIsTalking(false);
+      }
+    } catch (error) {
+      console.error('Error stopping speech:', error);
+    }
+  };
+
   const sendMessage = async (text: string) => {
     // Activate avatar talking if prop is provided
     if (setIsTalking) {
@@ -272,7 +364,7 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
     setIsProcessing(true);
 
     try {
-      // Use the AI service with proper authentication
+      // Use the main AI service which now includes audio support
       const aiResponse = await aiService.processAIRequest(text.trim());
 
       const responseText = aiResponse.response || "I'm here to help you. What would you like to know?";
@@ -286,10 +378,13 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
 
       setMessages((prev) => [...prev, aiMessage]);
       
-      // Provide dummy audio data for the avatar if prop is provided
-      if (setAudioData) {
-        setAudioData("dummyAudioData");
+      // Set the audio data for the avatar if audio is present
+      if (setAudioData && aiResponse.audio) {
+        setAudioData(aiResponse.audio);
       }
+
+      // Automatically speak the AI response
+      await speakResponse(responseText);
 
       // Set a timeout to stop the avatar talking animation after a delay
       // proportional to the response length
@@ -342,14 +437,50 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Talk to AI</Text>
-          <TouchableOpacity onPress={() => setShowControls(!showControls)}>
-            <Ionicons
-              name={showControls ? "chevron-up" : "chevron-down"}
-              size={24}
-              color="#000"
-            />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            {speechAvailable && (
+              <View style={styles.voiceStatus}>
+                <Ionicons name="mic" size={16} color="#4CAF50" />
+                <Text style={styles.voiceStatusText}>Voice Ready</Text>
+              </View>
+            )}
+            <TouchableOpacity onPress={() => setShowControls(!showControls)}>
+              <Ionicons
+                name={showControls ? "chevron-up" : "chevron-down"}
+                size={24}
+                color="#000"
+              />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Voice Instructions */}
+        {speechAvailable && showControls && (
+          <View style={styles.instructionsContainer}>
+            <Text style={styles.instructionsText}>
+              🎤 Tap the microphone to speak • 🔊 AI responses will be spoken automatically
+            </Text>
+          </View>
+        )}
+
+        {/* Voice Troubleshooting */}
+        {!speechAvailable && showControls && (
+          <View style={styles.troubleshootingContainer}>
+            <Text style={styles.troubleshootingTitle}>🔧 Voice Setup Required</Text>
+            <Text style={styles.troubleshootingText}>
+              To enable voice features:
+            </Text>
+            <Text style={styles.troubleshootingText}>
+              • Use HTTPS: Open https://localhost:8081 instead
+            </Text>
+            <Text style={styles.troubleshootingText}>
+              • Allow microphone permissions when prompted
+            </Text>
+            <Text style={styles.troubleshootingText}>
+              • Ensure you have internet connection
+            </Text>
+          </View>
+        )}
 
         <ScrollView
           ref={scrollViewRef}
@@ -364,7 +495,20 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
                 message.sender === "user" ? styles.userBubble : styles.aiBubble,
               ]}
             >
-              <Text style={styles.messageText}>{message.text}</Text>
+              <View style={styles.messageContent}>
+                <Text style={[
+                  styles.messageText,
+                  message.sender === "user" ? styles.userMessageText : styles.aiMessageText
+                ]}>
+                  {message.text}
+                </Text>
+                {message.sender === "ai" && isSpeaking && (
+                  <View style={styles.speakingIndicator}>
+                    <Ionicons name="volume-high" size={16} color="#007AFF" />
+                    <Text style={styles.speakingText}>Speaking...</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.timestamp}>
                 {message.timestamp.toLocaleTimeString([], {
                   hour: "2-digit",
@@ -385,14 +529,61 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
             style={styles.input}
             value={inputText}
             onChangeText={setInputText}
-            placeholder="Type your message..."
+            placeholder={isListening ? "Listening..." : "Type your message..."}
             placeholderTextColor="#666"
             multiline
+            editable={!isListening}
           />
-          <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
+          
+          {/* Voice Recording Button */}
+          {speechAvailable && (
+            <TouchableOpacity
+              style={[
+                styles.voiceButton,
+                isListening && styles.voiceButtonActive
+              ]}
+              onPress={isListening ? stopVoiceRecording : startVoiceRecording}
+              disabled={isProcessing}
+            >
+              <Ionicons
+                name={isListening ? "stop" : "mic"}
+                size={24}
+                color={isListening ? "#ff4444" : "#007AFF"}
+              />
+            </TouchableOpacity>
+          )}
+          
+          {/* Stop Speaking Button */}
+          {isSpeaking && (
+            <TouchableOpacity
+              style={styles.stopSpeakingButton}
+              onPress={stopSpeaking}
+            >
+              <Ionicons name="volume-mute" size={24} color="#ff4444" />
+            </TouchableOpacity>
+          )}
+          
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              (!inputText.trim() || isListening || isProcessing) && styles.sendButtonDisabled
+            ]}
+            onPress={handleSend}
+            disabled={!inputText.trim() || isListening || isProcessing}
+          >
             <Ionicons name="send" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
+
+        {/* Voice Error Display */}
+        {voiceError && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>Voice Error: {voiceError}</Text>
+            <TouchableOpacity onPress={() => setVoiceError(null)}>
+              <Ionicons name="close" size={20} color="#ff4444" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {showControls && (
           <View style={styles.quickPhrasesContainer}>
@@ -435,6 +626,19 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  voiceStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  voiceStatusText: {
+    fontSize: 14,
+    color: "#333",
+  },
   messagesContainer: {
     flex: 1,
   },
@@ -457,8 +661,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eee",
   },
+  messageContent: {
+    flexDirection: "column",
+    flex: 1,
+  },
   messageText: {
     fontSize: 16,
+    color: "#000",
+  },
+  userMessageText: {
+    color: "#fff",
+  },
+  aiMessageText: {
     color: "#000",
   },
   timestamp: {
@@ -505,5 +719,81 @@ const styles = StyleSheet.create({
   quickPhraseText: {
     fontSize: 14,
     color: "#333",
+  },
+  voiceButton: {
+    backgroundColor: "#007AFF",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  voiceButtonActive: {
+    backgroundColor: "#ff4444",
+  },
+  stopSpeakingButton: {
+    backgroundColor: "#ff4444",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  sendButtonDisabled: {
+    backgroundColor: "#ccc",
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  errorText: {
+    flex: 1,
+    color: "#ff4444",
+    fontSize: 14,
+  },
+  speakingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  speakingText: {
+    fontSize: 12,
+    color: "#007AFF",
+    marginLeft: 4,
+  },
+  instructionsContainer: {
+    padding: 16,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  instructionsText: {
+    fontSize: 14,
+    color: "#333",
+  },
+  troubleshootingContainer: {
+    padding: 16,
+    backgroundColor: "#fff3cd",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    borderLeftWidth: 4,
+    borderLeftColor: "#ffc107",
+  },
+  troubleshootingTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 8,
+    color: "#856404",
+  },
+  troubleshootingText: {
+    fontSize: 14,
+    color: "#856404",
+    marginBottom: 4,
   },
 });
