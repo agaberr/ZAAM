@@ -178,13 +178,8 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
             try {
               await reminderService.deleteReminder(id);
               
-              // Update local state
-              setReminders(prevReminders => 
-                prevReminders.filter(reminder => reminder.id !== id)
-              );
-              
-              // Update calendar markers
-              updateCalendarMarkers();
+              // Refresh reminders from server instead of just updating local state
+              await fetchReminders();
               
               // Refresh statistics after deletion
               fetchStatistics();

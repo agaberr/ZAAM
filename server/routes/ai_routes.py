@@ -759,17 +759,27 @@ def register_ai_routes(app, mongo):
     def delete_reminder(reminder_id):
         """Delete a specific reminder"""
         try:
+            print(f"[DEBUG] DELETE request for reminder: {reminder_id}")
+            
             user_id = get_authenticated_user_id()
+            print(f"[DEBUG] Authenticated user ID: {user_id}")
             if not user_id:
+                print("[DEBUG] Authentication failed - no user ID")
                 return jsonify({"error": "Authentication required", "success": False}), 401
             
             # Ensure the reminder belongs to the user
+            print(f"[DEBUG] Looking for reminder with ID: {reminder_id} and user_id: {user_id}")
             reminder = mongo.db.reminders.find_one({"_id": ObjectId(reminder_id), "user_id": user_id})
+            print(f"[DEBUG] Found reminder: {reminder is not None}")
+            
             if not reminder:
+                print(f"[DEBUG] Reminder not found - ID: {reminder_id}, User: {user_id}")
                 return jsonify({"error": "Reminder not found", "success": False}), 404
             
             # Delete the reminder
+            print(f"[DEBUG] Attempting to delete reminder: {reminder_id}")
             success = ReminderDB.delete_reminder(reminder_id, db=mongo.db)
+            print(f"[DEBUG] Delete result: {success}")
             
             return jsonify({
                 "success": success,
@@ -778,6 +788,9 @@ def register_ai_routes(app, mongo):
             
         except Exception as e:
             logger.error(f"Error deleting reminder: {str(e)}")
+            print(f"[DEBUG] Exception in delete_reminder: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return jsonify({"error": str(e), "success": False}), 500
             
     @app.route('/api/ai/news/article', methods=['POST'])

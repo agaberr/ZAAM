@@ -548,13 +548,23 @@ class ReminderDB:
         if db is None:
             raise ValueError("Database connection required")
             
-        # We don't actually delete, just mark as inactive
-        result = db.reminders.update_one(
-            {"_id": ObjectId(reminder_id)},
-            {"$set": {"status": "deleted"}}
-        )
+        print(f"[DEBUG] ReminderDB.delete_reminder called with ID: {reminder_id}")
         
-        return result.modified_count > 0
+        # We don't actually delete, just mark as inactive
+        try:
+            result = db.reminders.update_one(
+                {"_id": ObjectId(reminder_id)},
+                {"$set": {"status": "deleted"}}
+            )
+            
+            print(f"[DEBUG] Update result - matched: {result.matched_count}, modified: {result.modified_count}")
+            
+            return result.modified_count > 0
+        except Exception as e:
+            print(f"[DEBUG] Error in delete_reminder: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise e
 
 class Reminder:
     """Reminder utility for creating and managing reminders"""
