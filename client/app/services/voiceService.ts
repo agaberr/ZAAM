@@ -50,7 +50,6 @@ class VoiceService {
 
         this.recognition.onstart = () => {
           this.isListening = true;
-          this.retryCount = 0; // Reset retry count on successful start
           this.callbacks.onSpeechStart?.();
           console.log('Speech recognition started');
         };
@@ -119,6 +118,10 @@ class VoiceService {
       // Show user-friendly message for first retry
       if (this.retryCount === 1) {
         this.callbacks.onSpeechError?.('Connection issue detected. Retrying...');
+      } else if (this.retryCount === 2) {
+        this.callbacks.onSpeechError?.('Still having connection issues. Retrying again...');
+      } else {
+        this.callbacks.onSpeechError?.('Final retry attempt...');
       }
       
       // Clear any existing retry timeout
@@ -127,16 +130,53 @@ class VoiceService {
       }
       
       // Retry after a short delay
-      this.retryTimeout = setTimeout(() => {
-        this.startListening().catch(() => {
-          // If retry fails, handle as regular network error
+      this.retryTimeout = setTimeout(async () => {
+        try {
+          await this.retryStartListening();
+        } catch (error) {
+          // If retry fails, check if we should try again or give up
           if (this.retryCount >= this.maxRetries) {
-            this.callbacks.onSpeechError?.('Network connection unstable. Please check your internet and try again.');
+            this.callbacks.onSpeechError?.('Unable to connect to speech service. Please check your internet connection and try again later.');
+            this.retryCount = 0; // Reset for next time
           }
-        });
+        }
       }, 1000 * this.retryCount); // Exponential backoff: 1s, 2s, 3s
     } else {
-      this.callbacks.onSpeechError?.('Network connection unstable. Please check your internet and try again.');
+      this.callbacks.onSpeechError?.('Unable to connect to speech service. Please check your internet connection and try again later.');
+      this.retryCount = 0; // Reset for next time
+    }
+  }
+
+  // Special retry method that doesn't reset retry count
+  private async retryStartListening(): Promise<void> {
+    try {
+      if (Platform.OS === 'web') {
+        // Clear any pending retry timeout to prevent conflicts
+        if (this.retryTimeout) {
+          clearTimeout(this.retryTimeout);
+          this.retryTimeout = null;
+        }
+        
+        // Force reset state before starting
+        if (this.isListening) {
+          console.warn('Force stopping previous recognition session for retry');
+          this.forceStop();
+        }
+
+        if (this.recognition) {
+          // Add a small delay to ensure previous session is fully closed
+          await new Promise(resolve => setTimeout(resolve, 200));
+          this.recognition.start();
+        } else {
+          throw new Error('Speech recognition not supported. Please use a modern browser with HTTPS.');
+        }
+      } else {
+        throw new Error('Speech recognition not implemented for mobile yet');
+      }
+    } catch (error) {
+      console.error('Error in retry start listening:', error);
+      this.isListening = false;
+      throw error; // Re-throw for retry logic
     }
   }
 
