@@ -37,6 +37,7 @@ class VoiceService {
       
       if (!isSecureContext) {
         console.warn('Speech Recognition requires HTTPS. Please use HTTPS or localhost.');
+        return;
       }
 
       // Web Speech API for web platform
@@ -44,9 +45,18 @@ class VoiceService {
       
       if (SpeechRecognition) {
         this.recognition = new SpeechRecognition();
+        
+        // Configure speech recognition for better stability
         this.recognition.continuous = false;
         this.recognition.interimResults = false;
         this.recognition.lang = 'en-US';
+        this.recognition.maxAlternatives = 1;
+        
+        // Add timeout to prevent hanging
+        if (this.recognition.serviceURI !== undefined) {
+          // Some browsers support serviceURI configuration
+          this.recognition.serviceURI = 'wss://www.google.com/speech-api/full-duplex/v1/up';
+        }
 
         this.recognition.onstart = () => {
           this.isListening = true;
@@ -73,7 +83,7 @@ class VoiceService {
           // IMPORTANT: Reset listening state on any error
           this.isListening = false;
           
-          // Handle network errors with automatic retry
+          // Handle network errors with improved handling
           if (event.error === 'network') {
             this.handleNetworkError();
             return;
@@ -98,6 +108,9 @@ class VoiceService {
             case 'aborted':
               // Don't show error for user-initiated aborts
               return;
+            case 'bad-grammar':
+              errorMessage = 'Speech recognition configuration error. Please try again.';
+              break;
             default:
               errorMessage = `Speech recognition error: ${event.error}. Please try again.`;
           }
@@ -111,38 +124,33 @@ class VoiceService {
   }
 
   private handleNetworkError() {
+    // Stop any active recognition first
+    this.forceStop();
+    
     if (this.retryCount < this.maxRetries) {
       this.retryCount++;
       console.log(`Network error detected. Attempting retry ${this.retryCount}/${this.maxRetries}`);
       
       // Show user-friendly message for first retry
       if (this.retryCount === 1) {
-        this.callbacks.onSpeechError?.('Connection issue detected. Retrying...');
+        this.callbacks.onSpeechError?.('Connection issue detected. Please try again manually.');
       } else if (this.retryCount === 2) {
-        this.callbacks.onSpeechError?.('Still having connection issues. Retrying again...');
+        this.callbacks.onSpeechError?.('Speech service is currently unavailable. Please try again.');
       } else {
-        this.callbacks.onSpeechError?.('Final retry attempt...');
+        this.callbacks.onSpeechError?.('Unable to connect to speech service. Please check your internet connection.');
       }
       
       // Clear any existing retry timeout
       if (this.retryTimeout) {
         clearTimeout(this.retryTimeout);
+        this.retryTimeout = null;
       }
       
-      // Retry after a short delay
-      this.retryTimeout = setTimeout(async () => {
-        try {
-          await this.retryStartListening();
-        } catch (error) {
-          // If retry fails, check if we should try again or give up
-          if (this.retryCount >= this.maxRetries) {
-            this.callbacks.onSpeechError?.('Unable to connect to speech service. Please check your internet connection and try again later.');
-            this.retryCount = 0; // Reset for next time
-          }
-        }
-      }, 1000 * this.retryCount); // Exponential backoff: 1s, 2s, 3s
+      // Don't automatically retry - let user retry manually
+      // This prevents the infinite retry loop you're experiencing
+      this.retryCount = 0; // Reset for next manual attempt
     } else {
-      this.callbacks.onSpeechError?.('Unable to connect to speech service. Please check your internet connection and try again later.');
+      this.callbacks.onSpeechError?.('Speech recognition service is currently unavailable. Please try again later.');
       this.retryCount = 0; // Reset for next time
     }
   }

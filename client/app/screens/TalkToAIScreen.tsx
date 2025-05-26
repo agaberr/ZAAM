@@ -59,12 +59,12 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
           Animated.timing(pulseAnim, {
             toValue: 1.2,
             duration: 600,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
             duration: 600,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
         ]).start(() => {
           if (isListening) pulse();
@@ -90,12 +90,12 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
             Animated.timing(animValue, {
               toValue: 1,
               duration: 400,
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
             Animated.timing(animValue, {
               toValue: 0.3,
               duration: 400,
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
           ])
         );
@@ -161,7 +161,7 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
             setIsListening(false);
             setVoiceError(error);
             
-            // Show user-friendly error message
+            // Show user-friendly error message based on error type
             if (error.includes('not-allowed') || error.includes('permission')) {
               Alert.alert(
                 'Microphone Permission Required',
@@ -171,6 +171,10 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
             } else if (error.includes('no-speech')) {
               // Don't show alert for no speech detected, just show in UI
               setTimeout(() => setVoiceError(null), 3000);
+            } else if (error.includes('network') || error.includes('connection') || error.includes('unavailable')) {
+              // For network/connection errors, show a more helpful message
+              setVoiceError('Speech service temporarily unavailable. Please try again.');
+              setTimeout(() => setVoiceError(null), 5000);
             } else {
               // For other errors, show a brief message
               setTimeout(() => setVoiceError(null), 5000);
@@ -201,10 +205,29 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
   const startVoiceInput = async () => {
     try {
       setVoiceError(null);
+      
+      // Check if voice service is available before attempting
+      if (!isVoiceSupported) {
+        setVoiceError('Voice input not supported in this browser. Please use Chrome, Firefox, Safari, or Edge.');
+        return;
+      }
+      
       await voiceService.startListening();
     } catch (error) {
       console.error('Error starting voice input:', error);
-      setVoiceError(error instanceof Error ? error.message : 'Failed to start voice input');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start voice input';
+      
+      // Handle specific error types
+      if (errorMessage.includes('network') || errorMessage.includes('connection')) {
+        setVoiceError('Speech service is currently unavailable. Please try again in a moment.');
+      } else if (errorMessage.includes('permission')) {
+        setVoiceError('Microphone permission required. Please allow access and try again.');
+      } else {
+        setVoiceError(errorMessage);
+      }
+      
+      // Clear error after delay
+      setTimeout(() => setVoiceError(null), 5000);
     }
   };
 
@@ -214,6 +237,8 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
       setIsListening(false);
     } catch (error) {
       console.error('Error stopping voice input:', error);
+      // Force reset the listening state even if stop fails
+      setIsListening(false);
     }
   };
 
@@ -638,11 +663,16 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
                 <Text style={styles.keyboardShortcutText}>
                   💡 Pro tip: Hold spacebar to use voice input, Escape to stop
                 </Text>
+                {voiceError && voiceError.includes('unavailable') && (
+                  <Text style={styles.voiceUnavailableText}>
+                    ⚠️ Voice service temporarily unavailable - you can still type your message
+                  </Text>
+                )}
               </View>
             )}
             {!isVoiceSupported && (
               <Text style={styles.voiceUnsupportedText}>
-                Voice input requires HTTPS and a modern browser
+                Voice input requires HTTPS and a modern browser (Chrome, Firefox, Safari, Edge)
               </Text>
             )}
           </View>
@@ -1029,5 +1059,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#007AFF",
     borderRadius: 2,
     marginHorizontal: 2,
+  },
+  voiceUnavailableText: {
+    fontSize: 12,
+    color: "#ff4444",
+    marginTop: 4,
+    fontStyle: "italic",
   },
 });
