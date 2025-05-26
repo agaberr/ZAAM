@@ -1,68 +1,75 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment, ContactShadows } from "@react-three/drei";
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { Avatar } from "./Avatar";
 import TalkToAIScreen from "./TalkToAIScreen";
+import { useResponsiveStyles } from "../styles/responsive";
+import { View } from "react-native";
 
-export default function ThreeAvatar({ setActiveTab }) {
+interface ThreeAvatarProps {
+  setActiveTab: (tab: string) => void;
+}
+
+export default function ThreeAvatar({ setActiveTab }: ThreeAvatarProps) {
   const [isTalking, setIsTalking] = useState(false);
   const [audioData, setAudioData] = useState<string | null>(null);
+  const styles = useResponsiveStyles();
+
   return (
-    <div
-      style={{
-        height: "100vh",
-        background: "#2c1f16",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      <Canvas camera={{ position: [-1.5, 2.5, 6], fov: 35 }}>
-        <ambientLight intensity={0.7} color={"#ffddb1"} />
-        <pointLight position={[-1.5, 3.5, 0]} intensity={5} color={"#ffddb1"} />
+    <View style={styles.containerStyle}>
+      <View style={styles.canvasStyle}>
+        <Canvas camera={{ position: [-1.5, 2.5, 6], fov: 35 }}>
+          <ambientLight intensity={0.7} color={"#ffddb1"} />
+          <pointLight position={[-1.5, 3.5, 0]} intensity={5} color={"#ffddb1"} />
 
-        <Suspense fallback={null}>
-          <Avatar
-            position={[-1.5, -1.0, 0]}
-            scale={2}
-            isTalking={isTalking}
-            audio={audioData}
-            setIsTalking={setIsTalking}
+          <Suspense fallback={null}>
+            <Avatar
+              position={[-1.5, -1.0, 0]}
+              scale={2}
+              isTalking={isTalking}
+              audio={audioData}
+              setIsTalking={setIsTalking}
+            />
+            <ContactShadows
+              position={[0, -1.2, 0]}
+              opacity={0.6}
+              scale={10}
+              blur={2.5}
+              far={4}
+              frames={1}
+              resolution={512}
+              color="#000000"
+            />
+          </Suspense>
+
+          <OrbitControls
+            target={[0.3, 1.2, 0]}
+            enableZoom={false}
+            enablePan={false}
           />
-          <ContactShadows
-            position={[0, -1.2, 0]}
-            opacity={0.6}
-            scale={10}
-            blur={2.5}
-            far={4}
-          />
-        </Suspense>
+        </Canvas>
+      </View>
 
-        <OrbitControls
-          target={[0.3, 1.2, 0]}
-          enableZoom={false}
-          enablePan={false}
-        />
-      </Canvas>
-
-      <div
-        style={{
-          position: "absolute",
-          bottom: 0,
-          right: 120,
-          width: "40%",
-          height: "100%",
-          zIndex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <View style={styles.chatContainerStyle}>
         <TalkToAIScreen
           setActiveTab={setActiveTab}
           setIsTalking={setIsTalking}
           setAudioData={setAudioData}
+          isDesktopView={styles.isDesktopView}
         />
-      </div>
-    </div>
+      </View>
+
+      {styles.isDesktopView && (
+        <View style={styles.voiceButtonStyle}>
+          <TalkToAIScreen
+            setActiveTab={setActiveTab}
+            setIsTalking={setIsTalking}
+            setAudioData={setAudioData}
+            isDesktopView={styles.isDesktopView}
+            voiceOnlyMode={true}
+          />
+        </View>
+      )}
+    </View>
   );
 }

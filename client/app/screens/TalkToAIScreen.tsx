@@ -32,9 +32,17 @@ interface TalkToAIScreenProps {
   setActiveTab: (tab: string) => void;
   setIsTalking?: (isTalking: boolean) => void;
   setAudioData?: (audioData: string) => void;
+  isDesktopView?: boolean;
+  voiceOnlyMode?: boolean;
 }
 
-export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioData }: TalkToAIScreenProps) {
+export default function TalkToAIScreen({ 
+  setActiveTab, 
+  setIsTalking, 
+  setAudioData,
+  isDesktopView = false,
+  voiceOnlyMode = false 
+}: TalkToAIScreenProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -658,218 +666,74 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardAvoidingView}
-      >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Talk to AI</Text>
-          <View style={styles.headerRight}>
-            {/* Voice Status Indicator */}
-            {isListening && (
-              <View style={styles.voiceStatus}>
-                <Ionicons name="mic" size={16} color="#ff4444" />
-                <Text style={styles.voiceStatusText}>Listening...</Text>
-              </View>
-            )}
-            <TouchableOpacity onPress={() => setShowControls(!showControls)}>
-              <Ionicons
-                name={showControls ? "chevron-up" : "chevron-down"}
-                size={24}
-                color="#000"
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Instructions */}
-        {showControls && (
-          <View style={styles.instructionsContainer}>
-            <Text style={styles.instructionsText}>
-              💬 Type your message below • 🎙️ Use voice input • 🔊 AI responses will be spoken automatically
-            </Text>
-            {isVoiceSupported && (
-              <View>
-                <Text style={styles.voiceInstructionsText}>
-                  Tap the microphone to speak your message
-                </Text>
-                <Text style={styles.keyboardShortcutText}>
-                  💡 Pro tip: Hold spacebar to use voice input, Escape to stop
-                </Text>
-                <Text style={styles.providerInfoText}>
-                  🎤 Using: {currentProvider || 'Auto-select'} 
-                  {availableProviders.length > 1 && ` (${availableProviders.length - 1} backup${availableProviders.length > 2 ? 's' : ''} available)`}
-                </Text>
-                {voiceError && voiceError.includes('unavailable') && (
-                  <Text style={styles.voiceUnavailableText}>
-                    ⚠️ Voice service temporarily unavailable - you can still type your message
-                  </Text>
-                )}
-              </View>
-            )}
-            {!isVoiceSupported && (
-              <Text style={styles.voiceUnsupportedText}>
-                Voice input requires HTTPS and a modern browser (Chrome, Firefox, Safari, Edge)
-              </Text>
-            )}
-          </View>
-        )}
-
-        {/* Voice Error Display */}
-        {voiceError && (
-          <View style={styles.errorContainer}>
-            <Ionicons name="warning-outline" size={20} color="#ff4444" />
-            <Text style={styles.errorText}>{voiceError}</Text>
-          </View>
-        )}
-
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesContent}
-        >
-          {messages.map((message) => (
-            <View
-              key={message.id}
-              style={[
-                styles.messageBubble,
-                message.sender === "user" ? styles.userBubble : styles.aiBubble,
-              ]}
-            >
-              <View style={styles.messageContent}>
-                <Text style={[
-                  styles.messageText,
-                  message.sender === "user" ? styles.userMessageText : styles.aiMessageText
-                ]}>
-                  {message.text}
-                </Text>
-                {message.sender === "ai" && isSpeaking && (
-                  <View style={styles.speakingIndicator}>
-                    <Ionicons name="volume-high" size={16} color="#007AFF" />
-                    <Text style={styles.speakingText}>Speaking...</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.timestamp}>
-                {message.timestamp.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </Text>
-            </View>
-          ))}
-          {isProcessing && (
-            <View style={styles.messageBubble}>
-              <ActivityIndicator size="small" color="#666" />
-            </View>
-          )}
-        </ScrollView>
-
-        <View style={styles.inputContainer}>
-          {/* Voice Wave Animation */}
-          {isListening && (
-            <View style={styles.voiceWaveContainer}>
-              <Animated.View
-                style={[
-                  styles.voiceWave,
-                  { transform: [{ scaleY: waveAnim1 }] }
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.voiceWave,
-                  { transform: [{ scaleY: waveAnim2 }] }
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.voiceWave,
-                  { transform: [{ scaleY: waveAnim3 }] }
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.voiceWave,
-                  { transform: [{ scaleY: waveAnim2 }] }
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.voiceWave,
-                  { transform: [{ scaleY: waveAnim1 }] }
-                ]}
-              />
-            </View>
-          )}
-          
-          <TextInput
-            style={styles.input}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder={isListening ? "Listening..." : "Type your message or use voice input..."}
-            placeholderTextColor="#666"
-            multiline
-            editable={!isListening}
-          />
-          
-          {/* Voice Input Button */}
-          {isVoiceSupported && (
-            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-              <TouchableOpacity
-                style={[
-                  styles.voiceButton,
-                  isListening && styles.voiceButtonActive
-                ]}
-                onPress={isListening ? stopVoiceInput : startVoiceInput}
-                disabled={isProcessing}
-              >
-                <Ionicons 
-                  name={isListening ? "stop" : "mic"} 
-                  size={24} 
-                  color={isListening ? "#fff" : "#007AFF"} 
-                />
-              </TouchableOpacity>
-            </Animated.View>
-          )}
-          
-          {/* Stop Speaking Button */}
-          {isSpeaking && (
-            <TouchableOpacity
-              style={styles.stopSpeakingButton}
-              onPress={stopSpeaking}
-            >
-              <Ionicons name="volume-mute" size={24} color="#ff4444" />
-            </TouchableOpacity>
-          )}
-          
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              (!inputText.trim() || isProcessing || isListening) && styles.sendButtonDisabled
-            ]}
-            onPress={handleSend}
-            disabled={!inputText.trim() || isProcessing || isListening}
+      {!voiceOnlyMode && (
+        <>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.messagesContainer}
+            contentContainerStyle={styles.messagesContent}
+            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
-            <Ionicons name="send" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
+            {messages.map((message) => (
+              <Surface
+                key={message.id}
+                style={[
+                  styles.messageBubble,
+                  message.sender === "user"
+                    ? styles.userMessage
+                    : styles.aiMessage,
+                ]}
+              >
+                <Text style={styles.messageText}>{message.text}</Text>
+              </Surface>
+            ))}
+          </ScrollView>
 
-        {showControls && (
-          <View style={styles.quickPhrasesContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {quickPhrases.map((phrase, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.quickPhrase}
-                  onPress={() => sendMessage(phrase)}
-                >
-                  <Text style={styles.quickPhraseText}>{phrase}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-      </KeyboardAvoidingView>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.inputContainer}
+          >
+            <TextInput
+              style={styles.input}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Type your message..."
+              multiline
+            />
+            <TouchableOpacity
+              style={styles.sendButton}
+              onPress={handleSend}
+              disabled={isProcessing || !inputText.trim()}
+            >
+              <Ionicons
+                name="send"
+                size={24}
+                color={isProcessing || !inputText.trim() ? "#666" : "#007AFF"}
+              />
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </>
+      )}
+
+      {/* Voice input button - always shown in desktop mode or when voiceOnlyMode is true */}
+      <TouchableOpacity
+        style={[
+          styles.voiceButton,
+          isListening && styles.voiceButtonActive,
+          voiceOnlyMode && styles.voiceButtonLarge
+        ]}
+        onPress={isListening ? stopVoiceInput : startVoiceInput}
+      >
+        <MaterialCommunityIcons
+          name={isListening ? "microphone" : "microphone-outline"}
+          size={voiceOnlyMode ? 36 : 24}
+          color={isListening ? "#FF3B30" : "#007AFF"}
+        />
+      </TouchableOpacity>
+
+      {voiceError && (
+        <Text style={styles.errorText}>{voiceError}</Text>
+      )}
     </SafeAreaView>
   );
 }
@@ -877,7 +741,7 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: '#FFFFFF',
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -901,33 +765,28 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     flex: 1,
+    padding: 10,
   },
   messagesContent: {
-    padding: 16,
+    flexGrow: 1,
   },
   messageBubble: {
-    maxWidth: "80%",
-    padding: 12,
-    borderRadius: 16,
-    marginBottom: 8,
+    maxWidth: '80%',
+    padding: 10,
+    marginVertical: 5,
+    borderRadius: 15,
   },
-  userBubble: {
-    backgroundColor: "#007AFF",
-    alignSelf: "flex-end",
+  userMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#007AFF',
   },
-  aiBubble: {
-    backgroundColor: "#fff",
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: "#eee",
-  },
-  messageContent: {
-    flexDirection: "column",
-    flex: 1,
+  aiMessage: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E9E9EB',
   },
   messageText: {
     fontSize: 16,
-    color: "#000",
+    color: '#000000',
   },
   userMessageText: {
     color: "#fff",
@@ -942,28 +801,22 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
   },
   inputContainer: {
-    flexDirection: "row",
-    padding: 16,
-    backgroundColor: "#fff",
+    flexDirection: 'row',
+    padding: 10,
+    alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: "#eee",
+    borderTopColor: '#E9E9EB',
   },
   input: {
     flex: 1,
-    backgroundColor: "#f0f0f0",
+    marginRight: 10,
+    padding: 10,
+    backgroundColor: '#F2F2F7',
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
     maxHeight: 100,
   },
   sendButton: {
-    backgroundColor: "#007AFF",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
+    padding: 10,
   },
   quickPhrasesContainer: {
     padding: 8,
@@ -1033,25 +886,28 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   errorText: {
-    fontSize: 13,
-    color: "#cc0000",
-    marginLeft: 8,
-    flex: 1,
+    color: '#FF3B30',
+    textAlign: 'center',
+    marginTop: 10,
   },
   voiceButton: {
-    backgroundColor: "#f0f0f0",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-    borderWidth: 2,
-    borderColor: "#007AFF",
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   voiceButtonActive: {
-    backgroundColor: "#ff4444",
-    borderColor: "#ff4444",
+    backgroundColor: '#FFE5E5',
   },
   stopSpeakingButton: {
     backgroundColor: "#ff4444",
@@ -1108,5 +964,10 @@ const styles = StyleSheet.create({
     color: "#007AFF",
     marginTop: 4,
     fontStyle: "italic",
+  },
+  voiceButtonLarge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
 });
