@@ -98,7 +98,7 @@ const formatReminderForUI = (apiReminder: any): ReminderType => {
     start_time: apiReminder.start_time, // Keep original ISO string for editing
     type: mapReminderToType(apiReminder),
     description: apiReminder.description,
-    completed: apiReminder.completed || false,
+    completed: apiReminder.completed ?? false,
     recurring: !!apiReminder.recurrence,
     recurrencePattern: formatRecurrencePattern(apiReminder.recurrence),
   };
@@ -291,8 +291,10 @@ export const reminderService = {
   // Toggle completion status
   toggleCompletion: async (reminderId: string, completed: boolean): Promise<void> => {
     try {
+      console.log(`[DEBUG] Toggling reminder ${reminderId} to completed: ${completed}`);
       const api = await createAuthAPI();
-      await api.put(`/reminder/${reminderId}`, { completed });
+      const response = await api.put(`/reminder/${reminderId}`, { completed });
+      console.log(`[DEBUG] Toggle completion response:`, response.status, response.data);
     } catch (error) {
       console.error('Error toggling reminder completion:', error);
       throw error;
@@ -302,8 +304,10 @@ export const reminderService = {
   // Delete a reminder
   deleteReminder: async (reminderId: string): Promise<void> => {
     try {
+      console.log(`[DEBUG] Deleting reminder ${reminderId}`);
       const api = await createAuthAPI();
-      await api.delete(`/reminder/${reminderId}`);
+      const response = await api.delete(`/reminder/${reminderId}`);
+      console.log(`[DEBUG] Delete reminder response:`, response.status, response.data);
     } catch (error) {
       console.error('Error deleting reminder:', error);
       throw error;

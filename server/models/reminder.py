@@ -395,6 +395,7 @@ class ReminderDB:
             "start_time": start_time,
             "end_time": end_time,
             "description": description,
+            "completed": False,  # Default to not completed
             "created_at": datetime.now(egypt_tz),
             "status": "active"
         }

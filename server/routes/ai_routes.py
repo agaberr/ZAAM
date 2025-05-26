@@ -740,6 +740,8 @@ def register_ai_routes(app, mongo):
                 update_data['end_time'] = datetime.datetime.fromisoformat(data['end_time'])
             if 'description' in data:
                 update_data['description'] = data['description']
+            if 'completed' in data:
+                update_data['completed'] = data['completed']
             
             # Update the reminder
             success = ReminderDB.update_reminder(reminder_id, update_data, db=mongo.db)
