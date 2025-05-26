@@ -1,10 +1,13 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 
 // Base API URL (should match your server configuration)
 // const API_URL = 'https://zaam-mj7u.onrender.com/api';
 const API_URL = 'https://www.zaaam.me/api';
+
+const EGYPT_TZ = 'Africa/Cairo';
 
 // Statistics interface
 export interface ReminderStats {
@@ -88,17 +91,15 @@ const createAuthAPI = async () => {
 
 // Helper to convert API reminders to UI format
 const formatReminderForUI = (apiReminder: any): ReminderType => {
-  const startDate = new Date(apiReminder.start_time);
-  
   return {
     id: apiReminder._id || '',
     title: apiReminder.title,
-    time: format(startDate, 'hh:mm a'),
-    date: format(startDate, 'yyyy-MM-dd'),
+    time: formatInTimeZone(apiReminder.start_time, EGYPT_TZ, 'hh:mm a'),
+    date: formatInTimeZone(apiReminder.start_time, EGYPT_TZ, 'yyyy-MM-dd'),
     start_time: apiReminder.start_time, // Keep original ISO string for editing
     type: mapReminderToType(apiReminder),
     description: apiReminder.description,
-    completed: apiReminder.completed ?? false,
+    completed: apiReminder.completed ?? false, // Handle undefined completed field
     recurring: !!apiReminder.recurrence,
     recurrencePattern: formatRecurrencePattern(apiReminder.recurrence),
   };

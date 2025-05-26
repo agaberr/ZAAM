@@ -27,6 +27,7 @@
     "axios": "^1.8.4",
     "client": "file:",
     "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "expo": "^53.0.7",
     "expo-auth-session": "^6.0.3",
     "expo-av": "^15.0.2",
