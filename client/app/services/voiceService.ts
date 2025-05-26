@@ -65,12 +65,16 @@ class VoiceService {
 
         this.recognition.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error, event);
+          
+          // IMPORTANT: Reset listening state on any error
+          this.isListening = false;
+          
           let errorMessage = event.error;
           
           // Provide more helpful error messages
           switch (event.error) {
             case 'network':
-              errorMessage = 'Network error: Please ensure you have internet connection and try using HTTPS (https://localhost:8081)';
+              errorMessage = 'Network error: Please ensure you have internet connection and try again';
               break;
             case 'not-allowed':
               errorMessage = 'Microphone access denied. Please allow microphone permissions and reload the page.';
@@ -84,6 +88,9 @@ class VoiceService {
             case 'service-not-allowed':
               errorMessage = 'Speech service not allowed. Please enable microphone permissions.';
               break;
+            case 'aborted':
+              // Don't show error for user-initiated aborts
+              return;
             default:
               errorMessage = `Speech recognition error: ${event.error}. Try using HTTPS or check your microphone.`;
           }
@@ -105,6 +112,12 @@ class VoiceService {
   async startListening(): Promise<void> {
     try {
       if (Platform.OS === 'web') {
+        // Force reset state before starting
+        if (this.isListening) {
+          console.warn('Force stopping previous recognition session');
+          this.forceStop();
+        }
+
         // Check microphone permissions first
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
           try {
@@ -114,12 +127,12 @@ class VoiceService {
           }
         }
 
-        if (this.recognition && !this.isListening) {
+        if (this.recognition) {
+          // Add a small delay to ensure previous session is fully closed
+          await new Promise(resolve => setTimeout(resolve, 100));
           this.recognition.start();
-        } else if (!this.recognition) {
-          throw new Error('Speech recognition not supported. Please use a modern browser with HTTPS.');
         } else {
-          throw new Error('Already listening. Please wait for current recognition to complete.');
+          throw new Error('Speech recognition not supported. Please use a modern browser with HTTPS.');
         }
       } else {
         // For mobile platforms, you might want to use a different approach
@@ -127,15 +140,44 @@ class VoiceService {
       }
     } catch (error) {
       console.error('Error starting speech recognition:', error);
+      this.isListening = false; // Ensure state is reset on error
       this.callbacks.onSpeechError?.(error instanceof Error ? error.message : 'Unknown error');
     }
   }
 
   // Stop speech recognition
   stopListening(): void {
-    if (Platform.OS === 'web' && this.recognition && this.isListening) {
-      this.recognition.stop();
+    if (Platform.OS === 'web' && this.recognition) {
+      try {
+        if (this.isListening) {
+          this.recognition.stop();
+        }
+      } catch (error) {
+        console.error('Error stopping speech recognition:', error);
+      } finally {
+        // Always reset state
+        this.isListening = false;
+      }
     }
+  }
+
+  // Force stop and reset (for cleanup)
+  private forceStop(): void {
+    if (Platform.OS === 'web' && this.recognition) {
+      try {
+        this.recognition.abort(); // Use abort instead of stop for immediate termination
+      } catch (error) {
+        console.error('Error force stopping speech recognition:', error);
+      } finally {
+        this.isListening = false;
+      }
+    }
+  }
+
+  // Add a method to reset the service state
+  reset(): void {
+    this.forceStop();
+    this.isListening = false;
   }
 
   // Check if currently listening

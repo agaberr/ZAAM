@@ -81,6 +81,14 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
           setIsListening(false);
           setVoiceError(error);
           console.error('Speech recognition error:', error);
+          
+          // Auto-retry for network errors after a delay
+          if (error.includes('Network error')) {
+            setTimeout(() => {
+              setVoiceError(null);
+              voiceService.reset(); // Reset the service
+            }, 3000);
+          }
         },
       };
       
@@ -88,6 +96,11 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
     };
 
     initializeVoice();
+    
+    // Cleanup on unmount
+    return () => {
+      voiceService.reset();
+    };
   }, []);
 
   // Check for upcoming reminders
@@ -298,15 +311,26 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
         return;
       }
       
+      // Reset any error state
+      setVoiceError(null);
+      
       await voiceService.startListening();
     } catch (error) {
       console.error('Error starting voice recording:', error);
+      // Reset the voice service state on error
+      voiceService.reset();
       Alert.alert('Error', 'Failed to start voice recording. Please try again.');
     }
   };
 
   const stopVoiceRecording = () => {
-    voiceService.stopListening();
+    try {
+      voiceService.stopListening();
+    } catch (error) {
+      console.error('Error stopping voice recording:', error);
+      // Reset on error
+      voiceService.reset();
+    }
   };
 
   const speakResponse = async (text: string) => {
