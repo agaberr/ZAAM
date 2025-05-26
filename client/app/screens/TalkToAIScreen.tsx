@@ -727,7 +727,7 @@ export default function TalkToAIScreen({
       )}
 
       {/* Voice button - only shown in desktop mode */}
-      {isDesktopView && (
+      {(isDesktopView || voiceOnlyMode) && (
         <TouchableOpacity
           style={[
             styles.voiceButton,
@@ -741,6 +741,17 @@ export default function TalkToAIScreen({
             size={voiceOnlyMode ? 36 : 24}
             color="#FFFFFF"
           />
+          {isListening && (
+            <Text style={{
+              position: 'absolute',
+              bottom: -25,
+              color: '#FF3B30',
+              fontSize: 12,
+              fontWeight: '600',
+            }}>
+              Listening...
+            </Text>
+          )}
         </TouchableOpacity>
       )}
 
@@ -838,7 +849,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-    display: 'none', // Hide in mobile view
   },
   voiceButtonActive: {
     backgroundColor: '#FF3B30',
