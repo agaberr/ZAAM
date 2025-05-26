@@ -330,34 +330,46 @@ class ReminderNLP:
     
     def process_text(self, text):
         """Process user input text and extract reminder information"""
-        # Extract time expressions
-        user_input, days_offset = self.extract_time_expressions(text)
+        print(f"[DEBUG PROCESS_TEXT] Input text: '{text}'")
         
-        # Check for time expressions directly in the text
+        # FIRST: Extract time expressions directly from original text as fallback
         time_str = None
         time_pattern = r'\b(\d{1,2})(?::(\d{1,2}))?\s*(am|pm|a\.m\.|p\.m\.)\b'
         time_match = re.search(time_pattern, text.lower())
         
         if time_match:
             time_str = time_match.group(0)
-            print(f"Found time expression: '{time_str}'")
+            print(f"[DEBUG PROCESS_TEXT] Found time expression via regex (ORIGINAL TEXT): '{time_str}'")
+        
+        # Extract time expressions and process text
+        user_input, days_offset = self.extract_time_expressions(text)
+        print(f"[DEBUG PROCESS_TEXT] After extract_time_expressions: user_input='{user_input}', days_offset={days_offset}")
         
         # Tokenize the text
         tokenized_text = user_input.lower().split()
+        print(f"[DEBUG PROCESS_TEXT] Tokenized text: {tokenized_text}")
         
         # Get predictions from the model
         predicted_intent, predicted_slots = self.predict(tokenized_text)
+        print(f"[DEBUG PROCESS_TEXT] Model predictions: intent='{predicted_intent}', slots={predicted_slots}")
         
         # Process the predictions
         result = self.postprocess_ner_predictions(predicted_intent, tokenized_text, predicted_slots)
+        print(f"[DEBUG PROCESS_TEXT] After postprocessing: {result}")
         
         # Add days offset to the result
         result['days_offset'] = days_offset
         
-        # Add time string if found directly in the text but not by the model
-        if time_str and not result.get('predicted_time'):
+        # IMPORTANT: Always use the regex-extracted time if found, as it's more reliable than NLP model
+        if time_str:
             result['predicted_time'] = time_str
+            print(f"[DEBUG PROCESS_TEXT] Using regex-found time (OVERRIDE): '{time_str}'")
+        elif result.get('predicted_time'):
+            print(f"[DEBUG PROCESS_TEXT] Using NLP model time: '{result['predicted_time']}'")
+        else:
+            print(f"[DEBUG PROCESS_TEXT] No time found by either method")
             
+        print(f"[DEBUG PROCESS_TEXT] Final result: {result}")
         return result
 
 class ReminderDB:
@@ -594,7 +606,10 @@ class Reminder:
     @staticmethod
     def parse_time(time_str, target_date):
         """Parse time string into datetime object with timezone"""
+        print(f"[DEBUG PARSE_TIME] Input: time_str='{time_str}', target_date='{target_date}'")
+        
         if not time_str:
+            print(f"[DEBUG PARSE_TIME] No time_str provided, returning target_date: {target_date}")
             return target_date
             
         try:
@@ -602,16 +617,22 @@ class Reminder:
             time_pattern = r'(\d{1,2})(?::(\d{1,2}))?\s*(am|pm|a\.m\.|p\.m\.)'
             match = re.match(time_pattern, time_str.lower())
             
+            print(f"[DEBUG PARSE_TIME] Regex match result: {match}")
+            
             if match:
                 hour = int(match.group(1))
                 minute = int(match.group(2)) if match.group(2) else 0
                 meridian = match.group(3)
                 
+                print(f"[DEBUG PARSE_TIME] Extracted: hour={hour}, minute={minute}, meridian='{meridian}'")
+                
                 # Convert to 24-hour format
                 if meridian in ['pm', 'p.m.'] and hour != 12:
                     hour += 12
+                    print(f"[DEBUG PARSE_TIME] PM conversion: hour changed to {hour}")
                 elif meridian in ['am', 'a.m.'] and hour == 12:
                     hour = 0
+                    print(f"[DEBUG PARSE_TIME] 12 AM conversion: hour changed to {hour}")
                 
                 # Ensure target_date has Egypt timezone
                 egypt_tz = pytz.timezone('Africa/Cairo')
@@ -620,9 +641,7 @@ class Reminder:
                 elif target_date.tzinfo != egypt_tz:
                     target_date = target_date.astimezone(egypt_tz)
                 
-                # Print debug info for timezone validation
-                print(f"[DEBUG] Parsing time: {hour}:{minute} ({meridian})")
-                print(f"[DEBUG] Target date before: {target_date}")
+                print(f"[DEBUG PARSE_TIME] Target date with timezone: {target_date}")
                 
                 # Create new time with the target date
                 new_time = target_date.replace(
@@ -632,10 +651,14 @@ class Reminder:
                     microsecond=0
                 )
                 
-                print(f"[DEBUG] New time after: {new_time}")
+                print(f"[DEBUG PARSE_TIME] Final result: {new_time}")
                 return new_time
             else:
-                raise ValueError(f"Could not parse time format: {time_str}")
+                error_msg = f"Could not parse time format: {time_str}"
+                print(f"[DEBUG PARSE_TIME] ERROR: {error_msg}")
+                raise ValueError(error_msg)
                 
         except ValueError as e:
-            raise ValueError(f"Invalid time format. Please use format like '3 pm' or '11:30 am'. Error: {str(e)}") 
+            error_msg = f"Invalid time format. Please use format like '3 pm' or '11:30 am'. Error: {str(e)}"
+            print(f"[DEBUG PARSE_TIME] EXCEPTION: {error_msg}")
+            raise ValueError(error_msg) 
