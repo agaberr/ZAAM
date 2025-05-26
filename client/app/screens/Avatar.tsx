@@ -4,8 +4,8 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import * as THREE from "three";
 
 export function Avatar(props) {
-  const { nodes, materials, scene } = useGLTF("/models/MAN_LAST.glb");
-  const { animations } = useGLTF("/models/animation.glb");
+  const { nodes, materials, scene } = useGLTF("/models/ZAAM.glb");
+  const { animations } = useGLTF("/models/animations.glb");
 
   const group = useRef();
   const { actions, mixer } = useAnimations(animations, group);
@@ -26,7 +26,7 @@ export function Avatar(props) {
   const setupMode = false;
 
   const defaultAnimation =
-    animations.find((a) => a.name === "Circle")?.name ||
+    animations.find((a) => a.name === "Idle")?.name ||
     animations[0]?.name ||
     "";
   const idleAnimation =
@@ -63,19 +63,29 @@ export function Avatar(props) {
     console.log("Loading audio...");
 
     // Check if audio is base64 data or a file path
-    if (props.audio.startsWith('data:audio') || props.audio.length > 1000) {
+    if (props.audio.startsWith("data:audio") || props.audio.length > 1000) {
       // Handle base64 audio data
       try {
         // Convert base64 to Blob
-        const audioBlob = new Blob([Uint8Array.from(atob(props.audio.replace(/^data:audio\/[^;]+;base64,/, '')), c => c.charCodeAt(0))], { type: 'audio/wav' });
+        const audioBlob = new Blob(
+          [
+            Uint8Array.from(
+              atob(props.audio.replace(/^data:audio\/[^;]+;base64,/, "")),
+              (c) => c.charCodeAt(0)
+            ),
+          ],
+          { type: "audio/wav" }
+        );
         const audioUrl = URL.createObjectURL(audioBlob);
-        
+
         const audioLoader = new THREE.AudioLoader();
-        
+
         audioLoader.load(
           audioUrl,
           (buffer) => {
-            console.log("Audio loaded successfully from base64, preparing to play");
+            console.log(
+              "Audio loaded successfully from base64, preparing to play"
+            );
             setAudioStatus("loaded");
 
             sound.setBuffer(buffer);
@@ -89,7 +99,7 @@ export function Avatar(props) {
               setAudioStatus("ended");
               setLipsync(undefined);
               setAnimation(idleAnimation);
-              URL.revokeObjectURL(audioUrl); // Clean up blob URL
+              URL.revokeObjectURL(audioUrl);
             };
 
             try {
@@ -129,7 +139,7 @@ export function Avatar(props) {
     } else {
       // Handle file path (fallback for existing functionality)
       const audioLoader = new THREE.AudioLoader();
-      
+
       audioLoader.load(
         props.audio,
         (buffer) => {
@@ -193,14 +203,6 @@ export function Avatar(props) {
     };
   }, [props.isTalking, props.audio]);
 
-  const throttledLog = (message, values) => {
-    const now = Date.now();
-    if (now - debugRef.current.lastLogTime > 1000) {
-      console.log(message, values);
-      debugRef.current.lastLogTime = now;
-    }
-  };
-
   const lerpMorphTarget = (target, value, speed = 2) => {
     scene.traverse((child) => {
       if (child.isSkinnedMesh && child.morphTargetDictionary) {
@@ -233,12 +235,6 @@ export function Avatar(props) {
         const jitter = Math.random() * 0.1;
         const finalVolume = Math.min(amplifiedVolume + jitter, 1);
 
-        throttledLog("Lipsync values:", {
-          raw: rawVolume.toFixed(2),
-          amplified: finalVolume.toFixed(2),
-          status: audioStatus,
-        });
-
         lerpMorphTarget(
           "mouthOpen",
           finalVolume,
@@ -254,11 +250,7 @@ export function Avatar(props) {
         lerpMorphTarget("mouthSmile", 0, 0.1);
       }
     }
-
-    lerpMorphTarget("eyeBlinkLeft", blink || winkLeft ? 1 : 0, 0.5);
-    lerpMorphTarget("eyeBlinkRight", blink || winkRight ? 1 : 0, 0.5);
   });
-
   return (
     <group {...props} dispose={null} ref={group}>
       <primitive object={nodes.Hips} />
@@ -295,14 +287,9 @@ export function Avatar(props) {
         morphTargetInfluences={nodes.Wolf3D_Teeth.morphTargetInfluences}
       />
       <skinnedMesh
-        geometry={nodes.Wolf3D_Glasses.geometry}
-        material={materials.Wolf3D_Glasses}
-        skeleton={nodes.Wolf3D_Glasses.skeleton}
-      />
-      <skinnedMesh
-        geometry={nodes.Wolf3D_Headwear.geometry}
-        material={materials.Wolf3D_Headwear}
-        skeleton={nodes.Wolf3D_Headwear.skeleton}
+        geometry={nodes.Wolf3D_Hair.geometry}
+        material={materials.Wolf3D_Hair}
+        skeleton={nodes.Wolf3D_Hair.skeleton}
       />
       <skinnedMesh
         geometry={nodes.Wolf3D_Body.geometry}
@@ -328,5 +315,5 @@ export function Avatar(props) {
   );
 }
 
-useGLTF.preload("/models/MAN_LAST.glb");
-useGLTF.preload("/models/animation.glb");
+useGLTF.preload("/models/ZAAM.glb");
+useGLTF.preload("/models/animations.glb");

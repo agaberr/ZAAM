@@ -18,13 +18,13 @@ export default function ThreeAvatar({ setActiveTab }: ThreeAvatarProps) {
   return (
     <View style={styles.containerStyle}>
       <View style={styles.canvasStyle}>
-        <Canvas camera={{ position: [-1.5, 2.5, 6], fov: 35 }}>
-          <ambientLight intensity={0.7} color={"#ffddb1"} />
-          <pointLight position={[-1.5, 3.5, 0]} intensity={5} color={"#ffddb1"} />
+        <Canvas camera={{ position: [-0.5, 2.5, 5], fov: 35 }}>
+          <ambientLight intensity={1} color={"#ffffff"} />
+          <pointLight position={[0, 3, 0]} intensity={5} color={"#ffddb1"} />
 
           <Suspense fallback={null}>
             <Avatar
-              position={[-1.5, -1.0, 0]}
+              position={[-0.5, -1.0, 0]}
               scale={2}
               isTalking={isTalking}
               audio={audioData}
@@ -41,7 +41,6 @@ export default function ThreeAvatar({ setActiveTab }: ThreeAvatarProps) {
               color="#000000"
             />
           </Suspense>
-
           <OrbitControls
             target={[0.3, 1.2, 0]}
             enableZoom={false}
