@@ -91,11 +91,15 @@ const createAuthAPI = async () => {
 
 // Helper to convert API reminders to UI format
 const formatReminderForUI = (apiReminder: any): ReminderType => {
+  // Parse the start_time and add 3 hours to match Egypt timezone
+  const startTime = new Date(apiReminder.start_time);
+  startTime.setHours(startTime.getHours() + 3);
+  
   return {
     id: apiReminder._id || '',
     title: apiReminder.title,
-    time: formatInTimeZone(apiReminder.start_time, EGYPT_TZ, 'hh:mm a'),
-    date: formatInTimeZone(apiReminder.start_time, EGYPT_TZ, 'yyyy-MM-dd'),
+    time: formatInTimeZone(startTime.toISOString(), EGYPT_TZ, 'hh:mm a'),
+    date: formatInTimeZone(startTime.toISOString(), EGYPT_TZ, 'yyyy-MM-dd'),
     start_time: apiReminder.start_time, // Keep original ISO string for editing
     type: mapReminderToType(apiReminder),
     description: apiReminder.description,
@@ -236,15 +240,19 @@ export const reminderService = {
     try {
       const api = await createAuthAPI();
       
-      // Since there's no direct POST /api/reminder endpoint, 
-      // we use the AI endpoint with a formatted text
-      const timeStr = new Date(reminder.start_time).toLocaleTimeString('en-US', {
+      // Parse the start_time and subtract 3 hours to compensate for the timezone difference
+      // This ensures that when the backend adds 3 hours, it will be the correct time
+      const startTime = new Date(reminder.start_time);
+      startTime.setHours(startTime.getHours() - 3);
+      
+      // Format time string in 12-hour format
+      const timeStr = startTime.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
         hour12: true
       });
       
-      const dateStr = new Date(reminder.start_time).toLocaleDateString('en-US', {
+      const dateStr = startTime.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
@@ -256,7 +264,7 @@ export const reminderService = {
         reminderText += ` at ${timeStr}`;
         // Check if it's not today
         const today = new Date();
-        const reminderDate = new Date(reminder.start_time);
+        const reminderDate = startTime;
         if (reminderDate.toDateString() !== today.toDateString()) {
           reminderText += ` on ${dateStr}`;
         }
