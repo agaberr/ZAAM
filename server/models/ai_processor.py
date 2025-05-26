@@ -80,8 +80,9 @@ class AIProcessor:
         # If no model is loaded, use simple keyword matching
         # if not self.model_loaded:
         ##########################TODO:
-        if True :
+        if True:
             keywords = {
+                "greeting": ["hey zaam", "hi zaam", "hello zaam"],
                 "news": ["news", "report", "headline", "breaking", "article", "story", "journalist", 
                          "media", "press", "announce", "publish", "tell me", "who is", "what is"],
                 "weather": ["weather", "temperature", "forecast", "rain", "snow", "sunny", "cloudy", 
@@ -97,11 +98,18 @@ class AIProcessor:
                 sentence_lower = sentence.lower()
                 matched = False
                 
-                for category, words in keywords.items():
-                    if any(word in sentence_lower for word in words):
-                        segments[category].append(sentence)
-                        matched = True
-                        break
+                # Check for greetings first
+                if any(greeting in sentence_lower for greeting in keywords["greeting"]):
+                    segments["greeting"].append(sentence)
+                    matched = True
+                
+                # Check other categories if not a greeting
+                if not matched:
+                    for category, words in keywords.items():
+                        if category != "greeting" and any(word in sentence_lower for word in words):
+                            segments[category].append(sentence)
+                            matched = True
+                            break
                 
                 if not matched:
                     segments["uncategorized"].append(sentence)
@@ -144,6 +152,10 @@ class AIProcessor:
         
         responses = {}
         
+        # Process greetings first
+        if segments.get("greeting"):
+            responses["greeting"] = "Hello! How may I help you today?"
+        
         # Process each category of sentences
         if segments.get("news"):
             responses["news"] = self.process_news(segments["news"])
@@ -157,11 +169,18 @@ class AIProcessor:
         if segments.get("uncategorized"):
             responses["uncategorized"] = self.process_uncategorized(segments["uncategorized"])
         
+        # If only greeting is present, return just the greeting
+        if len(responses) == 1 and "greeting" in responses:
+            return responses["greeting"]
+        
         # Combine responses
         combined_response = ""
         for category, response in responses.items():
             if response:
-                combined_response += f"{response}\n"
+                if category == "greeting":
+                    combined_response = response + "\n\n" + combined_response
+                else:
+                    combined_response += f"{response}\n"
         
         return combined_response.strip() if combined_response else "I couldn't understand your request."
     
