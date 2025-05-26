@@ -42,6 +42,7 @@ export interface ReminderType {
   title: string;
   time: string;
   date: string;
+  start_time: string; // Keep original ISO string for editing
   type: 'medication' | 'appointment' | 'activity' | 'hydration';
   description?: string;
   location?: string;
@@ -94,6 +95,7 @@ const formatReminderForUI = (apiReminder: any): ReminderType => {
     title: apiReminder.title,
     time: format(startDate, 'hh:mm a'),
     date: format(startDate, 'yyyy-MM-dd'),
+    start_time: apiReminder.start_time, // Keep original ISO string for editing
     type: mapReminderToType(apiReminder),
     description: apiReminder.description,
     completed: apiReminder.completed || false,

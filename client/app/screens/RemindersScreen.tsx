@@ -202,12 +202,11 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
   const handleEditReminder = (reminder: ReminderType) => {
     try {
       // Convert ReminderType to ReminderData for the form
-      const dateTimeString = `${reminder.date}T${reminder.time}`;
       const reminderData: ReminderData = {
         _id: reminder.id,
         title: reminder.title,
         description: reminder.description,
-        start_time: new Date(dateTimeString).toISOString(),
+        start_time: reminder.start_time, // Use the preserved ISO string
         recurrence: reminder.recurring ? 'daily' : null, // Default to daily if recurring
       };
       
