@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Base API URL (should match your server configuration)
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'https://www.zaaam.me:5000/api';
 
 // User statistics interface
 export interface UserStats {
