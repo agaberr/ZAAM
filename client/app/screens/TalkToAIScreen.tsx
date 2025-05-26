@@ -684,7 +684,14 @@ export default function TalkToAIScreen({
                     : styles.aiMessage,
                 ]}
               >
-                <Text style={styles.messageText}>{message.text}</Text>
+                <Text 
+                  style={[
+                    styles.messageText,
+                    message.sender === "user" && styles.userMessageText
+                  ]}
+                >
+                  {message.text}
+                </Text>
               </Surface>
             ))}
           </ScrollView>
@@ -698,38 +705,44 @@ export default function TalkToAIScreen({
               value={inputText}
               onChangeText={setInputText}
               placeholder="Type your message..."
+              placeholderTextColor="#757575"
               multiline
             />
             <TouchableOpacity
-              style={styles.sendButton}
+              style={[
+                styles.sendButton,
+                (isProcessing || !inputText.trim()) && styles.sendButtonDisabled
+              ]}
               onPress={handleSend}
               disabled={isProcessing || !inputText.trim()}
             >
               <Ionicons
                 name="send"
                 size={24}
-                color={isProcessing || !inputText.trim() ? "#666" : "#007AFF"}
+                color="#FFFFFF"
               />
             </TouchableOpacity>
           </KeyboardAvoidingView>
         </>
       )}
 
-      {/* Voice input button - always shown in desktop mode or when voiceOnlyMode is true */}
-      <TouchableOpacity
-        style={[
-          styles.voiceButton,
-          isListening && styles.voiceButtonActive,
-          voiceOnlyMode && styles.voiceButtonLarge
-        ]}
-        onPress={isListening ? stopVoiceInput : startVoiceInput}
-      >
-        <MaterialCommunityIcons
-          name={isListening ? "microphone" : "microphone-outline"}
-          size={voiceOnlyMode ? 36 : 24}
-          color={isListening ? "#FF3B30" : "#007AFF"}
-        />
-      </TouchableOpacity>
+      {/* Voice button - only shown in desktop mode */}
+      {isDesktopView && (
+        <TouchableOpacity
+          style={[
+            styles.voiceButton,
+            isListening && styles.voiceButtonActive,
+            voiceOnlyMode && styles.voiceButtonLarge
+          ]}
+          onPress={isListening ? stopVoiceInput : startVoiceInput}
+        >
+          <MaterialCommunityIcons
+            name={isListening ? "microphone" : "microphone-outline"}
+            size={voiceOnlyMode ? 36 : 24}
+            color="#FFFFFF"
+          />
+        </TouchableOpacity>
+      )}
 
       {voiceError && (
         <Text style={styles.errorText}>{voiceError}</Text>
@@ -743,161 +756,81 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
   messagesContainer: {
     flex: 1,
-    padding: 10,
+    padding: 16,
+    backgroundColor: '#F5F5F5',
   },
   messagesContent: {
     flexGrow: 1,
+    paddingBottom: 16,
   },
   messageBubble: {
-    maxWidth: '80%',
-    padding: 10,
-    marginVertical: 5,
-    borderRadius: 15,
+    maxWidth: '85%',
+    padding: 12,
+    marginVertical: 6,
+    borderRadius: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   userMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#4285F4',
   },
   aiMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: '#E9E9EB',
+    backgroundColor: '#FFFFFF',
   },
   messageText: {
     fontSize: 16,
+    lineHeight: 22,
     color: '#000000',
   },
   userMessageText: {
-    color: "#fff",
-  },
-  aiMessageText: {
-    color: "#000",
-  },
-  timestamp: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
-    alignSelf: "flex-end",
+    color: '#FFFFFF',
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 10,
+    padding: 16,
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E9E9EB',
+    borderTopColor: '#E0E0E0',
   },
   input: {
     flex: 1,
-    marginRight: 10,
-    padding: 10,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 20,
+    marginRight: 12,
+    padding: 12,
+    paddingTop: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 24,
+    fontSize: 16,
     maxHeight: 100,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   sendButton: {
-    padding: 10,
-  },
-  quickPhrasesContainer: {
-    padding: 8,
-    backgroundColor: "#fff",
-  },
-  quickPhrase: {
-    backgroundColor: "#f0f0f0",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  quickPhraseText: {
-    fontSize: 14,
-    color: "#333",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#4285F4',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: "#ccc",
-  },
-  speakingIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  speakingText: {
-    fontSize: 12,
-    color: "#007AFF",
-    marginLeft: 4,
-  },
-  instructionsContainer: {
-    padding: 16,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
-  },
-  instructionsText: {
-    fontSize: 14,
-    color: "#333",
-  },
-  voiceInstructionsText: {
-    fontSize: 12,
-    color: "#007AFF",
-    marginTop: 4,
-    fontStyle: "italic",
-  },
-  keyboardShortcutText: {
-    fontSize: 12,
-    color: "#007AFF",
-    marginTop: 4,
-    fontStyle: "italic",
-  },
-  voiceUnsupportedText: {
-    fontSize: 12,
-    color: "#ff4444",
-    marginTop: 4,
-    fontStyle: "italic",
-  },
-  errorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    backgroundColor: "#fff5f5",
-    borderWidth: 1,
-    borderColor: "#ffcccc",
-    borderRadius: 8,
-    marginHorizontal: 16,
-    marginBottom: 8,
-  },
-  errorText: {
-    color: '#FF3B30',
-    textAlign: 'center',
-    marginTop: 10,
+    backgroundColor: '#E0E0E0',
   },
   voiceButton: {
     position: 'absolute',
     bottom: 20,
     right: 20,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#FFFFFF',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#4285F4',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -905,69 +838,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    display: 'none', // Hide in mobile view
   },
   voiceButtonActive: {
-    backgroundColor: '#FFE5E5',
-  },
-  stopSpeakingButton: {
-    backgroundColor: "#ff4444",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-  },
-  voiceStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 8,
-    backgroundColor: "#fff5f5",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#ffcccc",
-  },
-  voiceStatusText: {
-    fontSize: 11,
-    color: "#ff4444",
-    marginLeft: 4,
-    fontWeight: "600",
-  },
-  voiceWaveContainer: {
-    position: "absolute",
-    top: "50%",
-    left: 20,
-    right: 80,
-    height: 40,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-evenly",
-    zIndex: 1,
-  },
-  voiceWave: {
-    width: 3,
-    height: 20,
-    backgroundColor: "#007AFF",
-    borderRadius: 2,
-    marginHorizontal: 2,
-  },
-  voiceUnavailableText: {
-    fontSize: 12,
-    color: "#ff4444",
-    marginTop: 4,
-    fontStyle: "italic",
-  },
-  providerInfoText: {
-    fontSize: 12,
-    color: "#007AFF",
-    marginTop: 4,
-    fontStyle: "italic",
+    backgroundColor: '#FF3B30',
   },
   voiceButtonLarge: {
     width: 80,
     height: 80,
     borderRadius: 40,
+  },
+  errorText: {
+    color: '#FF3B30',
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 10,
+    fontSize: 14,
   },
 });

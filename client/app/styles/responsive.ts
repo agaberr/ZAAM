@@ -19,23 +19,26 @@ export const useResponsiveStyles = () => {
     } as ViewStyle,
     chatContainerStyle: {
       position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
       bottom: 0,
       width: isDesktopView ? '0%' : '100%', // Hide on desktop, full width on mobile
-      height: isDesktopView ? '0%' : '40%', // Hide on desktop, 40% height on mobile
+      height: isDesktopView ? '0%' : '100%', // Hide on desktop, full height on mobile
       zIndex: 1,
       display: isDesktopView ? 'none' : 'flex',
-      alignItems: 'center' as const,
-      justifyContent: 'center' as const,
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      backgroundColor: '#FFFFFF',
     } as ViewStyle,
     canvasStyle: {
-      height: isDesktopView ? '100%' : '60%', // Full height on desktop, 60% on mobile
+      display: isDesktopView ? 'flex' : 'none', // Show on desktop, hide on mobile
+      height: '100%',
     } as ViewStyle,
     voiceButtonStyle: {
       position: 'absolute',
       bottom: 20,
       right: 20,
       zIndex: 2,
+      display: isDesktopView ? 'flex' : 'none', // Only show on desktop
     } as ViewStyle,
   };
 }; 
