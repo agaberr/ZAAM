@@ -19,7 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { reminderService } from "../services/reminderService";
 import { userStatsService } from "../services/userStatsService";
 import { aiService } from "../services/aiService";
-import { voiceService } from "../services/voiceService";
+import { voiceService, VoiceServiceCallbacks } from "../services/voiceService";
 
 interface Message {
   id: string;
@@ -45,6 +45,178 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
   // Text-to-speech state (keeping this for AI responses)
   const [isSpeaking, setIsSpeaking] = useState(false);
 
+  // Voice-to-text states
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [isVoiceSupported, setIsVoiceSupported] = useState(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Voice recording animation
+  useEffect(() => {
+    if (isListening) {
+      const pulse = () => {
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.2,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          if (isListening) pulse();
+        });
+      };
+      pulse();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isListening, pulseAnim]);
+
+  // Voice wave animation for listening state
+  const waveAnim1 = useRef(new Animated.Value(0.3)).current;
+  const waveAnim2 = useRef(new Animated.Value(0.5)).current;
+  const waveAnim3 = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    if (isListening) {
+      const createWaveAnimation = (animValue: Animated.Value, delay: number) => {
+        return Animated.loop(
+          Animated.sequence([
+            Animated.delay(delay),
+            Animated.timing(animValue, {
+              toValue: 1,
+              duration: 400,
+              useNativeDriver: true,
+            }),
+            Animated.timing(animValue, {
+              toValue: 0.3,
+              duration: 400,
+              useNativeDriver: true,
+            }),
+          ])
+        );
+      };
+
+      const wave1Animation = createWaveAnimation(waveAnim1, 0);
+      const wave2Animation = createWaveAnimation(waveAnim2, 100);
+      const wave3Animation = createWaveAnimation(waveAnim3, 200);
+
+      wave1Animation.start();
+      wave2Animation.start();
+      wave3Animation.start();
+
+      return () => {
+        wave1Animation.stop();
+        wave2Animation.stop();
+        wave3Animation.stop();
+      };
+    } else {
+      waveAnim1.setValue(0.3);
+      waveAnim2.setValue(0.5);
+      waveAnim3.setValue(0.8);
+    }
+  }, [isListening, waveAnim1, waveAnim2, waveAnim3]);
+
+  // Initialize voice service
+  useEffect(() => {
+    const initializeVoiceService = () => {
+      try {
+        // Check if voice recognition is supported
+        const isSupported = voiceService.isSpeechAvailable();
+        setIsVoiceSupported(isSupported);
+
+        if (!isSupported) {
+          console.warn('Voice recognition not supported in this environment');
+          return;
+        }
+
+        // Set up voice service callbacks
+        const callbacks: VoiceServiceCallbacks = {
+          onSpeechStart: () => {
+            console.log('Voice recognition started');
+            setIsListening(true);
+            setVoiceError(null);
+          },
+          onSpeechEnd: () => {
+            console.log('Voice recognition ended');
+            setIsListening(false);
+          },
+          onSpeechResult: (text: string) => {
+            console.log('Voice recognition result:', text);
+            setInputText(text);
+            setIsListening(false);
+            setVoiceError(null);
+            
+            // Automatically send the message if it's not empty
+            if (text.trim()) {
+              sendMessage(text.trim());
+            }
+          },
+          onSpeechError: (error: string) => {
+            console.error('Voice recognition error:', error);
+            setIsListening(false);
+            setVoiceError(error);
+            
+            // Show user-friendly error message
+            if (error.includes('not-allowed') || error.includes('permission')) {
+              Alert.alert(
+                'Microphone Permission Required',
+                'Please allow microphone access to use voice input. You may need to reload the page after granting permission.',
+                [{ text: 'OK' }]
+              );
+            } else if (error.includes('no-speech')) {
+              // Don't show alert for no speech detected, just show in UI
+              setTimeout(() => setVoiceError(null), 3000);
+            } else {
+              // For other errors, show a brief message
+              setTimeout(() => setVoiceError(null), 5000);
+            }
+          },
+        };
+
+        voiceService.setCallbacks(callbacks);
+      } catch (error) {
+        console.error('Error initializing voice service:', error);
+        setIsVoiceSupported(false);
+      }
+    };
+
+    initializeVoiceService();
+
+    // Cleanup on unmount
+    return () => {
+      try {
+        voiceService.reset();
+      } catch (error) {
+        console.error('Error cleaning up voice service:', error);
+      }
+    };
+  }, []);
+
+  // Voice input handlers
+  const startVoiceInput = async () => {
+    try {
+      setVoiceError(null);
+      await voiceService.startListening();
+    } catch (error) {
+      console.error('Error starting voice input:', error);
+      setVoiceError(error instanceof Error ? error.message : 'Failed to start voice input');
+    }
+  };
+
+  const stopVoiceInput = () => {
+    try {
+      voiceService.stopListening();
+      setIsListening(false);
+    } catch (error) {
+      console.error('Error stopping voice input:', error);
+    }
+  };
+
   // Sample quick phrases
   const quickPhrases = [
     "What day is it today?",
@@ -54,6 +226,51 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
     "Tell me about my family",
     "Help me remember where I put my glasses",
   ];
+
+  // Keyboard shortcuts for voice input
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Space bar to start voice input (when not typing in input field)
+      if (event.code === 'Space' && !event.repeat && isVoiceSupported && !isProcessing) {
+        const activeElement = document.activeElement;
+        const isInputFocused = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
+        
+        if (!isInputFocused && !isListening) {
+          event.preventDefault();
+          startVoiceInput();
+        }
+      }
+      
+      // Escape to stop voice input
+      if (event.code === 'Escape' && isListening) {
+        event.preventDefault();
+        stopVoiceInput();
+      }
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      // Release space bar to stop voice input (if it was used to start)
+      if (event.code === 'Space' && isListening) {
+        const activeElement = document.activeElement;
+        const isInputFocused = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
+        
+        if (!isInputFocused) {
+          event.preventDefault();
+          stopVoiceInput();
+        }
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('keyup', handleKeyUp);
+      
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('keyup', handleKeyUp);
+      };
+    }
+  }, [isListening, isVoiceSupported, isProcessing]);
 
   // Check for upcoming reminders
   useEffect(() => {
@@ -290,6 +507,11 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
   };
 
   const sendMessage = async (text: string) => {
+    // Stop any active voice input
+    if (isListening) {
+      stopVoiceInput();
+    }
+    
     // Activate avatar talking if prop is provided
     if (setIsTalking) {
       setIsTalking(true);
@@ -308,6 +530,7 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
     setMessages((prev) => [...prev, userMessage]);
     setInputText("");
     setIsProcessing(true);
+    setVoiceError(null); // Clear any voice errors
 
     try {
       // Use the main AI service which now includes audio support
@@ -384,6 +607,13 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Talk to AI</Text>
           <View style={styles.headerRight}>
+            {/* Voice Status Indicator */}
+            {isListening && (
+              <View style={styles.voiceStatus}>
+                <Ionicons name="mic" size={16} color="#ff4444" />
+                <Text style={styles.voiceStatusText}>Listening...</Text>
+              </View>
+            )}
             <TouchableOpacity onPress={() => setShowControls(!showControls)}>
               <Ionicons
                 name={showControls ? "chevron-up" : "chevron-down"}
@@ -398,8 +628,31 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
         {showControls && (
           <View style={styles.instructionsContainer}>
             <Text style={styles.instructionsText}>
-              💬 Type your message below • 🔊 AI responses will be spoken automatically
+              💬 Type your message below • 🎙️ Use voice input • 🔊 AI responses will be spoken automatically
             </Text>
+            {isVoiceSupported && (
+              <View>
+                <Text style={styles.voiceInstructionsText}>
+                  Tap the microphone to speak your message
+                </Text>
+                <Text style={styles.keyboardShortcutText}>
+                  💡 Pro tip: Hold spacebar to use voice input, Escape to stop
+                </Text>
+              </View>
+            )}
+            {!isVoiceSupported && (
+              <Text style={styles.voiceUnsupportedText}>
+                Voice input requires HTTPS and a modern browser
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Voice Error Display */}
+        {voiceError && (
+          <View style={styles.errorContainer}>
+            <Ionicons name="warning-outline" size={20} color="#ff4444" />
+            <Text style={styles.errorText}>{voiceError}</Text>
           </View>
         )}
 
@@ -446,14 +699,71 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
         </ScrollView>
 
         <View style={styles.inputContainer}>
+          {/* Voice Wave Animation */}
+          {isListening && (
+            <View style={styles.voiceWaveContainer}>
+              <Animated.View
+                style={[
+                  styles.voiceWave,
+                  { transform: [{ scaleY: waveAnim1 }] }
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.voiceWave,
+                  { transform: [{ scaleY: waveAnim2 }] }
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.voiceWave,
+                  { transform: [{ scaleY: waveAnim3 }] }
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.voiceWave,
+                  { transform: [{ scaleY: waveAnim2 }] }
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.voiceWave,
+                  { transform: [{ scaleY: waveAnim1 }] }
+                ]}
+              />
+            </View>
+          )}
+          
           <TextInput
             style={styles.input}
             value={inputText}
             onChangeText={setInputText}
-            placeholder="Type your message..."
+            placeholder={isListening ? "Listening..." : "Type your message or use voice input..."}
             placeholderTextColor="#666"
             multiline
+            editable={!isListening}
           />
+          
+          {/* Voice Input Button */}
+          {isVoiceSupported && (
+            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+              <TouchableOpacity
+                style={[
+                  styles.voiceButton,
+                  isListening && styles.voiceButtonActive
+                ]}
+                onPress={isListening ? stopVoiceInput : startVoiceInput}
+                disabled={isProcessing}
+              >
+                <Ionicons 
+                  name={isListening ? "stop" : "mic"} 
+                  size={24} 
+                  color={isListening ? "#fff" : "#007AFF"} 
+                />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
           
           {/* Stop Speaking Button */}
           {isSpeaking && (
@@ -468,10 +778,10 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
           <TouchableOpacity
             style={[
               styles.sendButton,
-              (!inputText.trim() || isProcessing) && styles.sendButtonDisabled
+              (!inputText.trim() || isProcessing || isListening) && styles.sendButtonDisabled
             ]}
             onPress={handleSend}
-            disabled={!inputText.trim() || isProcessing}
+            disabled={!inputText.trim() || isProcessing || isListening}
           >
             <Ionicons name="send" size={24} color="#fff" />
           </TouchableOpacity>
@@ -626,6 +936,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#333",
   },
+  voiceInstructionsText: {
+    fontSize: 12,
+    color: "#007AFF",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+  keyboardShortcutText: {
+    fontSize: 12,
+    color: "#007AFF",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+  voiceUnsupportedText: {
+    fontSize: 12,
+    color: "#ff4444",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#fff5f5",
+    borderWidth: 1,
+    borderColor: "#ffcccc",
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 13,
+    color: "#cc0000",
+    marginLeft: 8,
+    flex: 1,
+  },
+  voiceButton: {
+    backgroundColor: "#f0f0f0",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+    borderWidth: 2,
+    borderColor: "#007AFF",
+  },
+  voiceButtonActive: {
+    backgroundColor: "#ff4444",
+    borderColor: "#ff4444",
+  },
   stopSpeakingButton: {
     backgroundColor: "#ff4444",
     width: 40,
@@ -634,5 +994,40 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 8,
+  },
+  voiceStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 8,
+    backgroundColor: "#fff5f5",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#ffcccc",
+  },
+  voiceStatusText: {
+    fontSize: 11,
+    color: "#ff4444",
+    marginLeft: 4,
+    fontWeight: "600",
+  },
+  voiceWaveContainer: {
+    position: "absolute",
+    top: "50%",
+    left: 20,
+    right: 80,
+    height: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-evenly",
+    zIndex: 1,
+  },
+  voiceWave: {
+    width: 3,
+    height: 20,
+    backgroundColor: "#007AFF",
+    borderRadius: 2,
+    marginHorizontal: 2,
   },
 });
