@@ -51,7 +51,7 @@ export default {
       "expo-router"
     ],
     extra: {
-      apiUrl: "http://https://www.zaaam.me/:5000/api",
+      apiUrl: "https://www.zaaam.me/api",
       googleWebClientId: "485643114726-0joadin731ltorui0db3v6dma86rjbvb.apps.googleusercontent.com",
       eas: {
         projectId: "your-project-id"

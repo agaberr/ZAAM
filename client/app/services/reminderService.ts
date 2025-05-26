@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 
 // Base API URL (should match your server configuration)
 // const API_URL = 'https://zaam-mj7u.onrender.com/api';
-const API_URL = 'https://www.zaaam.me:5000/api';
+const API_URL = 'https://www.zaaam.me/api';
 
 // Statistics interface
 export interface ReminderStats {
