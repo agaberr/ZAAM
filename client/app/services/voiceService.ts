@@ -20,6 +20,9 @@ class VoiceService {
   private recognition: any = null;
   private isListening = false;
   private callbacks: VoiceServiceCallbacks = {};
+  private retryCount = 0;
+  private maxRetries = 3;
+  private retryTimeout: NodeJS.Timeout | null = null;
 
   constructor() {
     this.initializeSpeechRecognition();
@@ -47,6 +50,7 @@ class VoiceService {
 
         this.recognition.onstart = () => {
           this.isListening = true;
+          this.retryCount = 0; // Reset retry count on successful start
           this.callbacks.onSpeechStart?.();
           console.log('Speech recognition started');
         };
@@ -60,6 +64,7 @@ class VoiceService {
         this.recognition.onresult = (event: any) => {
           const transcript = event.results[0][0].transcript;
           console.log('Speech recognition result:', transcript);
+          this.retryCount = 0; // Reset retry count on successful result
           this.callbacks.onSpeechResult?.(transcript);
         };
 
@@ -69,13 +74,16 @@ class VoiceService {
           // IMPORTANT: Reset listening state on any error
           this.isListening = false;
           
+          // Handle network errors with automatic retry
+          if (event.error === 'network') {
+            this.handleNetworkError();
+            return;
+          }
+          
           let errorMessage = event.error;
           
           // Provide more helpful error messages
           switch (event.error) {
-            case 'network':
-              errorMessage = 'Network error: Please ensure you have internet connection and try again';
-              break;
             case 'not-allowed':
               errorMessage = 'Microphone access denied. Please allow microphone permissions and reload the page.';
               break;
@@ -92,7 +100,7 @@ class VoiceService {
               // Don't show error for user-initiated aborts
               return;
             default:
-              errorMessage = `Speech recognition error: ${event.error}. Try using HTTPS or check your microphone.`;
+              errorMessage = `Speech recognition error: ${event.error}. Please try again.`;
           }
           
           this.callbacks.onSpeechError?.(errorMessage);
@@ -100,6 +108,35 @@ class VoiceService {
       } else {
         console.warn('Speech Recognition API not supported in this browser');
       }
+    }
+  }
+
+  private handleNetworkError() {
+    if (this.retryCount < this.maxRetries) {
+      this.retryCount++;
+      console.log(`Network error detected. Attempting retry ${this.retryCount}/${this.maxRetries}`);
+      
+      // Show user-friendly message for first retry
+      if (this.retryCount === 1) {
+        this.callbacks.onSpeechError?.('Connection issue detected. Retrying...');
+      }
+      
+      // Clear any existing retry timeout
+      if (this.retryTimeout) {
+        clearTimeout(this.retryTimeout);
+      }
+      
+      // Retry after a short delay
+      this.retryTimeout = setTimeout(() => {
+        this.startListening().catch(() => {
+          // If retry fails, handle as regular network error
+          if (this.retryCount >= this.maxRetries) {
+            this.callbacks.onSpeechError?.('Network connection unstable. Please check your internet and try again.');
+          }
+        });
+      }, 1000 * this.retryCount); // Exponential backoff: 1s, 2s, 3s
+    } else {
+      this.callbacks.onSpeechError?.('Network connection unstable. Please check your internet and try again.');
     }
   }
 
@@ -112,6 +149,12 @@ class VoiceService {
   async startListening(): Promise<void> {
     try {
       if (Platform.OS === 'web') {
+        // Clear any pending retry timeout to prevent conflicts
+        if (this.retryTimeout) {
+          clearTimeout(this.retryTimeout);
+          this.retryTimeout = null;
+        }
+        
         // Force reset state before starting
         if (this.isListening) {
           console.warn('Force stopping previous recognition session');
@@ -142,6 +185,7 @@ class VoiceService {
       console.error('Error starting speech recognition:', error);
       this.isListening = false; // Ensure state is reset on error
       this.callbacks.onSpeechError?.(error instanceof Error ? error.message : 'Unknown error');
+      throw error; // Re-throw for retry logic
     }
   }
 
@@ -178,6 +222,13 @@ class VoiceService {
   reset(): void {
     this.forceStop();
     this.isListening = false;
+    this.retryCount = 0;
+    
+    // Clear any pending retry timeout
+    if (this.retryTimeout) {
+      clearTimeout(this.retryTimeout);
+      this.retryTimeout = null;
+    }
   }
 
   // Check if currently listening

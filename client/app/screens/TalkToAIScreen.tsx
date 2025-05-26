@@ -81,14 +81,6 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
           setIsListening(false);
           setVoiceError(error);
           console.error('Speech recognition error:', error);
-          
-          // Auto-retry for network errors after a delay
-          if (error.includes('Network error')) {
-            setTimeout(() => {
-              setVoiceError(null);
-              voiceService.reset(); // Reset the service
-            }, 3000);
-          }
         },
       };
       
