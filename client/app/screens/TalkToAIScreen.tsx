@@ -49,6 +49,8 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
   const [isListening, setIsListening] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [isVoiceSupported, setIsVoiceSupported] = useState(false);
+  const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+  const [currentProvider, setCurrentProvider] = useState<string>('');
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // Voice recording animation
@@ -130,9 +132,16 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
         setIsVoiceSupported(isSupported);
 
         if (!isSupported) {
-          console.warn('Voice recognition not supported in this environment');
+          console.warn('No voice recognition providers available');
           return;
         }
+
+        // Get available providers
+        const providers = voiceService.getAvailableProviders();
+        setAvailableProviders(providers);
+        setCurrentProvider(providers[0] || ''); // Use the first (best) provider
+
+        console.log('Available speech providers:', providers);
 
         // Set up voice service callbacks
         const callbacks: VoiceServiceCallbacks = {
@@ -173,7 +182,15 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
               setTimeout(() => setVoiceError(null), 3000);
             } else if (error.includes('network') || error.includes('connection') || error.includes('unavailable')) {
               // For network/connection errors, show a more helpful message
-              setVoiceError('Speech service temporarily unavailable. Please try again.');
+              setVoiceError('Speech service temporarily unavailable. Trying alternative provider...');
+              
+              // Try next available provider
+              const nextProvider = providers.find(p => p !== currentProvider);
+              if (nextProvider) {
+                setCurrentProvider(nextProvider);
+                console.log(`Switching to provider: ${nextProvider}`);
+              }
+              
               setTimeout(() => setVoiceError(null), 5000);
             } else {
               // For other errors, show a brief message
@@ -199,7 +216,7 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
         console.error('Error cleaning up voice service:', error);
       }
     };
-  }, []);
+  }, [currentProvider]);
 
   // Voice input handlers
   const startVoiceInput = async () => {
@@ -212,14 +229,30 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
         return;
       }
       
-      await voiceService.startListening();
+      // Use the current provider or let service choose the best one
+      await voiceService.startListening(currentProvider);
     } catch (error) {
       console.error('Error starting voice input:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to start voice input';
       
       // Handle specific error types
       if (errorMessage.includes('network') || errorMessage.includes('connection')) {
-        setVoiceError('Speech service is currently unavailable. Please try again in a moment.');
+        setVoiceError('Primary speech service unavailable. Trying backup service...');
+        
+        // Try with a different provider
+        const fallbackProvider = availableProviders.find(p => p !== currentProvider);
+        if (fallbackProvider) {
+          setCurrentProvider(fallbackProvider);
+          try {
+            await voiceService.startListening(fallbackProvider);
+            setVoiceError(null);
+            return;
+          } catch (fallbackError) {
+            console.error('Fallback provider also failed:', fallbackError);
+          }
+        }
+        
+        setVoiceError('All speech services are currently unavailable. Please try again later.');
       } else if (errorMessage.includes('permission')) {
         setVoiceError('Microphone permission required. Please allow access and try again.');
       } else {
@@ -663,6 +696,10 @@ export default function TalkToAIScreen({ setActiveTab, setIsTalking, setAudioDat
                 <Text style={styles.keyboardShortcutText}>
                   💡 Pro tip: Hold spacebar to use voice input, Escape to stop
                 </Text>
+                <Text style={styles.providerInfoText}>
+                  🎤 Using: {currentProvider || 'Auto-select'} 
+                  {availableProviders.length > 1 && ` (${availableProviders.length - 1} backup${availableProviders.length > 2 ? 's' : ''} available)`}
+                </Text>
                 {voiceError && voiceError.includes('unavailable') && (
                   <Text style={styles.voiceUnavailableText}>
                     ⚠️ Voice service temporarily unavailable - you can still type your message
@@ -1063,6 +1100,12 @@ const styles = StyleSheet.create({
   voiceUnavailableText: {
     fontSize: 12,
     color: "#ff4444",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+  providerInfoText: {
+    fontSize: 12,
+    color: "#007AFF",
     marginTop: 4,
     fontStyle: "italic",
   },
