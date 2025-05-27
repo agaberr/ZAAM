@@ -2,7 +2,6 @@
 import os
 import sys
 import json
-import logging
 from pathlib import Path
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -16,7 +15,17 @@ from flask import Flask, request, jsonify, session, redirect, url_for, Request, 
 # Import model manager
 from model_manager import setup_models
 
-# Import route modules
+
+
+##################################### IMPORTS END #####################################
+
+##################################### MODEL SETUP START #####################################
+
+# Setup models using the model manager
+models_available = setup_models()
+
+##################################### MODEL SETUP END #####################################
+
 from routes.main_routes import register_main_routes
 from routes.user_routes import register_user_routes
 from routes.auth_routes import register_auth_routes
@@ -24,33 +33,6 @@ from routes.ai_routes import register_ai_routes
 from routes.memory_aid_routes import memory_aid_routes
 from routes.cognitive_game_routes import cognitive_game_routes
 from routes.speech_routes import speech_bp
-
-##################################### IMPORTS END #####################################
-
-##################################### LOGGING START #####################################
-
-# Configure logging for debugging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
-logger = logging.getLogger(__name__)
-##################################### LOGGING END #####################################
-
-##################################### MODEL SETUP START #####################################
-
-# Add project root to sys.path
-project_root = Path(__file__).parent.absolute()
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-    print(f"Added {project_root} to Python path")
-
-# Setup models using the model manager
-print("\n===== ZAAM Server Initialization =====")
-models_available = setup_models()
-
-##################################### MODEL SETUP END #####################################
 
 ##################################### INIT FLASK APP START #####################################
 
@@ -78,11 +60,6 @@ Session(app)
 
 # Configure MongoDB
 mongo_uri = os.getenv("MONGO_URI")
-if not mongo_uri:
-    print("Error: MONGO_URI environment variable not set")
-    sys.exit(1)
-
-# Configure PyMongo
 app.config["MONGO_URI"] = mongo_uri
 mongo = PyMongo(app)
 
@@ -101,12 +78,8 @@ def before_request():
 
 ##################################### INIT FLASK APP END #####################################
 
-if __name__ == '__main__':
-    print("\n=== ZAAM Server Initialization ===")
-    
+if __name__ == '__main__':    
     if models_available:
         initialize_qa_system()
     
-    print("=== Server Initialization Complete ===\n")
-
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5001, debug=True)
