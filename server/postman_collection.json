@@ -20,6 +20,16 @@
 			"key": "user_id",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "memory_aid_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "reminder_id",
+			"value": "",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -208,6 +218,424 @@
 			"description": "User management endpoints"
 		},
 		{
+			"name": "Memory Aids",
+			"item": [
+				{
+					"name": "Create Person Memory Aid",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const response = pm.response.json();",
+									"if (response._id) {",
+									"    pm.environment.set(\"memory_aid_id\", response._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Sarah Johnson\",\n    \"description\": \"My college roommate who studied psychology. She has curly brown hair and loves hiking. We met during freshman orientation and became best friends. She's from California and has a pet golden retriever named Max.\",\n    \"type\": \"person\",\n    \"date\": \"2023-01-15\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/memory-aids",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"memory-aids"
+							]
+						},
+						"description": "Create a person memory aid for testing cognitive game"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Place Memory Aid",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Central Park\",\n    \"description\": \"Beautiful park in Manhattan where I had my first date with my partner. We walked around the lake, fed ducks, and sat on a bench under the cherry blossom trees. It was a sunny spring day in April.\",\n    \"type\": \"place\",\n    \"date\": \"2023-04-20\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/memory-aids",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"memory-aids"
+							]
+						},
+						"description": "Create a place memory aid for testing cognitive game"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Object Memory Aid",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Grandmother's Necklace\",\n    \"description\": \"A vintage silver necklace with a small emerald pendant that belonged to my grandmother. She gave it to me on my 18th birthday. It has intricate floral engravings and always reminds me of her garden.\",\n    \"type\": \"object\",\n    \"date\": \"2023-03-10\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/memory-aids",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"memory-aids"
+							]
+						},
+						"description": "Create an object memory aid for testing cognitive game"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Event Memory Aid",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"College Graduation\",\n    \"description\": \"My graduation ceremony from university in May 2022. It was held in the main auditorium with family and friends present. I wore a blue cap and gown, and my parents were so proud. The weather was perfect and we celebrated at a nice restaurant afterwards.\",\n    \"type\": \"event\",\n    \"date\": \"2022-05-15\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/memory-aids",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"memory-aids"
+							]
+						},
+						"description": "Create an event memory aid for testing cognitive game"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Memory Aids",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/memory-aids",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"memory-aids"
+							]
+						},
+						"description": "Get all memory aids for the authenticated user"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Memory Aid by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/memory-aids/{{memory_aid_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"memory-aids",
+								"{{memory_aid_id}}"
+							]
+						},
+						"description": "Get a specific memory aid by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Memory Aid",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Sarah Johnson (Updated)\",\n    \"description\": \"My college roommate who studied psychology. She has curly brown hair and loves hiking. We met during freshman orientation and became best friends. She's from California and has a pet golden retriever named Max. She now works as a therapist.\",\n    \"type\": \"person\",\n    \"date\": \"2023-01-15\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/memory-aids/{{memory_aid_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"memory-aids",
+								"{{memory_aid_id}}"
+							]
+						},
+						"description": "Update a specific memory aid"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Memory Aid",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/memory-aids/{{memory_aid_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"memory-aids",
+								"{{memory_aid_id}}"
+							]
+						},
+						"description": "Delete a specific memory aid"
+					},
+					"response": []
+				}
+			],
+			"description": "Memory aids management endpoints for setting up cognitive game test data"
+		},
+		{
+			"name": "Cognitive Game",
+			"item": [
+				{
+					"name": "Start Game Session",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/game/start",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"game",
+								"start"
+							]
+						},
+						"description": "Start a new cognitive game session. Requires memory aids to be created first."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Game Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/game/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"game",
+								"status"
+							]
+						},
+						"description": "Get current game session status and statistics"
+					},
+					"response": []
+				},
+				{
+					"name": "Get New Question",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/game/question",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"game",
+								"question"
+							]
+						},
+						"description": "Get a new question for the current game session"
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Answer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"answer\": \"Sarah is my college roommate who studied psychology and loves hiking\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/game/answer",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"game",
+								"answer"
+							]
+						},
+						"description": "Submit an answer to the current question and get validation feedback"
+					},
+					"response": []
+				},
+				{
+					"name": "Stop Game Session",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/game/stop",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"game",
+								"stop"
+							]
+						},
+						"description": "Stop the current game session and get final statistics"
+					},
+					"response": []
+				}
+			],
+			"description": "Dedicated cognitive game endpoints for structured game sessions"
+		},
+		{
 			"name": "AI Assistant",
 			"item": [
 				{
@@ -240,6 +668,105 @@
 							]
 						},
 						"description": "Process natural language input and categorize into different services"
+					},
+					"response": []
+				},
+				{
+					"name": "Start Game via AI",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"text\": \"I want to play a memory game\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/process",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"process"
+							]
+						},
+						"description": "Start a cognitive game session using natural language through AI processing"
+					},
+					"response": []
+				},
+				{
+					"name": "Answer Game Question via AI",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"text\": \"Sarah is my college roommate who studied psychology and loves hiking\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/process",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"process"
+							]
+						},
+						"description": "Answer a game question using natural language (only works when game is active)"
+					},
+					"response": []
+				},
+				{
+					"name": "Stop Game via AI",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"text\": \"stop game\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/process",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"process"
+							]
+						},
+						"description": "Stop the cognitive game session using natural language"
 					},
 					"response": []
 				},
@@ -377,7 +904,7 @@
 					"response": []
 				}
 			],
-			"description": "AI assistant endpoints for processing various types of queries"
+			"description": "AI assistant endpoints for processing various types of queries including cognitive game interactions"
 		},
 		{
 			"name": "Reminders",

@@ -378,7 +378,7 @@ def register_ai_routes(app, mongo):
                 session.pop('current_question', None)
                 
                 return {
-                    "response": f"Game session ended! Final stats: You scored {final_score} out of {total_questions} questions ({accuracy}% accuracy). Great job exercising your memory!",
+                    "response": f"Game session ended! Final stats: You scored {final_score} out of {total_questions} questions. Great job exercising your memory!",
                     "category": "game",
                     "success": True,
                     "game_ended": True,
@@ -420,7 +420,7 @@ def register_ai_routes(app, mongo):
                 questions_asked = session.get('game_questions_asked', 0)
                 accuracy = round((score / questions_asked) * 100, 2)
                 
-                response_text = f"{feedback}\n\nScore: {score}/{questions_asked} ({accuracy}% accuracy)\n\nNext question: {next_question}"
+                response_text = f"{feedback}\n\nNext question: {next_question}"
                 
                 return {
                     "response": response_text,
@@ -459,7 +459,7 @@ def register_ai_routes(app, mongo):
                 question = game.generate_random_question()
                 session['current_question'] = question
                 
-                response_text = f"Cognitive game started! Let's test your memory!\n\nI found {len(memory_aids)} memory aids in your collection.\n\nHere's your first question: {question}\n\nJust type your answer and I'll check it for you. Say 'stop game' when you want to end."
+                response_text = f"Cognitive game started! Let's test your memory!\n\nI found {len(memory_aids)} memory aids in your collection.\n\nHere's your first question: {question}."
                 
                 return {
                     "response": response_text,
