@@ -2,7 +2,6 @@
 import os
 import sys
 import json
-import logging
 from pathlib import Path
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -27,27 +26,13 @@ from routes.speech_routes import speech_bp
 
 ##################################### IMPORTS END #####################################
 
-##################################### LOGGING START #####################################
-
-# Configure logging for debugging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
-logger = logging.getLogger(__name__)
-##################################### LOGGING END #####################################
-
 ##################################### MODEL SETUP START #####################################
 
-# Add project root to sys.path
 project_root = Path(__file__).parent.absolute()
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
-    print(f"Added {project_root} to Python path")
 
-# Setup models using the model manager
-print("\n===== ZAAM Server Initialization =====")
+# Download not available models (used for the deployment)
 models_available = setup_models()
 
 ##################################### MODEL SETUP END #####################################
@@ -66,14 +51,13 @@ CORS(app, resources={r"/*": {
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 }})
 
-# Configure session
+# session
 app.secret_key = os.getenv("SECRET_KEY", os.getenv("JWT_SECRET", "super-secret-key"))
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = 3600
 app.config['SESSION_USE_SIGNER'] = True
 
-# Initialize Flask-Session
 Session(app)
 
 # Configure MongoDB
@@ -82,11 +66,9 @@ if not mongo_uri:
     print("Error: MONGO_URI environment variable not set")
     sys.exit(1)
 
-# Configure PyMongo
 app.config["MONGO_URI"] = mongo_uri
 mongo = PyMongo(app)
 
-# Register routes
 register_main_routes(app)
 register_user_routes(app, mongo)
 register_auth_routes(app, mongo)
@@ -102,11 +84,9 @@ def before_request():
 ##################################### INIT FLASK APP END #####################################
 
 if __name__ == '__main__':
-    print("\n=== ZAAM Server Initialization ===")
     
+    # wait for the qa model to be downloaded in order to init
     if models_available:
         initialize_qa_system()
     
-    print("=== Server Initialization Complete ===\n")
-
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5003, debug=True)
