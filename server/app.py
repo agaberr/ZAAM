@@ -19,7 +19,7 @@ from model_manager import setup_models
 from routes.main_routes import register_main_routes
 from routes.user_routes import register_user_routes
 from routes.auth_routes import register_auth_routes
-from routes.ai_routes import register_ai_routes
+from routes.ai_routes import ai_routes_funcitons
 from routes.memory_aid_routes import memory_aid_routes
 from routes.cognitive_game_routes import cognitive_game_routes
 from routes.speech_routes import speech_bp
@@ -72,7 +72,7 @@ mongo = PyMongo(app)
 register_main_routes(app)
 register_user_routes(app, mongo)
 register_auth_routes(app, mongo)
-register_ai_routes(app, mongo)
+ai_routes_funcitons(app, mongo)
 app.register_blueprint(memory_aid_routes)
 app.register_blueprint(cognitive_game_routes)
 app.register_blueprint(speech_bp, url_prefix='/api/speech')
