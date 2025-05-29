@@ -314,7 +314,7 @@ def ai_routes_funcitons(app, mongo):
             
             # init the segmenter
             ai_processor = AIProcessor()
-            segments = ai_processor.segment_sentences(text)
+            segments = ai_processor.segment_all_texts(text)
             print("segmenter is initialized")
             
             
