@@ -91,8 +91,8 @@ def ai_routes_funcitons(app, mongo):
                 
                 final_date = datetime.datetime.now(pytz.timezone('Africa/Cairo')) + datetime.timedelta(days=days_offset)
                 
-                reminders = ReminderDB.get_day_reminders(user_id, final_date, db=mongo.db)
-                response = ReminderDB.format_reminders_response(reminders, days_offset)
+                reminders = ReminderDB.getDayReminders(user_id, final_date, db=mongo.db)
+                response = ReminderDB.formatReminderResponse(reminders, days_offset)
                 
                 return {"response": response}
                 
@@ -116,7 +116,7 @@ def ai_routes_funcitons(app, mongo):
                     # el default value bta3 el duration byab2a 1 hr
                     start_time = start_time.replace(hour=(start_time.hour + 1) % 24, minute=0, second=0, microsecond=0)
                 
-                    reminder = ReminderDB.create_reminder(
+                    reminder = ReminderDB.createReminder(
                         user_id=user_id, 
                         title=predicted_action, 
                         start_time=start_time,
@@ -373,7 +373,7 @@ def ai_routes_funcitons(app, mongo):
             
             date = datetime.datetime.now(pytz.timezone('Africa/Cairo')) + datetime.timedelta(days=daysoffset)
             
-            reminders = ReminderDB.get_day_reminders(userid, date, db=mongo.db)
+            reminders = ReminderDB.getDayReminders(userid, date, db=mongo.db)
             
             remindersOutput = []
             for reminder in reminders:
