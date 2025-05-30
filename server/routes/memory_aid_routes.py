@@ -100,7 +100,7 @@ def get_memory_aid(user_id, memory_aid_id):
     if db is None:
         return jsonify({"error": "database failed to connect"}), 500
         
-    memAid = MemoryAid.find_by_id(db, memory_aid_id)
+    memAid = MemoryAid.findByID(db, memory_aid_id)
     
     if not memAid:
         return jsonify({"error": "there is no memory aids there"}), 404
@@ -118,7 +118,7 @@ def update_memory_aid(user_id, memory_aid_id):
     if db is None:
         return jsonify({"error": "Failed to conn with database"}), 500
         
-    memAid = MemoryAid.find_by_id(db, memory_aid_id)
+    memAid = MemoryAid.findByID(db, memory_aid_id)
     
     if not memAid:
         return jsonify({"error": "No memory aids are to be found"}), 404
@@ -155,7 +155,7 @@ def delete_memory_aid(user_id, memory_aid_id):
     if db is None:
         return jsonify({"error": "failed to connect with db"}), 500
         
-    success = MemoryAid.delete_by_id(db, memory_aid_id, user_id)
+    success = MemoryAid.deleteByID(db, memory_aid_id, user_id)
     
     if not success:
         return jsonify({"error": "error occured while deleting"}), 404

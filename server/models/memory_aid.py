@@ -2,123 +2,115 @@ from datetime import datetime
 from bson import ObjectId
 
 class MemoryAid:
-    def __init__(self, user_id, title, description, type, date=None, image_url=None):
+    def __init__(self,  userid,  title,  description, type,  date =None):
         self._id = None
-        self.user_id = user_id
+        self.userid = userid
         self.title = title
-        self.description = description
-        self.type = type  # 'person', 'place', 'event', 'object'
+        self.description  = description
+        self.type = type
         self.date = date or datetime.utcnow().strftime('%Y-%m-%d')
-        self.image_url = image_url
-        self.created_at = datetime.utcnow()
+        self.created_at =  datetime.utcnow()
         self.updated_at = datetime.utcnow()
 
     def to_dict(self):
-        """Convert memory aid to dictionary for serialization"""
-        result = {
-            "user_id": self.user_id,
+        res = {
+            "userid":   self.userid,
             "title": self.title,
-            "description": self.description,
+            "description": self.description ,
             "type": self.type,
-            "date": self.date,
-            "image_url": self.image_url,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at
+            "date" : self.date,
+            "created_at" : self.created_at,
+            "updated_at":   self.updated_at  
         }
         
-        # Only include _id if it's not None
         if self._id is not None:
-            result["_id"] = str(self._id)
+            res["_id"] = str(self._id)
             
-        return result
+        return res
 
     def save(self, db):
-        """Save the memory aid to the database."""
         if db is None:
-            return False, ["Database connection is not available"]
+            return False, ["can't connect to db"]
             
-        # Validate required fields
-        errors = []
-        if not self.user_id:
-            errors.append("User ID is required")
+        errs = []
+        if not self.userid:
+            errs.append("please add user id")
         if not self.title:
-            errors.append("Title is required")
+            errs.append("please add title")
         if not self.type:
-            errors.append("Type is required")
+            errs.append("please add type")
             
-        if errors:
-            return False, errors
+        if errs:
+            return False, errs
             
-        memory_aid_data = {
-            "user_id": self.user_id,
+        memaid_data = {
+            "userid": self.userid,
             "title": self.title,
-            "description": self.description,
+            "description":   self.description,
             "type": self.type,
             "date": self.date,
-            "image_url": self.image_url,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
         
-        # For update operations
         if self._id is not None:
-            memory_aid_data["updated_at"] = datetime.utcnow()
+            memaid_data["updated_at"] = datetime.utcnow()
             try:
                 result = db.memory_aids.update_one(
                     {"_id": self._id},
-                    {"$set": memory_aid_data}
+                    {"$set": memaid_data}
                 )
                 return result.modified_count > 0, None
-            except Exception as e:
-                return False, [str(e)]
-        # For insert operations
+            except:
+                return False, ["error creating memory aid"]
         else:
             try:
-                result = db.memory_aids.insert_one(memory_aid_data)
+                result = db.memory_aids.insert_one(memaid_data)
                 self._id = result.inserted_id
-                return True, None  # Indicate success
-            except Exception as e:
-                return False, [str(e)]
+                return True, None
+            except:
+                return False, ["error creating memory aid"]
+
 
     @staticmethod
-    def find_by_id(db, memory_aid_id):
-        """Find a memory aid by ID."""
+    def findByID(db, memory_aid_id):
         if db is None:
             return None
-            
         try:
-            data = db.memory_aids.find_one({"_id": ObjectId(memory_aid_id)})
-            return MemoryAid.from_mongo(data) if data else None
-        except Exception:
+            memaid =  db.memory_aids.find_one({"_id": ObjectId(memory_aid_id)})
+
+            if memaid:
+                return   MemoryAid.fromMongo(memaid)
+            else:
+                return None
+        except:
             return None
 
     @staticmethod
-    def find_by_user_id(db, user_id):
-        """Find all memory aids for a specific user."""
+    def findByUserID(db, userid):
         if db is None:
             return []
             
         try:
-            cursor = db.memory_aids.find({"user_id": user_id})
-            memory_aids = []
-            for data in cursor:
-                memory_aid = MemoryAid.from_mongo(data)
+            memaid = db.memory_aids.find({"userid": userid})
+            allMemaids = []
+            for data in memaid:
+                memory_aid = MemoryAid.fromMongo(data)
                 if memory_aid:
-                    memory_aids.append(memory_aid)
-            return memory_aids
-        except Exception:
+                    allMemaids.append(memory_aid)
+            return allMemaids
+        except:
             return []
 
     @staticmethod
-    def delete_by_id(db, memory_aid_id, user_id=None):
-        """Delete a memory aid by ID, optionally check if it belongs to the specified user."""
+    def deleteByID(db, memaidID, userid=None):
         if db is None:
             return False
             
         try:
-            query = {"_id": ObjectId(memory_aid_id)}
-            if user_id:
-                query["user_id"] = user_id
+            query = {"_id": ObjectId(memaidID)}
+            if userid:
+                query["userid"] = userid
                 
             result = db.memory_aids.delete_one(query)
             return result.deleted_count > 0
@@ -126,20 +118,18 @@ class MemoryAid:
             return False
 
     @staticmethod
-    def from_mongo(data):
-        """Convert MongoDB document to MemoryAid object."""
+    def fromMongo(data):
         if not data:
             return None
             
-        memory_aid = MemoryAid(
-            user_id=data["user_id"],
+        memaid = MemoryAid(
+            userid=data["userid"],
             title=data["title"],
             description=data.get("description", ""),
             type=data["type"],
-            date=data.get("date"),
-            image_url=data.get("image_url")
+            date=data.get("date")
         )
-        memory_aid._id = data["_id"]
-        memory_aid.created_at = data["created_at"]
-        memory_aid.updated_at = data["updated_at"]
-        return memory_aid 
+        memaid._id = data["_id"]
+        memaid.created_at = data["created_at"]
+        memaid.updated_at = data["updated_at"]
+        return memaid 
