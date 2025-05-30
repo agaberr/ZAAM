@@ -602,7 +602,7 @@ export default function TalkToAIScreen({
       // Use the main AI service which now includes audio support
       const aiResponse = await aiService.processAIRequest(text.trim());
 
-      const responseText = aiResponse.response || "I'm here to help you. What would you like to know?";
+      const responseText = aiResponse.response || "Sorry, I couldn't process your request right now.";
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),

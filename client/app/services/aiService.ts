@@ -57,7 +57,7 @@ export const aiService = {
       
       if (response.data) {
         return {
-          response: response.data.response || "I'm here to help you. What would you like to know?",
+          response: response.data.response || "Sorry, I couldn't process your request.",
           category_responses: response.data.category_responses,
           categories: response.data.categories,
           success: response.data.success || false,

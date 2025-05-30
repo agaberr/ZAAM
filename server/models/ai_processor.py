@@ -50,7 +50,9 @@ class AIProcessor:
     def create_embeddings(self):
         
         seeds = {
-            "news": ["news", "report", "headline", "breaking", "article", "story", "media"],
+            "news": ["news", "report", "headline", "breaking", "article", "story", "media", 
+                     "cook", "cooking", "recipe", "food", "kitchen", "chef", "bake", "ingredient",
+                     "football", "soccer", "match", "team", "player", "goal", "league", "cup"],
             "weather": ["weather", "temperature", "rain", "snow", "sunny", "cloudy", "storm"],
             "reminder": ["remind", "calendar", "schedule", "event", "appointment", "meeting"]
         }
@@ -112,35 +114,48 @@ class AIProcessor:
         # If no model is loaded, use simple keyword matching
         if not self.model_loaded:
             keys = {
-                "greeting": ["hey zaam", "hi zaam", "hello zaam"],
+                "greeting": ["hey", "hi", "hello"],
                 "news": ["news", "report", "headline", "breaking", "article", "story", "journalist", 
-                         "media", "press", "announce", "publish", "who is", "what is"],
+                         "media", "press", "announce", "publish", "who is", "what is",
+                         "cook", "cooking", "recipe", "food", "kitchen", "chef", "bake", "ingredient", "meal",
+                         "football", "soccer", "match", "team", "player", "goal", "league", "cup", "score"],
                 "weather": ["weather", "temperature", "forecast", "rain", "snow", "sunny", "cloudy", 
                            "storm", "wind", "humidity", "cold", "hot", "degrees", "wear"],
                 "reminder": ["remind", "calendar", "schedule", "event", "appointment", 
                              "meeting", "reminder", "don't forget", "remember", "plan", 
-                             "tomorrow", "today", "next week", "later", "day after tomorrow",
+                             "tomorrow", "next week", "later", "day after tomorrow",
                              "what's on", "what do i have", "what's scheduled", "am i free", 
                              "do i have any", "when is", "at what time"]
             }
             
             for sentence in sentences:
-                sentence = sentence.lower()
-                match = []
+                sentence_lower = sentence.lower()
+                matched = False
                 
-                # prioritize grretings first 
-                if any(greeting in sentence for greeting in keys["greeting"]):
+                # Check for exact greeting matches to be more specific
+                greeting_words = ["hey", "hi", "hello"]
+                if any(sentence_lower.strip().startswith(greeting) for greeting in greeting_words):
                     segments["greeting"].append(sentence)
-                    match.append("greeting")
+                    matched = True
                 
-                # go up to the other models
-                for category, words in keys.items():
-                    if any(word in sentence for word in words):
-                        segments[category].append(sentence)
-                        match.append(category)
+                # Check other categories if not a greeting
+                if not matched:
+                    # Check weather first for weather-specific queries
+                    if any(word in sentence_lower for word in keys["weather"]):
+                        segments["weather"].append(sentence)
+                        matched = True
+                    # Check news (including food and football)
+                    elif any(word in sentence_lower for word in keys["news"]):
+                        segments["news"].append(sentence)
+                        matched = True
+                    # Check reminder last
+                    elif any(word in sentence_lower for word in keys["reminder"]):
+                        segments["reminder"].append(sentence)
+                        matched = True
                 
-                if not match:
-                    segments["uncategorized"].append(sentence)
+                # If no match found, route to news (assuming uncategorized is news)
+                if not matched:
+                    segments["news"].append(sentence)
                 
             return segments
         
@@ -148,10 +163,18 @@ class AIProcessor:
         for sentence in sentences:
             words = self.tokenize_words(sentence)
             
+            # Check for greetings first with more specific matching
+            sentence_lower = sentence.lower()
+            greeting_words = ["hey", "hi", "hello"]
+            if any(sentence_lower.strip().startswith(greeting) for greeting in greeting_words):
+                segments["greeting"].append(sentence)
+                continue
+            
             avail_tokens = [word for word in words if hasattr(self.model, 'wv') and word in self.model.wv]
             
             if not avail_tokens:
-                segments["uncategorized"].append(sentence)
+                # Route uncategorized to news
+                segments["news"].append(sentence)
                 continue
             
             sen_vectors = [self.model.wv[word] for word in avail_tokens]
@@ -169,7 +192,8 @@ class AIProcessor:
             if chosen_sim >= self.similarity_threshold:
                 segments[chosen_cat].append(sentence)
             else:
-                segments["uncategorized"].append(sentence)
+                # Route uncategorized to news
+                segments["news"].append(sentence)
         
         return segments
     
@@ -194,11 +218,6 @@ class AIProcessor:
             if r:
                 all_model_responses += r
 
-        if not all_model_responses:
-            uncategorized = segments.get("uncategorized", [])
-            if uncategorized:
-                all_model_responses += self.process_uncategorized(uncategorized)
-        
         if not all_model_responses:
             return "I couldn't understand your request."
         else:

@@ -311,7 +311,12 @@ def ai_routes_funcitons(app, mongo):
             ai_processor = AIProcessor()
             segments = ai_processor.segment_all_texts(text)
             print("segmenter is initialized")
+            print("segments:", segments)
             
+            # Check if this is a greeting
+            if "greeting" in segments and segments["greeting"]:
+                print("Greeting detected")
+                return jsonify({"response": "I'm here to help you. What would you like to know?"})
             
             # Process each segment
             responses = {}
@@ -348,6 +353,10 @@ def ai_routes_funcitons(app, mongo):
                 all_responses += reminder_response
             
             all_responses = all_responses.strip()
+            
+            # If no response was generated, provide a default message
+            if not all_responses:
+                all_responses = "I couldn't find any relevant information for your query."
             
             result = {"response": all_responses}
             
