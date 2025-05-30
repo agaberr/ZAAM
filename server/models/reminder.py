@@ -6,10 +6,7 @@ import re
 from datetime import datetime, timedelta
 import pytz
 from bson import ObjectId
-# from reminders.model import NERIntentModel
-# from reminders.model import NERIntentModel
 
-################################################################
 
 class NERIntentModel(nn.Module):
     def __init__(self, vocab_size, embedding_dim, hidden_dim, num_intents, num_slots):
@@ -41,37 +38,6 @@ class NERIntentModel(nn.Module):
         slot_pred = self.slot_fc(lstm_out)
         
         return intent_pred, slot_pred 
-################################################################
-
-# def load_model_safe(path, device='cpu'):
-#     """Custom function to load a model with class fixing"""
-#     model_data = torch.load(path, map_location=device)
-#     print("[DEBUG] ###############IN LOAD_MODEL_SAFE")
-#     # Check if we got a full state dict or just the model
-#     if isinstance(model_data, dict) and 'state_dict' in model_data:
-#         # Create a new model instance
-#         vocab_size = model_data.get('vocab_size', 10000)  # Default if not found
-#         embedding_dim = model_data.get('embedding_dim', 128)
-#         hidden_dim = model_data.get('hidden_dim', 64)
-#         num_intents = model_data.get('num_intents', 2)
-#         num_slots = model_data.get('num_slots', 10)
-#         print("[DEBUG] ###############IN LOAD_MODEL_SAFE GOA AWY")
-        
-#         model = NERIntentModel(
-#             vocab_size=vocab_size,
-#             embedding_dim=embedding_dim,
-#             hidden_dim=hidden_dim,
-#             num_intents=num_intents,
-#             num_slots=num_slots
-#         )
-        
-#         # Load the state dict
-#         model.load_state_dict(model_data['state_dict'])
-#     else:
-#         # If it's already the model object, ensure it's the right type
-#         model = model_data
-        
-#     return model
 
 class ReminderNLP:
     """NLP model for processing reminder text and extracting intent and entities"""
@@ -425,7 +391,7 @@ class ReminderDB:
         """Create a new reminder in the database"""
         if db is None:
             raise ValueError("Database connection required")
-        
+
         # Ensure timezone is set to Egypt time
         egypt_tz = pytz.timezone("Africa/Cairo")
         

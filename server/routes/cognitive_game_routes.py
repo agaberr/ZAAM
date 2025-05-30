@@ -60,12 +60,14 @@ def start_game(user_id):
         # Initialize the game for the user
         game = CognitiveGame(db, user_id)
         
-        # Check if user has any memory aids
-        memory_aids = game.get_all_memory_aids()
-        if not memory_aids:
+        # Check if user has any people or events
+        people = game.get_all_people()
+        events = game.get_all_events()
+        
+        if not people and not events:
             return jsonify({
                 "success": False,
-                "message": "You don't have any memory aids yet. Please add some people or places to your memory aids before playing the game!"
+                "message": "You don't have any people or events yet. Please add some people or events before playing the game!"
             }), 400
         
         # Store game session in session storage
@@ -82,7 +84,8 @@ def start_game(user_id):
             "success": True,
             "message": "Cognitive game started! Let's test your memory!",
             "question": question,
-            "memory_aids_count": len(memory_aids),
+            "people_count": len(people),
+            "events_count": len(events),
             "score": 0,
             "questions_asked": 0
         }), 200

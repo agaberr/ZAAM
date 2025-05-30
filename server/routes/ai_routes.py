@@ -36,12 +36,7 @@ def ai_routes_funcitons(app, mongo):
     # set for auth 
     JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-key")
     
-    ai_processor = AIProcessor()
-    print("[DEBUG] AI Processor initialized")
-    
-
-
-
+    ai_processor = AIProcessor()    
 
     def get_user_loggedin():
         auth_header = request.headers.get('Authorization')
