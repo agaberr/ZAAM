@@ -63,11 +63,11 @@ def authRoutes(app, mongo):
         if not email or not password:
             return jsonify({"error": "Please enter email and password"}), 400
         
-        user = User.find_by_email(mongo.db, email)
-        if not user or not user.check_password(password):
+        user = User.findUserByEmail(mongo.db, email)
+        if not user or not user.checkForPass(password):
             return jsonify({"error": "email or password are incorrect"}), 401
         
-        token = user.generate_auth_token()
+        token = user.generateAuthToken()
 
 
 
