@@ -91,22 +91,36 @@ const createAuthAPI = async () => {
 
 // Helper to convert API reminders to UI format
 const formatReminderForUI = (apiReminder: any): ReminderType => {
-  // Parse the start_time and add 3 hours to match Egypt timezone
-  const startTime = new Date(apiReminder.start_time);
-  startTime.setHours(startTime.getHours() + 3);
+  console.log('[DEBUG] formatReminderForUI input:', apiReminder);
   
-  return {
-    id: apiReminder._id || '',
-    title: apiReminder.title,
-    time: formatInTimeZone(startTime.toISOString(), EGYPT_TZ, 'hh:mm a'),
-    date: formatInTimeZone(startTime.toISOString(), EGYPT_TZ, 'yyyy-MM-dd'),
-    start_time: apiReminder.start_time, // Keep original ISO string for editing
-    type: mapReminderToType(apiReminder),
-    description: apiReminder.description,
-    completed: apiReminder.completed ?? false, // Handle undefined completed field
-    recurring: !!apiReminder.recurrence,
-    recurrencePattern: formatRecurrencePattern(apiReminder.recurrence),
-  };
+  try {
+    // Parse the start_time and add 3 hours to match Egypt timezone
+    const startTime = new Date(apiReminder.start_time);
+    console.log('[DEBUG] Parsed start_time:', startTime);
+    
+    startTime.setHours(startTime.getHours() + 3);
+    console.log('[DEBUG] Adjusted start_time (+3 hours):', startTime);
+    
+    const formatted = {
+      id: apiReminder._id || '',
+      title: apiReminder.title,
+      time: formatInTimeZone(startTime.toISOString(), EGYPT_TZ, 'hh:mm a'),
+      date: formatInTimeZone(startTime.toISOString(), EGYPT_TZ, 'yyyy-MM-dd'),
+      start_time: apiReminder.start_time, // Keep original ISO string for editing
+      type: mapReminderToType(apiReminder),
+      description: apiReminder.description,
+      completed: apiReminder.completed ?? false, // Handle undefined completed field
+      recurring: !!apiReminder.recurrence,
+      recurrencePattern: formatRecurrencePattern(apiReminder.recurrence),
+    };
+    
+    console.log('[DEBUG] formatReminderForUI output:', formatted);
+    return formatted;
+  } catch (error) {
+    console.error('[DEBUG] Error in formatReminderForUI:', error);
+    console.error('[DEBUG] Input data was:', apiReminder);
+    throw error;
+  }
 };
 
 // Map reminder to a type based on its content
@@ -150,16 +164,25 @@ export const reminderService = {
       const api = await createAuthAPI();
       const response = await api.get('/reminder');
       
-      // Backend returns {success, reminders, count, date} format
+      // Backend returns {success, reminders, count, date} format or just {reminders}
+      let reminders = [];
+      
       if (response.data && response.data.success && response.data.reminders) {
-        return response.data.reminders.map(formatReminderForUI);
+        console.log(`[DEBUG] Found reminders in success format: ${response.data.reminders.length} items`);
+        reminders = response.data.reminders;
+      } else if (response.data && response.data.reminders && !response.data.success) {
+        console.log(`[DEBUG] Found reminders without success flag: ${response.data.reminders.length} items`);
+        reminders = response.data.reminders;
       } else if (Array.isArray(response.data)) {
-        // Fallback if backend returns array directly
-        return response.data.map(formatReminderForUI);
+        console.log(`[DEBUG] Response data is array: ${response.data.length} items`);
+        reminders = response.data;
       } else {
-        console.error('Unexpected response format:', response.data);
-        return [];
+        console.log('[DEBUG] No reminders found in getAllReminders, trying to find other formats...');
+        console.log('[DEBUG] Response keys:', Object.keys(response.data || {}));
+        reminders = [];
       }
+      
+      return reminders.map(formatReminderForUI);
     } catch (error) {
       console.error('Error fetching reminders:', error);
       throw error;
@@ -169,9 +192,9 @@ export const reminderService = {
   // Get reminders for a specific date
   getRemindersForDate: async (date: string): Promise<ReminderType[]> => {
     try {
-      console.log(`Getting reminders for date: ${date}`);
+      console.log(`[DEBUG] Getting reminders for date: ${date}`);
       const api = await createAuthAPI();
-      console.log('API instance created, sending request...');
+      console.log('[DEBUG] API instance created, sending request...');
       
       // Calculate days offset from today
       const today = new Date();
@@ -183,23 +206,42 @@ export const reminderService = {
       const timeDiff = targetDate.getTime() - today.getTime();
       const daysDiff = Math.round(timeDiff / (1000 * 3600 * 24));
       
-      console.log(`Days offset: ${daysDiff} (from ${today.toDateString()} to ${targetDate.toDateString()})`);
+      console.log(`[DEBUG] Days offset: ${daysDiff} (from ${today.toDateString()} to ${targetDate.toDateString()})`);
       
       const response = await api.get(`/reminder?days_offset=${daysDiff}`);
-      console.log('Response received:', response.status);
+      console.log('[DEBUG] Response received:', response.status);
+      console.log('[DEBUG] Response data:', JSON.stringify(response.data, null, 2));
       
-      // Backend returns {success, reminders, count, date} format
+      // Backend returns {success, reminders, count, date} format or just {reminders}
+      let reminders = [];
+      
       if (response.data && response.data.success && response.data.reminders) {
-        console.log(`Received ${response.data.reminders.length} reminders`);
-        return response.data.reminders.map(formatReminderForUI);
+        console.log(`[DEBUG] Found reminders in success format: ${response.data.reminders.length} items`);
+        reminders = response.data.reminders;
+      } else if (response.data && response.data.reminders && !response.data.success) {
+        console.log(`[DEBUG] Found reminders without success flag: ${response.data.reminders.length} items`);
+        reminders = response.data.reminders;
       } else if (Array.isArray(response.data)) {
-        // Fallback if backend returns array directly
-        console.log(`Received ${response.data.length} reminders`);
-        return response.data.map(formatReminderForUI);
+        console.log(`[DEBUG] Response data is array: ${response.data.length} items`);
+        reminders = response.data;
       } else {
-        console.error('Invalid response format:', response.data);
-        return [];
+        console.log('[DEBUG] No reminders found in response, trying to find other formats...');
+        console.log('[DEBUG] Response keys:', Object.keys(response.data || {}));
+        reminders = [];
       }
+      
+      console.log(`[DEBUG] Processing ${reminders.length} reminders`);
+      
+      const formattedReminders = reminders.map((reminder: any, index: number) => {
+        console.log(`[DEBUG] Processing reminder ${index}:`, reminder);
+        const formatted = formatReminderForUI(reminder);
+        console.log(`[DEBUG] Formatted reminder ${index}:`, formatted);
+        return formatted;
+      });
+      
+      console.log(`[DEBUG] Final formatted reminders:`, formattedReminders);
+      return formattedReminders;
+      
     } catch (error: any) {
       const errorInfo = {
         message: error.message,
@@ -207,7 +249,7 @@ export const reminderService = {
         data: error.response?.data,
         headers: error.response?.headers,
       };
-      console.error('Error fetching reminders for date:', JSON.stringify(errorInfo, null, 2));
+      console.error('[DEBUG] Error fetching reminders for date:', JSON.stringify(errorInfo, null, 2));
       throw error;
     }
   },
@@ -235,65 +277,152 @@ export const reminderService = {
     }
   },
   
-  // Create a new reminder using AI endpoint
+  // Create a new reminder using AI endpoint with structured text
   createReminder: async (reminder: ReminderData): Promise<ReminderCreateResponse> => {
     try {
       const api = await createAuthAPI();
       
-      // Parse the start_time and subtract 3 hours to compensate for the timezone difference
-      // This ensures that when the backend adds 3 hours, it will be the correct time
-      const startTime = new Date(reminder.start_time);
-      startTime.setHours(startTime.getHours() - 3);
-      
-      // Format time string in 12-hour format
-      const timeStr = startTime.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
-      
-      const dateStr = startTime.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-      
+      // Build a structured text that the AI endpoint can process reliably
       let reminderText = `Remind me to ${reminder.title}`;
+      
       if (reminder.start_time) {
-        reminderText += ` at ${timeStr}`;
-        // Check if it's not today
+        const startTime = new Date(reminder.start_time);
+        
+        // Format time in a clear format
+        const timeStr = startTime.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+        
+        // Check if it's today, tomorrow, or a specific date
         const today = new Date();
-        const reminderDate = startTime;
-        if (reminderDate.toDateString() !== today.toDateString()) {
+        today.setHours(0, 0, 0, 0);
+        
+        const reminderDate = new Date(startTime);
+        reminderDate.setHours(0, 0, 0, 0);
+        
+        const timeDiff = reminderDate.getTime() - today.getTime();
+        const daysDiff = Math.round(timeDiff / (1000 * 3600 * 24));
+        
+        reminderText += ` at ${timeStr}`;
+        
+        if (daysDiff === 0) {
+          reminderText += ` today`;
+        } else if (daysDiff === 1) {
+          reminderText += ` tomorrow`;
+        } else if (daysDiff > 1) {
+          const dateStr = startTime.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric'
+          });
           reminderText += ` on ${dateStr}`;
         }
       }
+
+      console.log('[DEBUG] Creating reminder with AI text:', reminderText);
       
       const response = await api.post('/ai/reminder', { text: reminderText });
       
-      if (response.data && response.data.success) {
+      console.log('[DEBUG] AI reminder response:', response.status, response.data);
+      
+      // Handle successful response
+      if (response.data && response.data.success !== false) {
         return {
-          message: response.data.message || 'Reminder created successfully',
-          reminder_id: response.data.reminder?.id || 'unknown'
+          message: response.data.response || response.data.message || 'Reminder created successfully',
+          reminder_id: response.data.reminder?.id || response.data.reminder_id || 'unknown'
         };
       } else {
-        throw new Error(response.data?.response || 'Failed to create reminder');
+        throw new Error(response.data?.response || response.data?.message || 'Failed to create reminder');
       }
-    } catch (error) {
-      console.error('Error creating reminder:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('[DEBUG] Error creating reminder:', error);
+      
+      // Provide more detailed error information
+      if (error.response) {
+        console.error('[DEBUG] Response error details:', {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+        
+        // Extract error message from response
+        const errorMessage = error.response.data?.response || 
+                           error.response.data?.message || 
+                           error.response.data?.error || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('Network error: Unable to reach server');
+      } else {
+        throw new Error(error.message || 'Unknown error occurred');
+      }
     }
   },
   
   // Update an existing reminder
   updateReminder: async (reminderId: string, reminder: Partial<ReminderData>): Promise<void> => {
     try {
+      console.log('[DEBUG] Updating reminder:', reminderId, reminder);
       const api = await createAuthAPI();
-      await api.put(`/reminder/${reminderId}`, reminder);
-    } catch (error) {
-      console.error('Error updating reminder:', error);
-      throw error;
+      
+      // Format the data to match what the backend expects
+      const updatePayload: any = {};
+      
+      if (reminder.title !== undefined) {
+        updatePayload.title = reminder.title;
+      }
+      
+      if (reminder.description !== undefined) {
+        updatePayload.description = reminder.description;
+      }
+      
+      if (reminder.start_time !== undefined) {
+        // Convert ISO string to format Python can handle
+        const startTime = new Date(reminder.start_time);
+        updatePayload.start_time = startTime.toISOString().replace('Z', '+00:00');
+      }
+      
+      if (reminder.end_time !== undefined) {
+        // Convert ISO string to format Python can handle
+        const endTime = new Date(reminder.end_time);
+        updatePayload.end_time = endTime.toISOString().replace('Z', '+00:00');
+      }
+      
+      if (reminder.completed !== undefined) {
+        updatePayload.completed = reminder.completed;
+      }
+      
+      // Note: recurrence is not handled by the backend PUT endpoint
+      // If recurrence needs to be updated, we might need to use a different approach
+      
+      console.log('[DEBUG] Update payload:', updatePayload);
+      
+      const response = await api.put(`/reminder/${reminderId}`, updatePayload);
+      
+      console.log('[DEBUG] Update response:', response.status, response.data);
+    } catch (error: any) {
+      console.error('[DEBUG] Error updating reminder:', error);
+      
+      // Provide more detailed error information
+      if (error.response) {
+        console.error('[DEBUG] Update error details:', {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+        
+        // Extract error message from response
+        const errorMessage = error.response.data?.error || 
+                           error.response.data?.message || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('Network error: Unable to reach server');
+      } else {
+        throw new Error(error.message || 'Unknown error occurred');
+      }
     }
   },
   
@@ -313,13 +442,54 @@ export const reminderService = {
   // Delete a reminder
   deleteReminder: async (reminderId: string): Promise<void> => {
     try {
-      console.log(`[DEBUG] Deleting reminder ${reminderId}`);
+      console.log(`[DEBUG] Deleting reminder with ID: ${reminderId}`);
       const api = await createAuthAPI();
+      
+      // Validate reminder ID format
+      if (!reminderId || reminderId.trim() === '') {
+        throw new Error('Invalid reminder ID: empty or undefined');
+      }
+      
+      console.log(`[DEBUG] Making DELETE request to: /reminder/${reminderId}`);
       const response = await api.delete(`/reminder/${reminderId}`);
-      console.log(`[DEBUG] Delete reminder response:`, response.status, response.data);
-    } catch (error) {
-      console.error('Error deleting reminder:', error);
-      throw error;
+      
+      console.log(`[DEBUG] Delete reminder response:`, {
+        status: response.status,
+        data: response.data,
+        headers: response.headers
+      });
+      
+      // Check if deletion was successful
+      if (response.status === 200 || response.status === 204) {
+        console.log(`[DEBUG] Reminder deleted successfully`);
+      } else {
+        throw new Error(`Unexpected response status: ${response.status}`);
+      }
+      
+    } catch (error: any) {
+      console.error('[DEBUG] Error deleting reminder:', error);
+      
+      // Provide more detailed error information
+      if (error.response) {
+        console.error('[DEBUG] Delete error details:', {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers,
+          url: error.response.config?.url
+        });
+        
+        // Extract error message from response
+        const errorMessage = error.response.data?.error || 
+                           error.response.data?.message || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        console.error('[DEBUG] Delete request error:', error.request);
+        throw new Error('Network error: Unable to reach server');
+      } else {
+        console.error('[DEBUG] Delete setup error:', error.message);
+        throw new Error(error.message || 'Unknown error occurred');
+      }
     }
   },
   

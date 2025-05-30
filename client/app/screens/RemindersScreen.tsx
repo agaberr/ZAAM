@@ -164,51 +164,27 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
     }
   };
   
-  // Delete reminder
-  const handleDeleteReminder = (id: string) => {
-    Alert.alert(
-      'Delete Reminder',
-      'Are you sure you want to delete this reminder?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await reminderService.deleteReminder(id);
-              
-              // Refresh reminders from server instead of just updating local state
-              await fetchReminders();
-              
-              // Refresh statistics after deletion
-              fetchStatistics();
-            } catch (error) {
-              console.error('Error deleting reminder:', error);
-              Alert.alert('Error', 'Failed to delete reminder');
-            }
-          }
-        }
-      ]
-    );
-  };
-  
   // Edit reminder
   const handleEditReminder = (reminder: ReminderType) => {
     try {
+      console.log('[DEBUG] Preparing reminder for edit:', reminder);
+      
       // Convert ReminderType to ReminderData for the form
       const reminderData: ReminderData = {
         _id: reminder.id,
         title: reminder.title,
         description: reminder.description,
         start_time: reminder.start_time, // Use the preserved ISO string
+        end_time: undefined, // We don't have end_time in the UI format, so leave undefined for now
         recurrence: reminder.recurring ? 'daily' : null, // Default to daily if recurring
       };
+      
+      console.log('[DEBUG] Prepared reminder data for form:', reminderData);
       
       setEditingReminder(reminderData);
       setFormVisible(true);
     } catch (error) {
-      console.error('Error preparing reminder for edit:', error);
+      console.error('[DEBUG] Error preparing reminder for edit:', error);
       Alert.alert('Error', 'Failed to load reminder for editing');
     }
   };
@@ -297,7 +273,17 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
         
         <TouchableOpacity 
           style={[styles.modernActionButton, styles.deleteAction]}
-          onPress={() => handleDeleteReminder(item.id)}
+          onPress={async () => {
+            console.log('[DEBUG] Delete button pressed for ID:', item.id);
+            try {
+              await reminderService.deleteReminder(item.id);
+              console.log('[DEBUG] Delete successful');
+              await fetchReminders();
+            } catch (error) {
+              console.error('[DEBUG] Delete failed:', error);
+              Alert.alert('Error', `Failed to delete reminder: ${error}`);
+            }
+          }}
           activeOpacity={0.7}
         >
           <Ionicons name="trash-outline" size={16} color="#EF4444" />
@@ -323,49 +309,13 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
             </View>
             
             <View style={styles.headerRight}>
-              <TouchableOpacity
+              <TouchableOpacity 
                 style={styles.addButton}
-                onPress={() => {
-                  setEditingReminder(undefined);
-                  setFormVisible(true);
-                }}
+                onPress={() => setFormVisible(true)}
                 activeOpacity={0.8}
               >
                 <Ionicons name="add" size={24} color="white" />
               </TouchableOpacity>
-              
-              <Menu
-                visible={menuVisible}
-                onDismiss={() => setMenuVisible(false)}
-                anchor={
-                  <TouchableOpacity
-                    style={styles.menuButton}
-                    onPress={() => setMenuVisible(true)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="ellipsis-vertical" size={20} color="white" />
-                  </TouchableOpacity>
-                }
-                contentStyle={styles.menuContent}
-              >
-                <Menu.Item 
-                  onPress={() => { 
-                    setMenuVisible(false);
-                    fetchReminders();
-                  }} 
-                  title="Refresh" 
-                  leadingIcon="refresh"
-                />
-                <Divider />
-                <Menu.Item 
-                  onPress={() => { 
-                    setMenuVisible(false);
-                    fetchStatistics();
-                  }} 
-                  title="Update Stats" 
-                  leadingIcon="chart-line"
-                />
-              </Menu>
             </View>
           </View>
         </View>
@@ -757,20 +707,6 @@ const styles = StyleSheet.create({
     marginRight: 10,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  menuButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  menuContent: {
-    marginTop: 60,
-    borderRadius: 12,
   },
   scrollView: {
     flex: 1,

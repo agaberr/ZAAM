@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Platform, KeyboardAvoidingView, TouchableOpacity, Dimensions } from 'react-native';
-import { Text, TextInput, Button, Switch, Modal, Portal, RadioButton, Chip, HelperText } from 'react-native-paper';
+import { Text, TextInput, Button, Switch, Modal, Portal, RadioButton, Chip, HelperText, Card } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { format } from 'date-fns';
+import { format, addDays, startOfToday, addHours } from 'date-fns';
 import { reminderService, ReminderData } from '../services/reminderService';
 
 const { width } = Dimensions.get('window');
@@ -14,6 +13,23 @@ interface ReminderFormProps {
   onSuccess: () => void;
   editReminder?: ReminderData;
 }
+
+// Quick time presets for easier selection
+const TIME_PRESETS = [
+  { label: '9:00 AM', hour: 9, minute: 0 },
+  { label: '12:00 PM', hour: 12, minute: 0 },
+  { label: '2:00 PM', hour: 14, minute: 0 },
+  { label: '6:00 PM', hour: 18, minute: 0 },
+  { label: '8:00 PM', hour: 20, minute: 0 },
+];
+
+// Quick date presets
+const DATE_PRESETS = [
+  { label: 'Today', offset: 0 },
+  { label: 'Tomorrow', offset: 1 },
+  { label: 'In 2 days', offset: 2 },
+  { label: 'Next week', offset: 7 },
+];
 
 const ReminderForm: React.FC<ReminderFormProps> = ({
   visible,
@@ -28,7 +44,7 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
   const [endDate, setEndDate] = useState(new Date(new Date().getTime() + 60 * 60 * 1000)); // +1 hour
   const [recurrence, setRecurrence] = useState<string | null>(null);
   const [recurring, setRecurring] = useState(false);
-  const [withEndDate, setWithEndDate] = useState(true);
+  const [withEndDate, setWithEndDate] = useState(false); // Changed default to false for simpler UX
   const [showRecurrenceOptions, setShowRecurrenceOptions] = useState(false);
   
   // Date pickers
@@ -40,7 +56,9 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  const [selectedTimePreset, setSelectedTimePreset] = useState<string | null>(null);
+  const [selectedDatePreset, setSelectedDatePreset] = useState<string | null>(null);
+
   // Load edit data if provided
   useEffect(() => {
     if (editReminder) {
@@ -65,76 +83,45 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
         setRecurring(false);
         setRecurrence(null);
       }
+    } else {
+      // Reset form for new reminder
+      resetForm();
     }
-  }, [editReminder]);
-  
-  // Handle date/time selection
-  const onStartDateChange = (event: any, selectedDate?: Date) => {
-    setShowStartDatePicker(false);
-    if (selectedDate) {
-      const newDate = new Date(startDate);
-      newDate.setFullYear(selectedDate.getFullYear());
-      newDate.setMonth(selectedDate.getMonth());
-      newDate.setDate(selectedDate.getDate());
-      setStartDate(newDate);
-      
-      // Update end date to be at least 1 hour after start date
-      const minEndDate = new Date(newDate.getTime() + 60 * 60 * 1000);
-      if (endDate < minEndDate) {
-        setEndDate(minEndDate);
-      }
-    }
-  };
-  
-  const onStartTimeChange = (event: any, selectedTime?: Date) => {
-    setShowStartTimePicker(false);
-    if (selectedTime) {
-      const newDate = new Date(startDate);
-      newDate.setHours(selectedTime.getHours());
-      newDate.setMinutes(selectedTime.getMinutes());
-      setStartDate(newDate);
-      
-      // Update end date to be at least 1 hour after start date
-      const minEndDate = new Date(newDate.getTime() + 60 * 60 * 1000);
-      if (endDate < minEndDate) {
-        setEndDate(minEndDate);
-      }
+  }, [editReminder, visible]);
+
+  // Quick date selection
+  const handleDatePresetSelect = (preset: { label: string; offset: number }) => {
+    const newDate = addDays(startOfToday(), preset.offset);
+    const updatedStartDate = new Date(startDate);
+    updatedStartDate.setFullYear(newDate.getFullYear());
+    updatedStartDate.setMonth(newDate.getMonth());
+    updatedStartDate.setDate(newDate.getDate());
+    
+    setStartDate(updatedStartDate);
+    setSelectedDatePreset(preset.label);
+    
+    // Update end date accordingly
+    const minEndDate = new Date(updatedStartDate.getTime() + 60 * 60 * 1000);
+    if (withEndDate && endDate < minEndDate) {
+      setEndDate(minEndDate);
     }
   };
-  
-  const onEndDateChange = (event: any, selectedDate?: Date) => {
-    setShowEndDatePicker(false);
-    if (selectedDate) {
-      const newDate = new Date(endDate);
-      newDate.setFullYear(selectedDate.getFullYear());
-      newDate.setMonth(selectedDate.getMonth());
-      newDate.setDate(selectedDate.getDate());
-      
-      // Ensure end date is not before start date
-      if (newDate >= startDate) {
-        setEndDate(newDate);
-      } else {
-        setEndDate(new Date(startDate.getTime() + 60 * 60 * 1000));
-      }
+
+  // Quick time selection
+  const handleTimePresetSelect = (preset: { label: string; hour: number; minute: number }) => {
+    const newStartDate = new Date(startDate);
+    newStartDate.setHours(preset.hour);
+    newStartDate.setMinutes(preset.minute);
+    setStartDate(newStartDate);
+    setSelectedTimePreset(preset.label);
+    
+    // Update end date to be 1 hour later
+    if (withEndDate) {
+      const newEndDate = addHours(newStartDate, 1);
+      setEndDate(newEndDate);
     }
   };
-  
-  const onEndTimeChange = (event: any, selectedTime?: Date) => {
-    setShowEndTimePicker(false);
-    if (selectedTime) {
-      const newDate = new Date(endDate);
-      newDate.setHours(selectedTime.getHours());
-      newDate.setMinutes(selectedTime.getMinutes());
-      
-      // Ensure end time is not before start time on the same day
-      if (newDate.toDateString() === startDate.toDateString() && newDate <= startDate) {
-        setEndDate(new Date(startDate.getTime() + 60 * 60 * 1000));
-      } else {
-        setEndDate(newDate);
-      }
-    }
-  };
-  
+
   // Reset form
   const resetForm = () => {
     setTitle('');
@@ -143,8 +130,10 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
     setEndDate(new Date(new Date().getTime() + 60 * 60 * 1000));
     setRecurrence(null);
     setRecurring(false);
-    setWithEndDate(true);
+    setWithEndDate(false);
     setError('');
+    setSelectedTimePreset(null);
+    setSelectedDatePreset(null);
   };
   
   // Submit form
@@ -169,26 +158,40 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
         recurrence: recurring ? (recurrence as any) : null,
       };
       
+      console.log('[DEBUG] Form submitting reminder:', reminderData);
+      console.log('[DEBUG] Start date object:', startDate);
+      console.log('[DEBUG] Start time ISO:', startDate.toISOString());
+      if (withEndDate) {
+        console.log('[DEBUG] End date object:', endDate);
+        console.log('[DEBUG] End time ISO:', endDate.toISOString());
+      }
+      
       if (editReminder?._id) {
         // Update existing reminder
+        console.log('[DEBUG] Updating existing reminder:', editReminder._id);
         await reminderService.updateReminder(editReminder._id, reminderData);
+        console.log('[DEBUG] Reminder updated successfully');
       } else {
         // Create new reminder
-        await reminderService.createReminder(reminderData);
+        console.log('[DEBUG] Creating new reminder');
+        const result = await reminderService.createReminder(reminderData);
+        console.log('[DEBUG] Reminder created successfully:', result);
       }
       
       // Reset and close
+      console.log('[DEBUG] Resetting form and calling success callback');
       resetForm();
       setLoading(false);
       onSuccess();
       onDismiss();
+      console.log('[DEBUG] Form submission completed');
     } catch (error) {
-      console.error('Error saving reminder:', error);
+      console.error('[DEBUG] Error saving reminder:', error);
       setError('Failed to save reminder. Please try again.');
       setLoading(false);
     }
   };
-  
+
   return (
     <Portal>
       <Modal
@@ -198,272 +201,527 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.container}
+          style={styles.keyboardAvoidingView}
         >
-          {/* Modern Header */}
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.closeButton} onPress={onDismiss}>
-              <Ionicons name="close" size={24} color="white" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>
-              {editReminder ? 'Edit Reminder' : 'New Reminder'}
-            </Text>
-            <View style={styles.headerSpacer} />
-          </View>
+          <ScrollView 
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.modalTitle}>
+                {editReminder ? 'Edit Reminder' : 'Create New Reminder'}
+              </Text>
+              <TouchableOpacity onPress={onDismiss} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
 
-          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-            {error ? (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={20} color="#EF4444" />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-            
+            {/* Error message */}
+            {error && (
+              <Card style={styles.errorCard}>
+                <Card.Content>
+                  <Text style={styles.errorText}>{error}</Text>
+                </Card.Content>
+              </Card>
+            )}
+
             {/* Title Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Title</Text>
+            <View style={styles.inputSection}>
+              <Text style={styles.sectionLabel}>What would you like to be reminded about?</Text>
               <TextInput
+                mode="outlined"
                 value={title}
                 onChangeText={setTitle}
-                style={styles.input}
-                mode="outlined"
-                placeholder="Enter reminder title"
-                outlineColor="#E2E8F0"
-                activeOutlineColor="#6366F1"
-                theme={{
-                  colors: {
-                    primary: '#6366F1',
-                    outline: '#E2E8F0',
-                  }
-                }}
+                placeholder="e.g., Take morning medication, Doctor appointment"
+                style={styles.titleInput}
+                outlineColor="#E1E5E9"
+                activeOutlineColor="#4285F4"
               />
             </View>
-            
+
+            {/* Date Selection */}
+            <View style={styles.inputSection}>
+              <Text style={styles.sectionLabel}>When?</Text>
+              
+              {/* Quick Date Presets */}
+              <View style={styles.presetsContainer}>
+                {DATE_PRESETS.map((preset) => (
+                  <TouchableOpacity
+                    key={preset.label}
+                    style={[
+                      styles.presetChip,
+                      selectedDatePreset === preset.label && styles.selectedPresetChip
+                    ]}
+                    onPress={() => handleDatePresetSelect(preset)}
+                  >
+                    <Text style={[
+                      styles.presetChipText,
+                      selectedDatePreset === preset.label && styles.selectedPresetChipText
+                    ]}>
+                      {preset.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Custom Date Picker */}
+              <TouchableOpacity 
+                style={styles.dropdownButton}
+                onPress={() => setShowStartDatePicker(true)}
+              >
+                <View style={styles.dropdownContent}>
+                  <Ionicons name="calendar-outline" size={24} color="#4285F4" />
+                  <View style={styles.dropdownTextContainer}>
+                    <Text style={styles.dropdownLabel}>Select Date</Text>
+                    <Text style={styles.dropdownValue}>
+                      {format(startDate, 'EEEE, MMMM d, yyyy')}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={20} color="#666" />
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Time Selection */}
+            <View style={styles.inputSection}>
+              <Text style={styles.sectionLabel}>What time?</Text>
+              
+              {/* Quick Time Presets */}
+              <View style={styles.presetsContainer}>
+                {TIME_PRESETS.map((preset) => (
+                  <TouchableOpacity
+                    key={preset.label}
+                    style={[
+                      styles.presetChip,
+                      selectedTimePreset === preset.label && styles.selectedPresetChip
+                    ]}
+                    onPress={() => handleTimePresetSelect(preset)}
+                  >
+                    <Text style={[
+                      styles.presetChipText,
+                      selectedTimePreset === preset.label && styles.selectedPresetChipText
+                    ]}>
+                      {preset.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Custom Time Picker */}
+              <TouchableOpacity 
+                style={styles.dropdownButton}
+                onPress={() => setShowStartTimePicker(true)}
+              >
+                <View style={styles.dropdownContent}>
+                  <Ionicons name="time-outline" size={24} color="#4285F4" />
+                  <View style={styles.dropdownTextContainer}>
+                    <Text style={styles.dropdownLabel}>Select Time</Text>
+                    <Text style={styles.dropdownValue}>
+                      {format(startDate, 'h:mm a')}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={20} color="#666" />
+                </View>
+              </TouchableOpacity>
+            </View>
+
             {/* Description Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Description (Optional)</Text>
+            <View style={styles.inputSection}>
+              <Text style={styles.sectionLabel}>Additional notes (optional)</Text>
               <TextInput
+                mode="outlined"
                 value={description}
                 onChangeText={setDescription}
-                style={[styles.input, styles.textArea]}
-                mode="outlined"
-                placeholder="Add description or notes"
+                placeholder="Add any additional details..."
                 multiline
                 numberOfLines={3}
-                outlineColor="#E2E8F0"
-                activeOutlineColor="#6366F1"
-                theme={{
-                  colors: {
-                    primary: '#6366F1',
-                    outline: '#E2E8F0',
-                  }
-                }}
+                style={styles.descriptionInput}
+                outlineColor="#E1E5E9"
+                activeOutlineColor="#4285F4"
               />
             </View>
-            
-            {/* Date & Time Section */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>
-                <Ionicons name="calendar" size={18} color="#6366F1" /> Date & Time
-              </Text>
-              
-              <Text style={styles.subLabel}>Start</Text>
-              <View style={styles.dateTimeRow}>
-                <TouchableOpacity
-                  style={styles.dateTimeButton}
-                  onPress={() => setShowStartDatePicker(true)}
-                >
-                  <Ionicons name="calendar-outline" size={18} color="#64748B" />
-                  <Text style={styles.dateTimeText}>
-                    {format(startDate, 'MMM d, yyyy')}
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={styles.dateTimeButton}
-                  onPress={() => setShowStartTimePicker(true)}
-                >
-                  <Ionicons name="time-outline" size={18} color="#64748B" />
-                  <Text style={styles.dateTimeText}>
-                    {format(startDate, 'h:mm a')}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              
-              {/* End Date Toggle */}
-              <View style={styles.toggleContainer}>
-                <View style={styles.toggleLeft}>
-                  <Ionicons name="flag-outline" size={18} color="#64748B" />
-                  <Text style={styles.toggleLabel}>Include end time</Text>
-                </View>
+
+            {/* End Date Toggle */}
+            <View style={styles.switchSection}>
+              <View style={styles.switchHeader}>
+                <Text style={styles.switchLabel}>Set end time</Text>
                 <Switch
                   value={withEndDate}
                   onValueChange={setWithEndDate}
-                  thumbColor={withEndDate ? '#6366F1' : '#F1F5F9'}
-                  trackColor={{ false: '#E2E8F0', true: '#C7D2FE' }}
+                  color="#4285F4"
                 />
               </View>
-              
               {withEndDate && (
-                <>
-                  <Text style={styles.subLabel}>End</Text>
-                  <View style={styles.dateTimeRow}>
-                    <TouchableOpacity
-                      style={styles.dateTimeButton}
-                      onPress={() => setShowEndDatePicker(true)}
-                    >
-                      <Ionicons name="calendar-outline" size={18} color="#64748B" />
-                      <Text style={styles.dateTimeText}>
-                        {format(endDate, 'MMM d, yyyy')}
-                      </Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      style={styles.dateTimeButton}
-                      onPress={() => setShowEndTimePicker(true)}
-                    >
-                      <Ionicons name="time-outline" size={18} color="#64748B" />
-                      <Text style={styles.dateTimeText}>
-                        {format(endDate, 'h:mm a')}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
+                <View style={styles.endDateSection}>
+                  <TouchableOpacity 
+                    style={styles.dropdownButton}
+                    onPress={() => setShowEndDatePicker(true)}
+                  >
+                    <View style={styles.dropdownContent}>
+                      <Ionicons name="calendar-outline" size={24} color="#4285F4" />
+                      <View style={styles.dropdownTextContainer}>
+                        <Text style={styles.dropdownLabel}>End Date</Text>
+                        <Text style={styles.dropdownValue}>
+                          {format(endDate, 'MMM d, yyyy')}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-down" size={20} color="#666" />
+                    </View>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.dropdownButton}
+                    onPress={() => setShowEndTimePicker(true)}
+                  >
+                    <View style={styles.dropdownContent}>
+                      <Ionicons name="time-outline" size={24} color="#4285F4" />
+                      <View style={styles.dropdownTextContainer}>
+                        <Text style={styles.dropdownLabel}>End Time</Text>
+                        <Text style={styles.dropdownValue}>
+                          {format(endDate, 'h:mm a')}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-down" size={20} color="#666" />
+                    </View>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
-            
-            {/* Recurrence Section */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>
-                <Ionicons name="repeat" size={18} color="#6366F1" /> Recurrence
-              </Text>
-              
-              <View style={styles.toggleContainer}>
-                <View style={styles.toggleLeft}>
-                  <Ionicons name="refresh-outline" size={18} color="#64748B" />
-                  <Text style={styles.toggleLabel}>Recurring reminder</Text>
-                </View>
+
+            {/* Recurring Reminder Toggle */}
+            <View style={styles.switchSection}>
+              <View style={styles.switchHeader}>
+                <Text style={styles.switchLabel}>Repeat reminder</Text>
                 <Switch
                   value={recurring}
-                  onValueChange={val => {
-                    setRecurring(val);
-                    if (val) {
-                      setShowRecurrenceOptions(true);
-                    } else {
-                      setRecurrence(null);
-                    }
+                  onValueChange={(value) => {
+                    setRecurring(value);
+                    if (value) setShowRecurrenceOptions(true);
+                    else setShowRecurrenceOptions(false);
                   }}
-                  thumbColor={recurring ? '#6366F1' : '#F1F5F9'}
-                  trackColor={{ false: '#E2E8F0', true: '#C7D2FE' }}
+                  color="#4285F4"
                 />
               </View>
               
               {recurring && (
-                <View style={styles.recurrenceOptions}>
+                <View style={styles.recurrenceSection}>
+                  <Text style={styles.recurrenceLabel}>Repeat frequency:</Text>
                   <RadioButton.Group
-                    onValueChange={value => setRecurrence(value)}
-                    value={recurrence || ''}
+                    onValueChange={setRecurrence}
+                    value={recurrence || 'daily'}
                   >
                     {[
-                      { value: 'daily', label: 'Daily', icon: 'sunny' },
-                      { value: 'weekly', label: 'Weekly', icon: 'calendar' },
-                      { value: 'monthly', label: 'Monthly', icon: 'calendar-outline' },
-                      { value: 'yearly', label: 'Yearly', icon: 'calendar-clear' }
+                      { value: 'daily', label: 'Daily' },
+                      { value: 'weekly', label: 'Weekly' },
+                      { value: 'monthly', label: 'Monthly' }
                     ].map((option) => (
                       <TouchableOpacity
                         key={option.value}
-                        style={[
-                          styles.recurrenceOption,
-                          recurrence === option.value && styles.recurrenceOptionSelected
-                        ]}
+                        style={styles.radioOption}
                         onPress={() => setRecurrence(option.value)}
                       >
-                        <Ionicons 
-                          name={option.icon as any} 
-                          size={20} 
-                          color={recurrence === option.value ? '#6366F1' : '#64748B'} 
-                        />
-                        <Text style={[
-                          styles.recurrenceOptionText,
-                          recurrence === option.value && styles.recurrenceOptionTextSelected
-                        ]}>
-                          {option.label}
-                        </Text>
-                        <RadioButton value={option.value} />
+                        <RadioButton value={option.value} color="#4285F4" />
+                        <Text style={styles.radioLabel}>{option.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </RadioButton.Group>
                 </View>
               )}
             </View>
+
+            {/* Action Buttons */}
+            <View style={styles.actionButtons}>
+              <Button
+                mode="outlined"
+                onPress={onDismiss}
+                style={styles.cancelButton}
+                labelStyle={styles.cancelButtonText}
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                onPress={handleSubmit}
+                style={styles.saveButton}
+                labelStyle={styles.saveButtonText}
+                loading={loading}
+                disabled={loading || !title.trim()}
+              >
+                {editReminder ? 'Update' : 'Create'} Reminder
+              </Button>
+            </View>
           </ScrollView>
 
-          {/* Action Buttons */}
-          <View style={styles.actionContainer}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={onDismiss}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.submitButton,
-                (!title.trim() || loading) && styles.submitButtonDisabled
-              ]}
-              onPress={handleSubmit}
-              disabled={!title.trim() || loading}
-            >
-              {loading ? (
-                <Text style={styles.submitButtonText}>Saving...</Text>
-              ) : (
-                <>
-                  <Ionicons name="checkmark" size={20} color="white" />
-                  <Text style={styles.submitButtonText}>
-                    {editReminder ? 'Update' : 'Create'}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Date & Time Pickers */}
+          {/* Date/Time Pickers */}
           {showStartDatePicker && (
-            <DateTimePicker
-              value={startDate}
-              mode="date"
-              display="default"
-              onChange={onStartDateChange}
-            />
+            <Modal
+              visible={showStartDatePicker}
+              onDismiss={() => setShowStartDatePicker(false)}
+              contentContainerStyle={styles.datePickerModal}
+            >
+              <View style={styles.datePickerContainer}>
+                <View style={styles.datePickerHeader}>
+                  <Text style={styles.datePickerTitle}>Select Date</Text>
+                  <TouchableOpacity 
+                    onPress={() => setShowStartDatePicker(false)}
+                    style={styles.closeDatePicker}
+                  >
+                    <Ionicons name="close" size={24} color="#666" />
+                  </TouchableOpacity>
+                </View>
+                
+                {Platform.OS === 'web' ? (
+                  <input
+                    type="date"
+                    value={format(startDate, 'yyyy-MM-dd')}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const newDate = new Date(startDate);
+                        const selectedDate = new Date(e.target.value);
+                        newDate.setFullYear(selectedDate.getFullYear());
+                        newDate.setMonth(selectedDate.getMonth());
+                        newDate.setDate(selectedDate.getDate());
+                        setStartDate(newDate);
+                        setSelectedDatePreset(null);
+                        
+                        // Update end date to be at least 1 hour after start date
+                        const minEndDate = new Date(newDate.getTime() + 60 * 60 * 1000);
+                        if (endDate < minEndDate) {
+                          setEndDate(minEndDate);
+                        }
+                      }
+                      setShowStartDatePicker(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: 16,
+                      fontSize: 16,
+                      borderRadius: 8,
+                      border: '1px solid #E2E8F0',
+                      backgroundColor: '#F8FAFC'
+                    }}
+                  />
+                ) : (
+                  <TextInput
+                    value={format(startDate, 'yyyy-MM-dd')}
+                    onChangeText={(text) => {
+                      const newDate = new Date(text);
+                      if (!isNaN(newDate.getTime())) {
+                        setStartDate(newDate);
+                        setSelectedDatePreset(null);
+                      }
+                      setShowStartDatePicker(false);
+                    }}
+                    placeholder="YYYY-MM-DD"
+                    style={styles.datePickerInput}
+                  />
+                )}
+              </View>
+            </Modal>
           )}
           
           {showStartTimePicker && (
-            <DateTimePicker
-              value={startDate}
-              mode="time"
-              display="default"
-              onChange={onStartTimeChange}
-            />
+            <Modal
+              visible={showStartTimePicker}
+              onDismiss={() => setShowStartTimePicker(false)}
+              contentContainerStyle={styles.datePickerModal}
+            >
+              <View style={styles.datePickerContainer}>
+                <View style={styles.datePickerHeader}>
+                  <Text style={styles.datePickerTitle}>Select Time</Text>
+                  <TouchableOpacity 
+                    onPress={() => setShowStartTimePicker(false)}
+                    style={styles.closeDatePicker}
+                  >
+                    <Ionicons name="close" size={24} color="#666" />
+                  </TouchableOpacity>
+                </View>
+                
+                {Platform.OS === 'web' ? (
+                  <input
+                    type="time"
+                    value={format(startDate, 'HH:mm')}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const [hours, minutes] = e.target.value.split(':');
+                        const newDate = new Date(startDate);
+                        newDate.setHours(parseInt(hours));
+                        newDate.setMinutes(parseInt(minutes));
+                        setStartDate(newDate);
+                        setSelectedTimePreset(null);
+                        
+                        // Update end date to be at least 1 hour after start date
+                        const minEndDate = new Date(newDate.getTime() + 60 * 60 * 1000);
+                        if (endDate < minEndDate) {
+                          setEndDate(minEndDate);
+                        }
+                      }
+                      setShowStartTimePicker(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: 16,
+                      fontSize: 16,
+                      borderRadius: 8,
+                      border: '1px solid #E2E8F0',
+                      backgroundColor: '#F8FAFC'
+                    }}
+                  />
+                ) : (
+                  <TextInput
+                    value={format(startDate, 'HH:mm')}
+                    onChangeText={(text) => {
+                      const [hours, minutes] = text.split(':');
+                      if (hours && minutes) {
+                        const newDate = new Date(startDate);
+                        newDate.setHours(parseInt(hours));
+                        newDate.setMinutes(parseInt(minutes));
+                        setStartDate(newDate);
+                        setSelectedTimePreset(null);
+                      }
+                      setShowStartTimePicker(false);
+                    }}
+                    placeholder="HH:MM"
+                    style={styles.datePickerInput}
+                  />
+                )}
+              </View>
+            </Modal>
           )}
           
-          {showEndDatePicker && (
-            <DateTimePicker
-              value={endDate}
-              mode="date"
-              display="default"
-              onChange={onEndDateChange}
-              minimumDate={startDate}
-            />
+          {showEndDatePicker && withEndDate && (
+            <Modal
+              visible={showEndDatePicker}
+              onDismiss={() => setShowEndDatePicker(false)}
+              contentContainerStyle={styles.datePickerModal}
+            >
+              <View style={styles.datePickerContainer}>
+                <View style={styles.datePickerHeader}>
+                  <Text style={styles.datePickerTitle}>Select End Date</Text>
+                  <TouchableOpacity 
+                    onPress={() => setShowEndDatePicker(false)}
+                    style={styles.closeDatePicker}
+                  >
+                    <Ionicons name="close" size={24} color="#666" />
+                  </TouchableOpacity>
+                </View>
+                
+                {Platform.OS === 'web' ? (
+                  <input
+                    type="date"
+                    value={format(endDate, 'yyyy-MM-dd')}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const newDate = new Date(endDate);
+                        const selectedDate = new Date(e.target.value);
+                        newDate.setFullYear(selectedDate.getFullYear());
+                        newDate.setMonth(selectedDate.getMonth());
+                        newDate.setDate(selectedDate.getDate());
+                        
+                        // Ensure end date is not before start date
+                        if (newDate >= startDate) {
+                          setEndDate(newDate);
+                        } else {
+                          setEndDate(new Date(startDate.getTime() + 60 * 60 * 1000));
+                        }
+                      }
+                      setShowEndDatePicker(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: 16,
+                      fontSize: 16,
+                      borderRadius: 8,
+                      border: '1px solid #E2E8F0',
+                      backgroundColor: '#F8FAFC'
+                    }}
+                  />
+                ) : (
+                  <TextInput
+                    value={format(endDate, 'yyyy-MM-dd')}
+                    onChangeText={(text) => {
+                      const newDate = new Date(text);
+                      if (!isNaN(newDate.getTime()) && newDate >= startDate) {
+                        setEndDate(newDate);
+                      }
+                      setShowEndDatePicker(false);
+                    }}
+                    placeholder="YYYY-MM-DD"
+                    style={styles.datePickerInput}
+                  />
+                )}
+              </View>
+            </Modal>
           )}
           
-          {showEndTimePicker && (
-            <DateTimePicker
-              value={endDate}
-              mode="time"
-              display="default"
-              onChange={onEndTimeChange}
-            />
+          {showEndTimePicker && withEndDate && (
+            <Modal
+              visible={showEndTimePicker}
+              onDismiss={() => setShowEndTimePicker(false)}
+              contentContainerStyle={styles.datePickerModal}
+            >
+              <View style={styles.datePickerContainer}>
+                <View style={styles.datePickerHeader}>
+                  <Text style={styles.datePickerTitle}>Select End Time</Text>
+                  <TouchableOpacity 
+                    onPress={() => setShowEndTimePicker(false)}
+                    style={styles.closeDatePicker}
+                  >
+                    <Ionicons name="close" size={24} color="#666" />
+                  </TouchableOpacity>
+                </View>
+                
+                {Platform.OS === 'web' ? (
+                  <input
+                    type="time"
+                    value={format(endDate, 'HH:mm')}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const [hours, minutes] = e.target.value.split(':');
+                        const newDate = new Date(endDate);
+                        newDate.setHours(parseInt(hours));
+                        newDate.setMinutes(parseInt(minutes));
+                        
+                        // Ensure end time is not before start time on the same day
+                        if (newDate.toDateString() === startDate.toDateString() && newDate <= startDate) {
+                          setEndDate(new Date(startDate.getTime() + 60 * 60 * 1000));
+                        } else {
+                          setEndDate(newDate);
+                        }
+                      }
+                      setShowEndTimePicker(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: 16,
+                      fontSize: 16,
+                      borderRadius: 8,
+                      border: '1px solid #E2E8F0',
+                      backgroundColor: '#F8FAFC'
+                    }}
+                  />
+                ) : (
+                  <TextInput
+                    value={format(endDate, 'HH:mm')}
+                    onChangeText={(text) => {
+                      const [hours, minutes] = text.split(':');
+                      if (hours && minutes) {
+                        const newDate = new Date(endDate);
+                        newDate.setHours(parseInt(hours));
+                        newDate.setMinutes(parseInt(minutes));
+                        setEndDate(newDate);
+                      }
+                      setShowEndTimePicker(false);
+                    }}
+                    placeholder="HH:MM"
+                    style={styles.datePickerInput}
+                  />
+                )}
+              </View>
+            </Modal>
           )}
         </KeyboardAvoidingView>
       </Modal>
@@ -473,92 +731,132 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
 
 const styles = StyleSheet.create({
   modalContainer: {
+    flex: 1,
     backgroundColor: 'white',
-    margin: 16,
-    borderRadius: 24,
-    maxHeight: '90%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: 60,
     overflow: 'hidden',
   },
-  container: {
+  keyboardAvoidingView: {
     flex: 1,
-  },
-  header: {
-    backgroundColor: '#6366F1',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingTop: 20,
-  },
-  closeButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'white',
-    flex: 1,
-    textAlign: 'center',
-    marginRight: 44, // Account for close button width
-  },
-  headerSpacer: {
-    width: 44, // Same width as close button for center alignment
   },
   scrollView: {
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 24,
   },
-  errorContainer: {
+  header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    flex: 1,
+  },
+  closeButton: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 20,
+    padding: 8,
+    marginLeft: 12,
+  },
+  errorCard: {
     backgroundColor: '#FEF2F2',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     borderRadius: 12,
     marginBottom: 20,
     borderWidth: 1,
     borderColor: '#FECACA',
   },
   errorText: {
+    color: '#DC2626',
     fontSize: 14,
-    color: '#EF4444',
-    marginLeft: 8,
     fontWeight: '500',
-    flex: 1,
   },
-  inputContainer: {
+  inputSection: {
     marginBottom: 20,
   },
-  inputLabel: {
+  sectionLabel: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  input: {
+  titleInput: {
     backgroundColor: '#F8FAFC',
     borderRadius: 12,
     fontSize: 16,
   },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
+  presetsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
   },
-  sectionContainer: {
+  presetChip: {
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  selectedPresetChip: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#4285F4',
+    borderWidth: 2,
+  },
+  presetChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  selectedPresetChipText: {
+    color: '#4285F4',
+    fontWeight: '600',
+  },
+  dropdownButton: {
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  dropdownContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  dropdownTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  dropdownLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748B',
+    marginBottom: 2,
+  },
+  dropdownValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  switchSection: {
     backgroundColor: 'white',
     borderRadius: 16,
     padding: 20,
@@ -574,162 +872,112 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F1F5F9',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  subLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  dateTimeRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  dateTimeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  dateTimeText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginLeft: 8,
-  },
-  toggleContainer: {
+  switchHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginVertical: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-  toggleLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  toggleLabel: {
+  switchLabel: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
-    marginLeft: 8,
+    fontWeight: '600',
+    color: '#1F2937',
   },
-  recurrenceOptions: {
-    marginTop: 12,
+  endDateSection: {
+    gap: 12,
+    marginTop: 16,
   },
-  recurrenceOption: {
+  recurrenceSection: {
+    marginTop: 16,
+  },
+  recurrenceLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  radioOption: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 12,
-    marginBottom: 8,
     backgroundColor: '#F8FAFC',
+    marginVertical: 4,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  recurrenceOptionSelected: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#6366F1',
-    borderWidth: 2,
-  },
-  recurrenceOptionText: {
+  radioLabel: {
     fontSize: 16,
     fontWeight: '500',
     color: '#374151',
     marginLeft: 12,
     flex: 1,
   },
-  recurrenceOptionTextSelected: {
-    color: '#6366F1',
-    fontWeight: '600',
-  },
-  actionContainer: {
+  actionButtons: {
     flexDirection: 'row',
     gap: 12,
-    paddingHorizontal: 20,
     paddingVertical: 20,
-    backgroundColor: '#F8FAFC',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    paddingBottom: 40,
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: 16,
-    backgroundColor: 'white',
     borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 2,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#64748B',
   },
-  submitButton: {
+  saveButton: {
     flex: 1,
-    flexDirection: 'row',
-    paddingVertical: 16,
-    backgroundColor: '#6366F1',
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#6366F1',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-    gap: 8,
+    backgroundColor: '#4285F4',
   },
-  submitButtonDisabled: {
-    backgroundColor: '#CBD5E1',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  submitButtonText: {
+  saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: 'white',
+  },
+  descriptionInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    fontSize: 16,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  datePickerModal: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  datePickerContainer: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: 60,
+    overflow: 'hidden',
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+  },
+  datePickerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  closeDatePicker: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 20,
+    padding: 8,
+  },
+  datePickerInput: {
+    flex: 1,
+    padding: 16,
   },
 });
 
