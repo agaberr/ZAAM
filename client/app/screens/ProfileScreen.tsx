@@ -238,11 +238,23 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
           text: "Log Out", 
           onPress: async () => {
             try {
+              console.log("Starting logout process...");
+              
+              // Show loading state if needed
+              setIsSaving(true);
+              
               await signOut();
-              console.log("User logged out successfully");
+              console.log("User logged out successfully - signOut function completed");
+              
+              // The navigation should be handled by the AuthContext
+              // but let's add a fallback just in case
+              
             } catch (error) {
               console.error("Logout error:", error);
+              console.error("Error details:", error instanceof Error ? error.message : String(error));
               Alert.alert("Error", "Failed to log out. Please try again.");
+            } finally {
+              setIsSaving(false);
             }
           },
           style: "destructive"
@@ -833,14 +845,21 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
         >
           <View style={styles.accordionContent}>
             <TouchableOpacity 
-              style={styles.accountOption}
+              style={[styles.accountOption, isSaving && styles.disabledButton]}
               onPress={handleLogout}
+              disabled={isSaving}
             >
               <View style={styles.accountOptionInfo}>
                 <Ionicons name="log-out" size={24} color="#FF3B30" style={styles.accountOptionIcon} />
-                <Text style={[styles.accountOptionLabel, styles.logoutText]}>Log Out</Text>
+                <Text style={[styles.accountOptionLabel, styles.logoutText]}>
+                  {isSaving ? "Logging Out..." : "Log Out"}
+                </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#FF3B30" />
+              ) : (
+                <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
+              )}
             </TouchableOpacity>
           </View>
         </List.Accordion>
@@ -1512,5 +1531,8 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     borderRadius: 12,
+  },
+  disabledButton: {
+    backgroundColor: '#E5E7EB',
   },
 }); 

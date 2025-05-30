@@ -150,15 +150,6 @@ export default function SignInScreen() {
               >
                 Sign In
               </Button>
-              
-              <Button
-                mode="text"
-                onPress={() => console.log('Forgot password')}
-                style={styles.forgotButton}
-                labelStyle={styles.forgotButtonLabel}
-              >
-                Forgot Password?
-              </Button>
             </View>
           </View>
         </ScrollView>
@@ -257,12 +248,10 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     marginBottom: 8,
-    textShadow: '0px 2px 4px rgba(0,0,0,0.3)',
   },
   subtitle: {
     color: 'rgba(255,255,255,0.9)',
     marginBottom: 32,
-    textShadow: '0px 1px 3px rgba(0,0,0,0.3)',
   },
   errorText: {
     color: '#FF3B30',
@@ -300,12 +289,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#1e3c72',
-  },
-  forgotButton: {
-    marginTop: 16,
-  },
-  forgotButtonLabel: {
-    color: 'white',
-    textShadow: '0px 1px 2px rgba(0,0,0,0.3)',
   },
 }); 

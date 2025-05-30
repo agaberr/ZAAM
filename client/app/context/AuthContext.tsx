@@ -7,7 +7,7 @@ import { useGoogleAuth, getCurrentUser } from '../services/authService';
 
 // API endpoint base URL
 // const API_BASE_URL = 'https://zaam-mj7u.onrender.com'; // For Android emulator pointing to localhost
-const API_BASE_URL = 'https://www.zaaam.me'; // For Android emulator pointing to localhost
+const API_BASE_URL = 'http://localhost:5003'; // For Android emulator pointing to localhost
 
 // If using a physical device, use your computer's IP address instead, e.g. 'http://192.168.1.100:5000'
 
@@ -349,8 +349,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Extract the response data
       const responseData = await response.json();
       
-      // Store token
+      // Store token in AsyncStorage
       await AsyncStorage.setItem('authToken', responseData.token);
+      
+      // Also store in SecureStore for better security on mobile
+      try {
+        const SecureStore = await import('expo-secure-store');
+        await SecureStore.setItemAsync('userToken', responseData.token);
+        await SecureStore.setItemAsync('authToken', responseData.token);
+        console.log('Authentication token stored in SecureStore');
+      } catch (secureStoreError) {
+        console.log('SecureStore not available, using AsyncStorage only:', secureStoreError);
+      }
       
       // Fetch user data or use what was returned
       // For now, we'll use what we have
@@ -360,6 +370,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // so we'll need to fetch it separately or handle it differently
         name: 'User', // Placeholder
         email: email,
+        token: responseData.token, // Include token in user data
       };
       
       await AsyncStorage.setItem('userData', JSON.stringify(userData));
@@ -380,51 +391,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Sign up function
   const signUp = async (name: string, email: string, password: string) => {
     try {
-      // Store temporary registration data for later use in onboarding
-      const tempData = {
+      console.log('Starting user registration with basic info...');
+      
+      // Prepare basic user data for immediate registration
+      const userData = {
         full_name: name,
         email: email,
-        password: password
-      };
-      
-      // Store temporary registration data
-      await AsyncStorage.setItem('tempRegData', JSON.stringify(tempData));
-      setTempRegData(tempData);
-      
-      console.log('Temporary registration data stored, proceeding to onboarding');
-      
-      // Navigate to onboarding to collect more user data
-      router.push('/onboarding/user-data');
-    } catch (error) {
-      console.error('Sign up failed:', error instanceof Error ? error.message : String(error));
-      throw error;
-    }
-  };
-
-  // Complete onboarding function
-  const completeOnboarding = async (onboardingData: UserDataType) => {
-    try {
-      // Check if we have temporary registration data
-      if (!tempRegData) {
-        throw new Error('No registration data found. Please sign up first.');
-      }
-      
-      // Prepare complete user data for registration
-      const userData = {
-        full_name: tempRegData.full_name,
-        age: onboardingData.age,
-        gender: onboardingData.gender,
+        password: password,
+        // Set minimal required fields to complete registration
+        age: 0, // Will be updated in onboarding
+        gender: '', // Will be updated in onboarding
         contact_info: {
-          email: tempRegData.email,
-          phone: onboardingData.phone,
+          email: email,
+          phone: '' // Will be updated in onboarding
         },
-        password: tempRegData.password,
-        emergency_contacts: onboardingData.emergency_contacts,
+        emergency_contacts: [] // Will be updated in onboarding
       };
       
-      console.log('Registering user with complete data');
-      
-      // Make API request to register the user
+      // Make API request to register the user immediately
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: 'POST',
         headers: {
@@ -441,26 +425,130 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Extract the response data
       const responseData = await response.json();
+      console.log('Registration successful, user_id:', responseData.user_id);
+      
+      // Now login the user to get an authentication token
+      console.log('Logging in user after registration...');
+      const loginResponse = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password
+        }),
+      });
+
+      if (!loginResponse.ok) {
+        const loginError = await loginResponse.json();
+        throw new Error(loginError.error || 'Auto-login after registration failed');
+      }
+
+      const loginData = await loginResponse.json();
+      
+      // Store the authentication token
+      if (loginData.token) {
+        await AsyncStorage.setItem('authToken', loginData.token);
+        
+        // Also store in SecureStore for better security on mobile
+        try {
+          const SecureStore = await import('expo-secure-store');
+          await SecureStore.setItemAsync('userToken', loginData.token);
+          await SecureStore.setItemAsync('authToken', loginData.token);
+          console.log('Authentication token stored in SecureStore');
+        } catch (secureStoreError) {
+          console.log('SecureStore not available, using AsyncStorage only:', secureStoreError);
+        }
+        
+        console.log('Authentication token stored successfully');
+      }
       
       // Store user data for our app
       const appUserData = {
-        id: responseData.user_id,
-        name: tempRegData.full_name,
-        email: tempRegData.email,
+        id: loginData.user_id || responseData.user_id,
+        name: name,
+        email: email,
+        token: loginData.token,
       };
-      
-      // Clear temporary registration data
-      await AsyncStorage.removeItem('tempRegData');
-      setTempRegData(null);
       
       // Store user data and set authenticated
       await AsyncStorage.setItem('userData', JSON.stringify(appUserData));
-      await AsyncStorage.setItem('onboardingCompleted', 'true');
       
       setUserData(appUserData);
       setIsAuthenticated(true);
       
-      console.log('Registration and onboarding completed successfully');
+      console.log('User registered and signed in successfully');
+      
+      // Navigate to onboarding to collect additional profile data
+      router.push('/onboarding/user-data');
+    } catch (error) {
+      console.error('Sign up failed:', error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+  };
+
+  // Complete onboarding function
+  const completeOnboarding = async (onboardingData: UserDataType) => {
+    try {
+      // Check if user is authenticated
+      if (!isAuthenticated || !userData) {
+        throw new Error('User must be signed in to complete onboarding');
+      }
+      
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (!authToken) {
+        throw new Error('Authentication token not found');
+      }
+      
+      // Prepare profile update data
+      const profileUpdateData = {
+        age: onboardingData.age,
+        gender: onboardingData.gender,
+        contact_info: {
+          email: userData.email, // Keep existing email
+          phone: onboardingData.phone,
+        },
+        emergency_contacts: onboardingData.emergency_contacts,
+      };
+      
+      console.log('Updating user profile with onboarding data');
+      
+      // Make API request to update the user's profile
+      const response = await fetch(`${API_BASE_URL}/api/users/${userData.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(profileUpdateData),
+      });
+
+      // Check if request was successful
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Profile update failed');
+      }
+
+      // Extract the response data
+      const responseData = await response.json();
+      
+      // Update stored user data with new profile information
+      const updatedUserData = {
+        ...userData,
+        age: onboardingData.age,
+        gender: onboardingData.gender,
+        phone: onboardingData.phone,
+        emergency_contacts: onboardingData.emergency_contacts,
+      };
+      
+      // Store updated user data
+      await AsyncStorage.setItem('userData', JSON.stringify(updatedUserData));
+      await AsyncStorage.setItem('onboardingCompleted', 'true');
+      
+      setUserData(updatedUserData);
+      
+      console.log('Profile updated successfully - Onboarding completed');
       
       // Navigate to the main app
       router.replace('/');
@@ -475,18 +563,95 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('Signing out user...');
       
-      // Remove auth token and user data
+      // Remove auth token and user data from AsyncStorage
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('userData');
       await AsyncStorage.removeItem('onboardingCompleted');
+      await AsyncStorage.removeItem('userId');
+      await AsyncStorage.removeItem('isNewUser');
+      await AsyncStorage.removeItem('tempRegData');
+      
+      // Also clear SecureStore tokens (used by API service)
+      try {
+        const SecureStore = await import('expo-secure-store');
+        await SecureStore.deleteItemAsync('userToken');
+        await SecureStore.deleteItemAsync('authToken');
+        console.log('SecureStore cleared');
+      } catch (secureStoreError) {
+        console.log('SecureStore not available or failed to clear:', secureStoreError);
+      }
+      
+      // Clear web storage if running in browser
+      if (typeof window !== 'undefined') {
+        // Clear localStorage with specific keys first
+        if (window.localStorage) {
+          // Clear all possible auth-related keys
+          const keysToRemove = [
+            'authToken', 
+            'userData', 
+            'userToken',
+            'userId',
+            'isNewUser',
+            'tempRegData',
+            'onboardingCompleted'
+          ];
+          
+          keysToRemove.forEach(key => {
+            window.localStorage.removeItem(key);
+          });
+          
+          // Also try to clear any Expo/AsyncStorage mapped keys
+          // AsyncStorage keys on web are usually prefixed
+          const allKeys = Object.keys(window.localStorage);
+          allKeys.forEach(key => {
+            if (key.includes('authToken') || 
+                key.includes('userData') || 
+                key.includes('userToken') ||
+                key.includes('userId') ||
+                key.includes('@') && (key.includes('auth') || key.includes('user'))) {
+              window.localStorage.removeItem(key);
+            }
+          });
+          
+          console.log('localStorage specific keys removed');
+        }
+        
+        // Clear sessionStorage
+        if (window.sessionStorage) {
+          window.sessionStorage.clear();
+          console.log('sessionStorage cleared');
+        }
+        
+        // Clear all cookies
+        if (document && document.cookie) {
+          const cookies = document.cookie.split(";");
+          cookies.forEach(cookie => {
+            const eqPos = cookie.indexOf("=");
+            const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+            // Clear cookie by setting expiration to past date
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;`;
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname};`;
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.${window.location.hostname};`;
+          });
+          console.log('All cookies cleared');
+        }
+      }
       
       setIsAuthenticated(false);
       setUserData(null);
       
       console.log('Successfully signed out');
       
-      // Navigate to welcome screen
-      router.replace('/welcome');
+      // Force reload the page for web to ensure complete cleanup
+      if (typeof window !== 'undefined') {
+        // Add a small delay to ensure all async storage operations complete
+        setTimeout(() => {
+          window.location.href = '/welcome';
+        }, 100);
+      } else {
+        // Navigate to welcome screen for mobile
+        router.replace('/welcome');
+      }
     } catch (error) {
       console.error('Sign out failed:', error instanceof Error ? error.message : String(error));
       throw error;
