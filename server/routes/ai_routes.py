@@ -263,7 +263,7 @@ def ai_routes_funcitons(app, mongo):
                 return jsonify({"response": game_result["response"]})
             
             ai_processor = AIProcessor()
-            segments = ai_processor.segment_all_texts(text)
+            segments = ai_processor.segmentAllTxt(text)
             print("segmenter is initialized")
             
             
