@@ -252,9 +252,7 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
               await signOut();
               console.log("User logged out successfully - signOut function completed");
               
-              // The navigation should be handled by the AuthContext
-              // but let's add a fallback just in case
-              
+          
             } catch (error) {
               console.error("Logout error:", error);
               console.error("Error details:", error instanceof Error ? error.message : String(error));

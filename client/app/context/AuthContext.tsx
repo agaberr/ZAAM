@@ -9,10 +9,8 @@ import { useGoogleAuth, getCurrentUser } from '../services/authService';
 // const API_BASE_URL = 'https://zaam-mj7u.onrender.com'; // For Android emulator pointing to localhost
 const API_BASE_URL = 'https://www.zaaam.me'; // For Android emulator pointing to localhost
 
-// If using a physical device, use your computer's IP address instead, e.g. 'http://192.168.1.100:5000'
 
 
-// Define the shape of the auth context
 type AuthContextType = {
   isAuthenticated: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -30,14 +28,12 @@ type AuthContextType = {
   tempRegData: TempRegDataType | null;
 };
 
-// Define temp registration data type
 type TempRegDataType = {
   full_name: string;
   email: string;
   password: string;
 };
 
-// Define user data type for onboarding
 type EmergencyContactType = {
   name: string;
   relationship: string;
@@ -51,7 +47,6 @@ type UserDataType = {
   emergency_contacts: EmergencyContactType[];
 };
 
-// Define memory aid data type
 type MemoryAidDataType = {
   title: string;
   description: string;

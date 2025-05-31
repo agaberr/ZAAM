@@ -149,21 +149,32 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
         return;
       }
       
-      // Prepare reminder data
+      // Prepare reminder data with +3 hour adjustment for timezone
+      const adjustedStartDate = new Date(startDate);
+      adjustedStartDate.setHours(adjustedStartDate.getHours() + 3);
+      
+      let adjustedEndDate = undefined;
+      if (withEndDate) {
+        adjustedEndDate = new Date(endDate);
+        adjustedEndDate.setHours(adjustedEndDate.getHours() + 3);
+      }
+      
       const reminderData: ReminderData = {
         title: title.trim(),
         description: description.trim() || undefined,
-        start_time: startDate.toISOString(),
-        end_time: withEndDate ? endDate.toISOString() : undefined,
+        start_time: adjustedStartDate.toISOString(),
+        end_time: adjustedEndDate ? adjustedEndDate.toISOString() : undefined,
         recurrence: recurring ? (recurrence as any) : null,
       };
       
-      console.log('[DEBUG] Form submitting reminder:', reminderData);
-      console.log('[DEBUG] Start date object:', startDate);
-      console.log('[DEBUG] Start time ISO:', startDate.toISOString());
+      console.log('[DEBUG] Form submitting reminder with +3 hour adjustment:', reminderData);
+      console.log('[DEBUG] Original start date object:', startDate);
+      console.log('[DEBUG] Adjusted start date object:', adjustedStartDate);
+      console.log('[DEBUG] Start time ISO:', adjustedStartDate.toISOString());
       if (withEndDate) {
-        console.log('[DEBUG] End date object:', endDate);
-        console.log('[DEBUG] End time ISO:', endDate.toISOString());
+        console.log('[DEBUG] Original end date object:', endDate);
+        console.log('[DEBUG] Adjusted end date object:', adjustedEndDate);
+        console.log('[DEBUG] End time ISO:', adjustedEndDate?.toISOString());
       }
       
       if (editReminder?._id) {

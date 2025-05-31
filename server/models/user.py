@@ -15,8 +15,8 @@ class User:
         self.full_name = full_name
         self.age = age
         self.gender = gender
-        self.contact_info = contact_info  # This is a dictionary {email, phone}
-        self.password_hash = generate_password_hash(password)  # Hash password
+        self.contact_info = contact_info
+        self.password_hash = generate_password_hash(password)
         self.emergency_contacts = emergency_contacts
         self.created_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()

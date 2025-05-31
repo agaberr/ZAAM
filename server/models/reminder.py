@@ -90,22 +90,12 @@ class ReminderNLP:
                 self.slot_encoder = pickle.load(f)
                 print("Slot encoder loaded")
             
-            # Create a new model instance with default parameters
-            # These should match the parameters of the saved model
             vocab_size = len(self.tokenizer)
-            embedding_dim = 100  # standard dimension
-            hidden_dim = 128      # standard dimension
+            embedding_dim = 100
+            hidden_dim = 128
             num_intents = len(self.intent_encoder.classes_)
             num_slots = len(self.slot_encoder.classes_)
             
-            print(f"Creating model with parameters:")
-            print(f"  vocab_size: {vocab_size}")
-            print(f"  embedding_dim: {embedding_dim}")
-            print(f"  hidden_dim: {hidden_dim}")
-            print(f"  num_intents: {num_intents}")
-            print(f"  num_slots: {num_slots}")
-            
-            # Create new model with these parameters
             self.model = NERIntentModel(
                 vocab_size=vocab_size,
                 embedding_dim=embedding_dim,
@@ -114,26 +104,21 @@ class ReminderNLP:
                 num_slots=num_slots
             )
             
-            # Load the weights from the saved model
-            print("Loading model weights...")
+           
             model_path = os.path.join(reminders_dir, 'reminder_model_checkpoint.pth')
             saved_model = torch.load(model_path, map_location=torch.device("cpu"))
-            print("Model loaded successfully")
-            print("Model structure:", saved_model)
+
             
-            # If the saved model is a state dict, load it directly
             if isinstance(saved_model, dict) and 'state_dict' in saved_model:
                 self.model.load_state_dict(saved_model['state_dict'])
-            # If it's the full model, extract the state dict
             elif hasattr(saved_model, 'state_dict'):
                 self.model.load_state_dict(saved_model.state_dict())
-            # If it's already a state dict
             elif isinstance(saved_model, dict):
                 self.model.load_state_dict(saved_model)
             else:
                 raise ValueError(f"Unexpected model format: {type(saved_model)}")
                 
-            print("Model loaded successfully")
+        
             self.model.eval()
                 
         except Exception as e:
@@ -160,14 +145,11 @@ class ReminderNLP:
                 found_expression = expression
                 break
         
-        # Process text to keep any extracted time but remove date expressions
         processed_text = text_lower
         if found_expression:
             print(f"Found time expression: '{found_expression}', days offset: {days_offset}")
-            # Use regex to remove the expression while preserving word boundaries
             processed_text = re.sub(r'\b' + re.escape(found_expression) + r'\b', '', processed_text, flags=re.IGNORECASE)
         
-        # Clean up any double spaces created
         processed_text = re.sub(r'\s+', ' ', processed_text).strip()
         
         return processed_text, days_offset
@@ -209,74 +191,59 @@ class ReminderNLP:
         current_action = []
         current_time = []
         
-        # Debug: Print token-slot pairs to understand what the model is predicting
-        print(f"[DEBUG] Token-Slot pairs:")
-        for token, slot in zip(predicted_tokens, predicted_slots):
-            print(f"  '{token}' -> '{slot}'")
+      
         
         for token, slot in zip(predicted_tokens, predicted_slots):
             # Handle time slots
             if slot == 'B-TIME':
-                if current_time:  # If we have a previous time phrase, save it
+                if current_time: 
                     predicted_time.append(' '.join(current_time))
                     current_time = []
                 current_time.append(token)
-            elif slot == 'I-TIME' and current_time:  # Continue current time phrase
+            elif slot == 'I-TIME' and current_time:
                 current_time.append(token)
                 
             # Handle action slots
             if slot == 'B-ACTION':
-                if current_action:  # If we have a previous action phrase, save it
+                if current_action: 
                     predicted_action.append(' '.join(current_action))
                     current_action = []
                 current_action.append(token)
-            elif slot == 'I-ACTION' and current_action:  # Continue current action phrase
+            elif slot == 'I-ACTION' and current_action: 
                 current_action.append(token)
         
-        # Add any remaining phrases
         if current_time:
             predicted_time.append(' '.join(current_time))
         if current_action:
             predicted_action.append(' '.join(current_action))
         
-        # Post-process action to fix common ML tagging errors
         final_action = None
         if predicted_action:
             raw_action = " ".join(predicted_action)
-            print(f"[DEBUG] Raw ML action: '{raw_action}'")
             
-            # Fix common patterns where the model incorrectly tags action boundaries
             # Pattern 1: "me to [actual_action]" -> extract just the actual action
             if raw_action.startswith('me to '):
-                # Look for the real action after "me to"
                 remaining_tokens = predicted_tokens[:]
                 start_idx = -1
                 
-                # Find where "me to" sequence ends in the original tokens
                 for i in range(len(predicted_tokens) - 1):
                     if predicted_tokens[i] == 'me' and predicted_tokens[i + 1] == 'to':
-                        start_idx = i + 2  # Start after "me to"
+                        start_idx = i + 2 
                         break
                 
                 if start_idx >= 0 and start_idx < len(predicted_tokens):
-                    # Extract remaining meaningful words (skip pronouns and articles at the start)
                     meaningful_tokens = []
                     for token in predicted_tokens[start_idx:]:
-                        # Skip common stopwords that shouldn't be part of action
                         if token not in ['at', 'on', 'for', 'by', 'in', 'the', 'a', 'an']:
                             meaningful_tokens.append(token)
                         else:
-                            break  # Stop at time/date prepositions
+                            break
                     
                     if meaningful_tokens:
                         final_action = ' '.join(meaningful_tokens)
-                        print(f"[DEBUG] Fixed 'me to' pattern: '{raw_action}' -> '{final_action}'")
             
-            # Pattern 2: Action ends with "me" or other incorrect endings
             elif raw_action.endswith(' me') or raw_action.endswith(' to'):
-                # Remove the incorrect ending
                 final_action = raw_action.rsplit(' ', 1)[0]
-                print(f"[DEBUG] Fixed incorrect ending: '{raw_action}' -> '{final_action}'")
             
             # If no fixes applied, use the raw action
             if not final_action:
@@ -291,99 +258,66 @@ class ReminderNLP:
             "predicted_action": final_action
         }
         
-        print(f"[DEBUG] Final processed result: {result}")
         return result
     
     def process_text(self, text):
         """Process user input text and extract reminder information"""
-        print(f"[DEBUG PROCESS_TEXT] Input text: '{text}'")
         
-        # FIRST: Extract time expressions directly from original text as fallback
+        # Extract time expressions directly from original text as fallback
         time_str = None
         time_pattern = r'\b(\d{1,2})(?::(\d{1,2}))?\s*(am|pm|a\.m\.|p\.m\.)\b'
         time_match = re.search(time_pattern, text.lower())
         
         if time_match:
             time_str = time_match.group(0)
-            print(f"[DEBUG PROCESS_TEXT] Found time expression via regex (ORIGINAL TEXT): '{time_str}'")
         
         # Extract time expressions and process text
         user_input, days_offset = self.extract_time_expressions(text)
-        print(f"[DEBUG PROCESS_TEXT] After extract_time_expressions: user_input='{user_input}', days_offset={days_offset}")
         
         # Tokenize the text
         tokenized_text = user_input.lower().split()
-        print(f"[DEBUG PROCESS_TEXT] Tokenized text: {tokenized_text}")
         
         # Get predictions from the model
         predicted_intent, predicted_slots = self.predict(tokenized_text)
-        print(f"[DEBUG PROCESS_TEXT] Model predictions: intent='{predicted_intent}', slots={predicted_slots}")
         
-        # ENHANCEMENT: Simple intent classification based on time presence
-        # User's requirement: if no time is mentioned, it should be "get_timetable"
+     
         original_intent = predicted_intent
         
         # Check if time information is present in the original text
         has_time_info = time_str is not None
         
-        # Also check for time-related patterns in the original text
         time_patterns = [
             r'\b\d{1,2}:\d{2}\s*(am|pm|a\.m\.|p\.m\.)\b',  # 3:30 pm, 10:15 am
             r'\b\d{1,2}\s*(am|pm|a\.m\.|p\.m\.)\b',        # 3 pm, 10 am
             r'\b\d{1,2}\s*o\'?clock\b',                      # 3 o'clock, 3 oclock
             r'\bat\s+\d',                                     # at 3, at 10
-            r'\b(morning|afternoon|evening|night)\b',        # time of day
-            r'\b(noon|midnight)\b'                           # specific times
+            r'\b(morning|afternoon|evening|night)\b',
+            r'\b(noon|midnight)\b'
         ]
         
         has_time_pattern = any(re.search(pattern, text.lower()) for pattern in time_patterns)
         
-        # Additional check for explicit time keywords that suggest scheduling
         scheduling_keywords = ['remind', 'schedule', 'set', 'appointment', 'meeting', 'at']
         has_scheduling_keywords = any(keyword in text.lower() for keyword in scheduling_keywords)
-        
-        print(f"[DEBUG INTENT_CHECK] Original intent: '{original_intent}'")
-        print(f"[DEBUG INTENT_CHECK] Has time info (regex): {has_time_info}")
-        print(f"[DEBUG INTENT_CHECK] Has time pattern: {has_time_pattern}")
-        print(f"[DEBUG INTENT_CHECK] Has scheduling keywords: {has_scheduling_keywords}")
-        
-        # SIMPLIFIED INTENT LOGIC: 
-        # If there's ANY time information OR scheduling with time context -> create_event
-        # If there's NO time information -> get_timetable
+       
         if has_time_info or has_time_pattern:
-            # Time information present -> should be create_event
             if predicted_intent != "create_event":
                 predicted_intent = "create_event"
-                print(f"[DEBUG INTENT_CORRECTION] Time found -> setting intent to 'create_event'")
         else:
-            # No time information -> should be get_timetable
             if predicted_intent != "get_timetable":
                 predicted_intent = "get_timetable"
-                print(f"[DEBUG INTENT_CORRECTION] No time found -> setting intent to 'get_timetable'")
         
-        # Log if intent was corrected
-        if original_intent != predicted_intent:
-            print(f"[DEBUG INTENT_CORRECTION] *** INTENT CORRECTED *** from '{original_intent}' to '{predicted_intent}'")
-        else:
-            print(f"[DEBUG INTENT_CHECK] Model intent prediction '{predicted_intent}' is correct, no correction needed")
-        
+      
         # Process the predictions
         result = self.postprocess_ner_predictions(predicted_intent, tokenized_text, predicted_slots)
-        print(f"[DEBUG PROCESS_TEXT] After postprocessing: {result}")
         
         # Add days offset to the result
         result['days_offset'] = days_offset
         
-        # IMPORTANT: Always use the regex-extracted time if found, as it's more reliable than NLP model
         if time_str:
             result['predicted_time'] = time_str
-            print(f"[DEBUG PROCESS_TEXT] Using regex-found time (OVERRIDE): '{time_str}'")
-        elif result.get('predicted_time'):
-            print(f"[DEBUG PROCESS_TEXT] Using NLP model time: '{result['predicted_time']}'")
-        else:
-            print(f"[DEBUG PROCESS_TEXT] No time found by either method")
+     
             
-        print(f"[DEBUG PROCESS_TEXT] Final result: {result}")
         return result
 
 class ReminderDB:
@@ -404,7 +338,6 @@ class ReminderDB:
         elif start_time.tzinfo != egypt_tz:
             start_time = start_time.astimezone(egypt_tz)
             
-        # Calculate end_time properly
         if not end_time:
             end_time = start_time + timedelta(hours=1)
         else:
@@ -421,12 +354,11 @@ class ReminderDB:
             "start_time": start_time,
             "end_time": end_time,
             "description": description,
-            "completed": False,  # Default to not completed
+            "completed": False,  # Default is pending
             "created_at": datetime.now(egypt_tz),
             "status": "active"
         }
         
-        # Insert into database
         result = db.reminders.insert_one(reminder)
         
         # Add the ID to the reminder object
@@ -463,9 +395,7 @@ class ReminderDB:
         elif time_max.tzinfo != egypt_tz:
             time_max = time_max.astimezone(egypt_tz)
             
-        # Print debug info
-        print(f"[DEBUG] Querying reminders from {time_min} to {time_max}")
-        
+      
         # Build query
         query = {
             "user_id": user_id,
@@ -573,21 +503,16 @@ class ReminderDB:
         """Delete a reminder from the database"""
         if db is None:
             raise ValueError("Database connection required")
-            
-        print(f"[DEBUG] ReminderDB.delete_reminder called with ID: {reminder_id}")
-        
-        # We don't actually delete, just mark as inactive
+                    
         try:
             result = db.reminders.update_one(
                 {"_id": ObjectId(reminder_id)},
                 {"$set": {"status": "deleted"}}
             )
             
-            print(f"[DEBUG] Update result - matched: {result.matched_count}, modified: {result.modified_count}")
             
             return result.modified_count > 0
         except Exception as e:
-            print(f"[DEBUG] Error in delete_reminder: {str(e)}")
             import traceback
             traceback.print_exc()
             raise e
@@ -620,10 +545,8 @@ class Reminder:
     @staticmethod
     def parse_time(time_str, target_date):
         """Parse time string into datetime object with timezone"""
-        print(f"[DEBUG PARSE_TIME] Input: time_str='{time_str}', target_date='{target_date}'")
         
         if not time_str:
-            print(f"[DEBUG PARSE_TIME] No time_str provided, returning target_date: {target_date}")
             return target_date
             
         try:
@@ -631,14 +554,12 @@ class Reminder:
             time_pattern = r'(\d{1,2})(?::(\d{1,2}))?\s*(am|pm|a\.m\.|p\.m\.)'
             match = re.match(time_pattern, time_str.lower())
             
-            print(f"[DEBUG PARSE_TIME] Regex match result: {match}")
             
             if match:
                 hour = int(match.group(1))
                 minute = int(match.group(2)) if match.group(2) else 0
                 meridian = match.group(3)
                 
-                print(f"[DEBUG PARSE_TIME] Extracted: hour={hour}, minute={minute}, meridian='{meridian}'")
                 
                 # Convert to 24-hour format
                 if meridian in ['pm', 'p.m.'] and hour != 12:
@@ -655,7 +576,6 @@ class Reminder:
                 elif target_date.tzinfo != egypt_tz:
                     target_date = target_date.astimezone(egypt_tz)
                 
-                print(f"[DEBUG PARSE_TIME] Target date with timezone: {target_date}")
                 
                 # Create new time with the target date
                 new_time = target_date.replace(
@@ -665,14 +585,11 @@ class Reminder:
                     microsecond=0
                 )
                 
-                print(f"[DEBUG PARSE_TIME] Final result: {new_time}")
                 return new_time
             else:
                 error_msg = f"Could not parse time format: {time_str}"
-                print(f"[DEBUG PARSE_TIME] ERROR: {error_msg}")
                 raise ValueError(error_msg)
                 
         except ValueError as e:
             error_msg = f"Invalid time format. Please use format like '3 pm' or '11:30 am'. Error: {str(e)}"
-            print(f"[DEBUG PARSE_TIME] EXCEPTION: {error_msg}")
             raise ValueError(error_msg) 
