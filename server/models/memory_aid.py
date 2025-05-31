@@ -2,7 +2,7 @@ from datetime import datetime
 from bson import ObjectId
 
 class MemoryAid:
-    def __init__(self, user_id, title, description, type, date=None, image_url=None):
+    def __init__(self, user_id, title, description, type, date=None, image_url=None, date_of_birth=None, date_met_patient=None, date_of_occurrence=None):
         self._id = None
         self.user_id = user_id
         self.title = title
@@ -10,6 +10,9 @@ class MemoryAid:
         self.type = type  # 'person', 'place', 'event', 'object'
         self.date = date or datetime.utcnow().strftime('%Y-%m-%d')
         self.image_url = image_url
+        self.date_of_birth = date_of_birth  # For person type - their date of birth
+        self.date_met_patient = date_met_patient  # For person type - when they met the patient
+        self.date_of_occurrence = date_of_occurrence  # For event type - when the event occurred
         self.created_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
 
@@ -22,6 +25,9 @@ class MemoryAid:
             "type": self.type,
             "date": self.date,
             "image_url": self.image_url,
+            "date_of_birth": self.date_of_birth,
+            "date_met_patient": self.date_met_patient,
+            "date_of_occurrence": self.date_of_occurrence,
             "created_at": self.created_at,
             "updated_at": self.updated_at
         }
@@ -56,6 +62,9 @@ class MemoryAid:
             "type": self.type,
             "date": self.date,
             "image_url": self.image_url,
+            "date_of_birth": self.date_of_birth,
+            "date_met_patient": self.date_met_patient,
+            "date_of_occurrence": self.date_of_occurrence,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -137,7 +146,10 @@ class MemoryAid:
             description=data.get("description", ""),
             type=data["type"],
             date=data.get("date"),
-            image_url=data.get("image_url")
+            image_url=data.get("image_url"),
+            date_of_birth=data.get("date_of_birth"),
+            date_met_patient=data.get("date_met_patient"),
+            date_of_occurrence=data.get("date_of_occurrence")
         )
         memory_aid._id = data["_id"]
         memory_aid.created_at = data["created_at"]

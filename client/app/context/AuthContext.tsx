@@ -58,6 +58,9 @@ type MemoryAidDataType = {
   type: 'person' | 'place' | 'event' | 'object';
   date?: string;
   image_url?: string;
+  date_of_birth?: string;  // For person type - their date of birth
+  date_met_patient?: string;  // For person type - when they met the patient
+  date_of_occurrence?: string;  // For event type - when the event occurred
 };
 
 // Create the context with a default value

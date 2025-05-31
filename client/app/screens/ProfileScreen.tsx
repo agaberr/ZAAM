@@ -29,6 +29,9 @@ interface MemoryAid {
   date: string;
   type: 'person' | 'place' | 'event' | 'object';
   image_url?: string;
+  date_of_birth?: string;  // For person type - their date of birth
+  date_met_patient?: string;  // For person type - when they met the patient
+  date_of_occurrence?: string;  // For event type - when the event occurred
 }
 
 export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: string) => void }) {
@@ -64,7 +67,10 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
     title: '',
     description: '',
     date: new Date().toISOString().split('T')[0],
-    type: 'person'
+    type: 'person',
+    date_of_birth: '',
+    date_met_patient: '',
+    date_of_occurrence: ''
   });
   const [editingMemoryAidId, setEditingMemoryAidId] = useState<string | null>(null);
   
@@ -388,7 +394,10 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
       title: '',
       description: '',
       date: new Date().toISOString().split('T')[0],
-      type: 'person'
+      type: 'person',
+      date_of_birth: '',
+      date_met_patient: '',
+      date_of_occurrence: ''
     });
     setEditingMemoryAidId(null);
     setMemoryAidDialogVisible(true);
@@ -400,7 +409,10 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
       description: memoryAid.description,
       date: memoryAid.date,
       type: memoryAid.type,
-      image_url: memoryAid.image_url
+      image_url: memoryAid.image_url,
+      date_of_birth: memoryAid.date_of_birth || '',
+      date_met_patient: memoryAid.date_met_patient || '',
+      date_of_occurrence: memoryAid.date_of_occurrence || ''
     });
     setEditingMemoryAidId(memoryAid._id || null);
     setMemoryAidDialogVisible(true);
@@ -812,6 +824,30 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
                         </View>
                       </View>
                       <Text style={styles.memoryDescription}>{aid.description}</Text>
+                      {aid.type === 'person' && (aid.date_of_birth || aid.date_met_patient) && (
+                        <View style={styles.personDetails}>
+                          {aid.date_of_birth && (
+                            <Text style={styles.personDetailText}>
+                              <Text style={styles.personDetailLabel}>Born: </Text>
+                              {aid.date_of_birth}
+                            </Text>
+                          )}
+                          {aid.date_met_patient && (
+                            <Text style={styles.personDetailText}>
+                              <Text style={styles.personDetailLabel}>Met: </Text>
+                              {aid.date_met_patient}
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                      {aid.type === 'event' && aid.date_of_occurrence && (
+                        <View style={styles.personDetails}>
+                          <Text style={styles.personDetailText}>
+                            <Text style={styles.personDetailLabel}>Occurred: </Text>
+                            {aid.date_of_occurrence}
+                          </Text>
+                        </View>
+                      )}
                       <Text style={styles.memoryDate}>Added: {aid.date}</Text>
                     </Card.Content>
                   </Card>
@@ -1037,6 +1073,41 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
                 </Text>
               </TouchableOpacity>
             </View>
+            
+            {/* Conditional fields for person type */}
+            {currentMemoryAid.type === 'person' && (
+              <>
+                <TextInput
+                  label="Date of Birth"
+                  value={currentMemoryAid.date_of_birth || ''}
+                  onChangeText={(text) => setCurrentMemoryAid({...currentMemoryAid, date_of_birth: text})}
+                  style={styles.modalInput}
+                  mode="outlined"
+                  placeholder="YYYY-MM-DD"
+                />
+                
+                <TextInput
+                  label="When did you meet this person?"
+                  value={currentMemoryAid.date_met_patient || ''}
+                  onChangeText={(text) => setCurrentMemoryAid({...currentMemoryAid, date_met_patient: text})}
+                  style={styles.modalInput}
+                  mode="outlined"
+                  placeholder="YYYY-MM-DD"
+                />
+              </>
+            )}
+            
+            {/* Conditional fields for event type */}
+            {currentMemoryAid.type === 'event' && (
+              <TextInput
+                label="When did this event occur?"
+                value={currentMemoryAid.date_of_occurrence || ''}
+                onChangeText={(text) => setCurrentMemoryAid({...currentMemoryAid, date_of_occurrence: text})}
+                style={styles.modalInput}
+                mode="outlined"
+                placeholder="YYYY-MM-DD"
+              />
+            )}
             
             <View style={styles.modalButtons}>
               <Button 
@@ -1534,5 +1605,20 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#E5E7EB',
+  },
+  personDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  personDetailText: {
+    fontSize: 14,
+    color: '#64748B',
+    marginLeft: 8,
+  },
+  personDetailLabel: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
   },
 }); 

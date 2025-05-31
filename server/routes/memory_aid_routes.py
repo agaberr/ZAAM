@@ -77,7 +77,10 @@ def create_memory_aid(user_id):
         description=data.get("description", ""),
         type=data["type"],
         date=data.get("date"),
-        image_url=data.get("image_url")
+        image_url=data.get("image_url"),
+        date_of_birth=data.get("date_of_birth"),
+        date_met_patient=data.get("date_met_patient"),
+        date_of_occurrence=data.get("date_of_occurrence")
     )
     
     # Save to database
@@ -166,6 +169,12 @@ def update_memory_aid(user_id, memory_aid_id):
         memory_aid.date = data["date"]
     if "image_url" in data:
         memory_aid.image_url = data["image_url"]
+    if "date_of_birth" in data:
+        memory_aid.date_of_birth = data["date_of_birth"]
+    if "date_met_patient" in data:
+        memory_aid.date_met_patient = data["date_met_patient"]
+    if "date_of_occurrence" in data:
+        memory_aid.date_of_occurrence = data["date_of_occurrence"]
         
     # Save changes
     success, errors = memory_aid.save(db)

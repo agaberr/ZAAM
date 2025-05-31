@@ -319,44 +319,47 @@ class ReminderNLP:
         predicted_intent, predicted_slots = self.predict(tokenized_text)
         print(f"[DEBUG PROCESS_TEXT] Model predictions: intent='{predicted_intent}', slots={predicted_slots}")
         
-        # ENHANCEMENT: Check if model intent prediction is accurate based on time presence
+        # ENHANCEMENT: Simple intent classification based on time presence
+        # User's requirement: if no time is mentioned, it should be "get_timetable"
         original_intent = predicted_intent
-        has_time_info = time_str is not None or any('time' in slot.lower() for slot in predicted_slots)
         
-        # Define time-related keywords that suggest creating an event
-        time_keywords = ['at', 'pm', 'am', 'o\'clock', 'hour', 'minute', 'time', 'remind', 'schedule', 'appointment', 'meeting']
-        has_time_keywords = any(keyword in text.lower() for keyword in time_keywords)
+        # Check if time information is present in the original text
+        has_time_info = time_str is not None
         
-        # Define query keywords that suggest getting timetable
-        query_keywords = ['what', 'when', 'show', 'tell', 'list', 'check', 'see', 'view', 'schedule', 'timetable', 'agenda', 'free', 'busy', 'available']
-        has_query_keywords = any(keyword in text.lower() for keyword in query_keywords)
+        # Also check for time-related patterns in the original text
+        time_patterns = [
+            r'\b\d{1,2}:\d{2}\s*(am|pm|a\.m\.|p\.m\.)\b',  # 3:30 pm, 10:15 am
+            r'\b\d{1,2}\s*(am|pm|a\.m\.|p\.m\.)\b',        # 3 pm, 10 am
+            r'\b\d{1,2}\s*o\'?clock\b',                      # 3 o'clock, 3 oclock
+            r'\bat\s+\d',                                     # at 3, at 10
+            r'\b(morning|afternoon|evening|night)\b',        # time of day
+            r'\b(noon|midnight)\b'                           # specific times
+        ]
+        
+        has_time_pattern = any(re.search(pattern, text.lower()) for pattern in time_patterns)
+        
+        # Additional check for explicit time keywords that suggest scheduling
+        scheduling_keywords = ['remind', 'schedule', 'set', 'appointment', 'meeting', 'at']
+        has_scheduling_keywords = any(keyword in text.lower() for keyword in scheduling_keywords)
         
         print(f"[DEBUG INTENT_CHECK] Original intent: '{original_intent}'")
-        print(f"[DEBUG INTENT_CHECK] Has time info: {has_time_info}")
-        print(f"[DEBUG INTENT_CHECK] Has time keywords: {has_time_keywords}")
-        print(f"[DEBUG INTENT_CHECK] Has query keywords: {has_query_keywords}")
+        print(f"[DEBUG INTENT_CHECK] Has time info (regex): {has_time_info}")
+        print(f"[DEBUG INTENT_CHECK] Has time pattern: {has_time_pattern}")
+        print(f"[DEBUG INTENT_CHECK] Has scheduling keywords: {has_scheduling_keywords}")
         
-        # Intent correction logic
-        if has_time_info or has_time_keywords:
-            # If text contains time information, it should be create_event
+        # SIMPLIFIED INTENT LOGIC: 
+        # If there's ANY time information OR scheduling with time context -> create_event
+        # If there's NO time information -> get_timetable
+        if has_time_info or has_time_pattern:
+            # Time information present -> should be create_event
             if predicted_intent != "create_event":
                 predicted_intent = "create_event"
-                print(f"[DEBUG INTENT_CORRECTION] Model predicted '{original_intent}' but text contains time information.")
-                print(f"[DEBUG INTENT_CORRECTION] Correcting intent from '{original_intent}' to '{predicted_intent}'")
-        elif has_query_keywords and not (has_time_info or has_time_keywords):
-            # If text contains query keywords and no time info, it should be get_timetable
+                print(f"[DEBUG INTENT_CORRECTION] Time found -> setting intent to 'create_event'")
+        else:
+            # No time information -> should be get_timetable
             if predicted_intent != "get_timetable":
                 predicted_intent = "get_timetable"
-                print(f"[DEBUG INTENT_CORRECTION] Model predicted '{original_intent}' but text contains query keywords without time.")
-                print(f"[DEBUG INTENT_CORRECTION] Correcting intent from '{original_intent}' to '{predicted_intent}'")
-        else:
-            # For ambiguous cases, check the overall context
-            # If no clear time info and no clear query, default based on sentence structure
-            if 'remind' in text.lower() and not has_query_keywords:
-                if predicted_intent != "create_event":
-                    predicted_intent = "create_event"
-                    print(f"[DEBUG INTENT_CORRECTION] Model predicted '{original_intent}' but text contains 'remind' without query keywords.")
-                    print(f"[DEBUG INTENT_CORRECTION] Correcting intent from '{original_intent}' to '{predicted_intent}'")
+                print(f"[DEBUG INTENT_CORRECTION] No time found -> setting intent to 'get_timetable'")
         
         # Log if intent was corrected
         if original_intent != predicted_intent:
