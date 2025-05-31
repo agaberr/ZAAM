@@ -446,7 +446,8 @@ class ReminderDB:
         formatted_reminders = []
         for reminder in reminders:
             start_time = reminder['start_time']
-            time_str = start_time.strftime("%I:%M %p")
+            adjusted_time = start_time + timedelta(hours=3)
+            time_str = adjusted_time.strftime("%I:%M %p")
             formatted_reminders.append(f"At {time_str}, you have {reminder['title']}")
         
         timetable = "\n".join(formatted_reminders)
