@@ -5,7 +5,7 @@ import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 
 // API URL and Google Client ID from constants
-const API_URL = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:5003/api';
+const API_URL = Constants.expoConfig?.extra?.apiUrl || 'https://zaaam.me/api';
 
 // Ensure API_URL has the correct format
 const getApiUrl = (endpoint) => {
