@@ -379,19 +379,15 @@ export const reminderService = {
       }
       
       if (reminder.start_time !== undefined) {
-        // Apply +3 hour adjustment for timezone and convert to backend format
+        // Convert ISO string to format Python can handle
         const startTime = new Date(reminder.start_time);
-        startTime.setHours(startTime.getHours() + 3);
         updatePayload.start_time = startTime.toISOString().replace('Z', '+00:00');
-        console.log('[DEBUG] Adjusted start_time for update:', updatePayload.start_time);
       }
       
       if (reminder.end_time !== undefined) {
-        // Apply +3 hour adjustment for timezone and convert to backend format
+        // Convert ISO string to format Python can handle
         const endTime = new Date(reminder.end_time);
-        endTime.setHours(endTime.getHours() + 3);
         updatePayload.end_time = endTime.toISOString().replace('Z', '+00:00');
-        console.log('[DEBUG] Adjusted end_time for update:', updatePayload.end_time);
       }
       
       if (reminder.completed !== undefined) {
