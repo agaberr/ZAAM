@@ -355,9 +355,9 @@ export default function TalkToAIScreen({
         // Get reminders using the correct endpoint
         console.log(
           "Fetching reminders from:",
-          "https://zaaam.me/api/reminder"
+          "https://www.zaaam.me/api/reminder"
         );
-        const response = await fetch("https://zaaam.me/api/reminder", {
+        const response = await fetch("https://www.zaaam.me/api/reminder", {
           method: "GET",
           headers: {
             "Content-Type": "application/json",

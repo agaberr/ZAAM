@@ -32,7 +32,7 @@ pip install -r requirements.txt
 python run.py
 ```
 
-4. Open your web browser and navigate to https://zaaam.me:5002
+4. Open your web browser and navigate to https://www.zaaam.me:5002
 
 ## API Usage
 

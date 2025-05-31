@@ -192,7 +192,7 @@ class AssemblyAISpeechProvider implements SpeechProvider {
       const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
       // Use your existing AI service endpoint
-      const response = await fetch('https://zaaam.me/api/speech/transcribe', {
+      const response = await fetch('https://www.zaaam.me/api/speech/transcribe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -288,7 +288,7 @@ class OpenAIWhisperProvider implements SpeechProvider {
       formData.append('file', audioBlob, 'audio.wav');
       formData.append('model', 'whisper-1');
 
-      const response = await fetch('https://zaaam.me/api/speech/whisper', {
+      const response = await fetch('https://www.zaaam.me/api/speech/whisper', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,

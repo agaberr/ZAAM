@@ -8,7 +8,7 @@
 	"variable": [
 		{
 			"key": "base_url",
-			"value": "https://zaaam.me",
+			"value": "https://www.zaaam.me",
 			"type": "string"
 		},
 		{
