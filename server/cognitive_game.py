@@ -1,3 +1,5 @@
+# not deployed 
+
 import pymongo
 import random
 from datetime import datetime
@@ -16,19 +18,22 @@ class CognitiveGame:
         Initialize the cognitive game with MongoDB connection
         
         Args:
-            mongo_uri: MongoDB connection string
-            db_name: Database name
+            db: Database object
+            user_id: User identifier
         """
         self.db = db
         self.user_id = user_id
+        self.people_collection = self.db["people"] # gaber person
         self.memory_aids_collection = self.db["memory_aids"]
         
     def get_all_people(self):
         """Get all people from the database for the specific user"""
+        """Get all people from the database"""
         return list(self.memory_aids_collection.find({"user_id": self.user_id, "type": "person"}))
     
     def get_all_events(self):
         """Get all events from the database for the specific user"""
+        """Get all events from the database"""
         return list(self.memory_aids_collection.find({"user_id": self.user_id, "type": "event"}))
     
     def get_all_memory_aids(self):
@@ -50,7 +55,7 @@ class CognitiveGame:
         # Different question types
         question_types = [
             # Questions about relationships
-            lambda p: f"What is your relationship with {p.get('title')}?",
+            lambda p: f"What is your relationship with {p.get('title')}?",  # gaber title
             
 
             
@@ -65,10 +70,10 @@ class CognitiveGame:
     def _generate_multi_people_question(self, target_person, all_people):
         """Generate a question that involves multiple people"""
         if len(all_people) < 2:
-            return f"How long have you known {target_person.get('title')}?"
+            return f"How long have you known {target_person.get('title')}?"  # gaber title
         
         # Get another random person different from target
-        other_people = [p for p in all_people if p["user_id"] != target_person["user_id"]]
+        other_people = [p for p in all_people if p["user_id"] != target_person["user_id"]]  # gaber user_id
         if other_people:
             other_person = random.choice(other_people)
             
@@ -111,18 +116,79 @@ class CognitiveGame:
         return question_func(event)
     
     def _generate_detail_question(self, event):
-        """Generate a detail-oriented question about an event"""
-        description = event.get('description', '')
+        """Generate a detail-oriented question based on existing evaluative words in description"""
+        description = event.get('description', '').lower()
+        event_name = event.get('title', 'this event')
         
-        # Extract potential detail words (nouns) from description
-        words = description.split()
-        potential_details = [word for word in words if len(word) > 4]
+        # Define evaluative words to look for
+        evaluative_words = {
+            'positive': ['good', 'great', 'excellent', 'amazing', 'wonderful', 'fantastic', 'awesome', 
+                        'beautiful', 'nice', 'enjoyable', 'fun', 'pleasant', 'lovely', 'perfect',
+                        'satisfying', 'impressive', 'outstanding', 'brilliant', 'marvelous'],
+            'negative': ['bad', 'terrible', 'awful', 'horrible', 'disappointing', 'frustrating', 
+                        'annoying', 'boring', 'difficult', 'challenging', 'hard', 'tough', 
+                        'unpleasant', 'uncomfortable', 'stressful', 'exhausting', 'disappointing'],
+            'neutral': ['surprising', 'unexpected', 'interesting', 'different', 'strange', 'weird',
+                    'unusual', 'unique', 'memorable', 'notable', 'remarkable', 'curious']
+        }
         
-        if potential_details:
-            detail = random.choice(potential_details)
-            return f"What was the {detail} mentioned in the event '{event.get('title')}'?"
+        # Check if any evaluative words exist in the description
+        found_words = []
+        word_categories = []
+        
+        for category, words in evaluative_words.items():
+            for word in words:
+                # Use word boundaries to avoid partial matches
+                if re.search(r'\b' + re.escape(word) + r'\b', description):
+                    found_words.append(word)
+                    word_categories.append(category)
+        
+        # If evaluative words are found, generate specific questions
+        if found_words:
+            # Choose a random found word to base the question on
+            chosen_word = random.choice(found_words)
+            chosen_category = word_categories[found_words.index(chosen_word)]
+            
+            # Generate questions based on the specific word found
+            if chosen_category == 'positive':
+                questions = [
+                    f"What specifically was {chosen_word} about '{event_name}'?ll",
+                    f"Why was '{event_name}' {chosen_word}?ll",
+                    f"What made '{event_name}' {chosen_word} for you?ll",
+                    f"Can you elaborate on what was {chosen_word} about '{event_name}'?ll",
+                    f"What aspects of '{event_name}' were {chosen_word}?ll"
+                ]
+            elif chosen_category == 'negative':
+                questions = [
+                    f"What specifically was {chosen_word} about '{event_name}'?ll",
+                    f"Why was '{event_name}' {chosen_word}?ll",
+                    f"What made '{event_name}' {chosen_word} for you?ll",
+                    f"Can you explain what was {chosen_word} about '{event_name}'?ll",
+                    f"What aspects of '{event_name}' were {chosen_word}?ll"
+                ]
+            else:  # neutral
+                questions = [
+                    f"What was {chosen_word} about '{event_name}'?ll",
+                    f"In what way was '{event_name}' {chosen_word}?ll",
+                    f"What made '{event_name}' {chosen_word}?ll",
+                    f"Can you elaborate on how '{event_name}' was {chosen_word}?ll",
+                    f"What specifically was {chosen_word} about '{event_name}'?ll"
+                ]
+            
+            return random.choice(questions)
+        
+        # If no evaluative words found, ask for general description
         else:
-            return f"Can you describe what happened during '{event.get('title')}'?"
+            description_questions = [
+                f"Can you describe what happened during '{event_name}'?ll",
+                f"Tell me more about '{event_name}'.ll",
+                f"What can you tell me about '{event_name}'?ll",
+                f"How did '{event_name}' go?ll",
+                f"What was '{event_name}' like?ll",
+                f"Can you give me more details about '{event_name}'?ll"
+            ]
+            
+            return random.choice(description_questions)
     
     def _generate_multi_event_question(self, target_event, all_events):
         """Generate a question that involves multiple events"""
@@ -136,7 +202,7 @@ class CognitiveGame:
             
             question_types = [
                 f"Which happened first: '{target_event.get('title')}' or '{other_event.get('title')}'?",
-                # f"What common elements were there between '{target_event.get('title')}' and '{other_event.get('title')}'?"
+                # f"What common elements were there between '{target_event.get('name')}' and '{other_event.get('name')}'?"
             ]
             
             return random.choice(question_types)
@@ -155,10 +221,10 @@ class CognitiveGame:
     #     event = random.choice(events)
         
     #     question_types = [
-    #         f"Was {person.get('title')} present during the event '{event.get('title')}'?",
-    #         f"What was {person.get('title')}'s reaction to '{event.get('title')}'?",
-    #         f"Did you talk to {person.get('title')} about '{event.get('title')}'?",
-    #         f"Did any memorable interaction happen between you and {person.get('title')} during '{event.get('title')}'?"
+    #         f"Was {person.get('name')} present during the event '{event.get('name')}'?",
+    #         f"What was {person.get('name')}'s reaction to '{event.get('name')}'?",
+    #         f"Did you talk to {person.get('name')} about '{event.get('name')}'?",
+    #         f"Did any memorable interaction happen between you and {person.get('name')} during '{event.get('name')}'?"
     #     ]
         
     #     return random.choice(question_types)
@@ -188,10 +254,10 @@ class CognitiveGame:
         """
         # Parse the question to determine the type and extract key information
         if not question or not user_answer:
-            return {"correct": False, "feedback": "Missing question or answer"}
+            return {"feedback": "Missing question or answer", 'correct_answer': 'none', 'similarity_score':None}
         
         result = {
-            "correct": False,
+            
             "feedback": "Couldn't determine the correct answer for this question type.",
             "correct_answer": None,
             "similarity_score": None
@@ -210,14 +276,9 @@ class CognitiveGame:
                     result["similarity_score"] = similarity
                     
                     # We'll consider it correct if similarity is above 0.7
-                    if similarity > 0.6:
-                        result["correct"] = True
+                    if similarity == 1:
                         result["feedback"] = f"Correct! Your relationship with {person['title']} is '{expected_relation}'."
-                    elif similarity > 0.4:
-                        result["correct"] = True
-                        result["feedback"] = f"Partially correct. Your relationship with {person['title']} is '{expected_relation}'."
                     else:
-                        result["correct"] = False
                         result["feedback"] = f"Not quite. Your relationship with {person['title']} is '{expected_relation}'."
                     result["correct_answer"] = expected_relation
                     break
@@ -230,16 +291,16 @@ class CognitiveGame:
             for person in self.get_all_people():
                 if person["title"].lower() in question.lower():
                     expected_duration = person.get("date_met_patient", "")
-                    result["person"] = person["title"]
+                    
                     today = datetime.today()
 
                     try:
-                        expected_date = datetime.strptime(expected_duration, "%Y-%d-%m")
+                        expected_date = datetime.strptime(expected_duration, "%Y-%m-%d")
                         years_known = today.year - expected_date.year
                         if (today.month, today.day) < (expected_date.month, expected_date.day):
                             years_known -= 1  # Adjust if anniversary hasn't occurred yet
                     except Exception as e:
-                        result["score"] = 0.0
+                        result["similarity_score"] =None
                         result["feedback"] = f"Invalid stored date format: {e}"
                         result["correct_answer"] = expected_duration
                         break
@@ -254,7 +315,7 @@ class CognitiveGame:
 
                     if full_date_match:
                         try:
-                            user_date = datetime.strptime(full_date_match.group(1), "%Y-%d-%m")
+                            user_date = datetime.strptime(full_date_match.group(1), "%Y-%m-%d")
                             delta_years = abs(user_date.year - expected_date.year)
                             if delta_years == 0:
                                 score = 1.0
@@ -265,10 +326,10 @@ class CognitiveGame:
                             else:
                                 score = max(0.0, 1.0 - (0.1 * delta_years))
                                 result["feedback"] = f"You were a bit off. You met {person['title']} in {expected_date.year}."
-                            result["score"] = score
+                            result["similarity_score"] = score
                             result["correct_answer"] = expected_duration
                         except ValueError:
-                            result["score"] = 0.0
+                            result["similarity_score"] = 0.0
                             result["feedback"] = "Invalid date format. Expected format: YYYY-MM-DD."
                             result["correct_answer"] = expected_duration
 
@@ -284,7 +345,7 @@ class CognitiveGame:
                         else:
                             score = max(0.0, 1.0 - (0.1 * delta_years))
                             result["feedback"] = f"Not quite. The correct year was {expected_date.year}."
-                        result["score"] = score
+                        result["similarity_score"] = score
                         result["correct_answer"] = str(expected_date.year)
 
                     elif number_match:
@@ -299,11 +360,11 @@ class CognitiveGame:
                         else:
                             score = max(0.0, 1.0 - (0.1 * delta_years))
                             result["feedback"] = f"You were off by a few years. It's actually {years_known} years."
-                        result["score"] =score
+                        result["similarity_score"] =score
                         result["correct_answer"] = str(years_known)
 
                     else:
-                        result["score"] = 0.0
+                        result["similarity_score"] = 0.0
                         result["feedback"] = "Sorry, I couldn't understand your answer. Try giving a year or a number of years."
                         result["correct_answer"] = str(years_known)
 
@@ -314,6 +375,7 @@ class CognitiveGame:
             all_people = self.get_all_people()
             all_names = [person["title"] for person in all_people]
             names_in_question = [name for name in all_names if name in question]
+            result["similarity_score"] = None
             if len(names_in_question) < 2:
                 result["feedback"] = "Please provide two names to compare."
                 return result
@@ -326,8 +388,8 @@ class CognitiveGame:
                 result["feedback"] = "One or both of the people are not found in the database."
                 return result
             
-            first_meet_date = datetime.strptime(first_person["date_met_patient"], "%Y-%d-%m")
-            second_meet_date = datetime.strptime(second_person["date_met_patient"], "%Y-%d-%m")
+            first_meet_date = datetime.strptime(first_person["date_met_patient"], "%Y-%m-%d")
+            second_meet_date = datetime.strptime(second_person["date_met_patient"], "%Y-%m-%d")
             
             correct_name = None
             if first_meet_date < second_meet_date:
@@ -338,11 +400,11 @@ class CognitiveGame:
             # User answer can be "John met snow first" or just "John"
             user_answer = user_answer.strip().lower()
             if correct_name.lower() in user_answer:
-                result["correct"] = True
                 result["feedback"] = f"Correct! You met {correct_name} first."
+                result["similarity_score"] = 1
             else:
-                result["correct"] = False
                 result["feedback"] = f"Not quite. You met {correct_name} first."
+                result["similarity_score"] =0
                 
             result["correct_answer"] = correct_name
         # Handle who is older questions
@@ -351,6 +413,7 @@ class CognitiveGame:
             all_people = self.get_all_people()
             all_names = [person["title"] for person in all_people]
             names_in_question = [name for name in all_names if name in question]
+            result["similarity_score"] = None
             if len(names_in_question) < 2:
                 result["feedback"] = "Please provide two names to compare."
                 return result
@@ -363,8 +426,8 @@ class CognitiveGame:
                 result["feedback"] = "One or both of the people are not found in the database."
                 return result
             
-            first_birth_date = datetime.strptime(first_person["date_of_birth"], "%Y-%d-%m")
-            second_birth_date = datetime.strptime(second_person["date_of_birth"], "%Y-%d-%m")
+            first_birth_date = datetime.strptime(first_person["date_of_birth"], "%Y-%m-%d")
+            second_birth_date = datetime.strptime(second_person["date_of_birth"], "%Y-%m-%d")
             
             correct_name = None
             if first_birth_date < second_birth_date:
@@ -375,11 +438,11 @@ class CognitiveGame:
             # User answer can be "John is older" or just "John"
             user_answer = user_answer.strip().lower()
             if correct_name.lower() in user_answer:
-                result["correct"] = True
                 result["feedback"] = f"Correct! {correct_name} is older."
+                result["similarity_score"] = 1
             else:
-                result["correct"] = False
                 result["feedback"] = f"Not quite. {correct_name} is older."
+                result["similarity_score"] = 0
                 
             result["correct_answer"] = correct_name
 
@@ -387,8 +450,10 @@ class CognitiveGame:
 
 
         # Handle event-related questions
-        elif "What happened during the event" in question or "Can you describe what happened during" in question or "about the event" in question:
+        elif "What happened during" in question or "Can you describe what" in question or "about the" in question or "in the" in question or "?ll" in question or ".ll" in question or "remember most about" in question:
             # Extract event name from question
+            print("enter what happened during the event")
+            result["similarity_score"] = None
             for event in self.get_all_events():
                 event_name = event.get("title", "")
                 if event_name in question:
@@ -397,67 +462,61 @@ class CognitiveGame:
                     # Calculate similarity between user answer and stored description
                     similarity = self.calculate_text_similarity(expected_desc, user_answer,relationshipQuestion=False)
                     result["similarity_score"] = similarity
+                
                     
                     # Different thresholds for different levels of correctness
-                    if similarity > 0.7:
-                        result["correct"] = True
+                    if similarity > 0.4:
                         result["feedback"] = f"Excellent! Your description of '{event_name}' matches closely with the recorded details."
-                    elif similarity > 0.5:
-                        result["correct"] = True
+                    elif similarity > 0.25:
                         result["feedback"] = f"Good! Your description of '{event_name}' contains many key elements, though some details differ."
-                    elif similarity > 0.3:
-                        result["correct"] = True
+                    elif similarity > 0.1:
                         result["feedback"] = f"Partially correct. Your description of '{event_name}' includes some elements but misses others."
                     else:
-                        result["correct"] = False
                         result["feedback"] = f"Your description of '{event_name}' doesn't match the recorded details very well."
                     
                     result["correct_answer"] = expected_desc
                     break
                     
-        elif "What was the" in question and "mentioned in the event" in question:
-            # Detail-oriented question about an event
-            detail_word = None
-            event_name = None
-            
-            # Extract the detail word and event name
-            for event in self.get_all_events():
-                if event.get("title", "") in question:
-                    event_name = event.get("title", "")
-                    description = event.get("description", "")
+        # elif "What was the" in question and "mentioned in the event" in question:
+        #     # Detail-oriented question about an event
+        #     detail_word = None
+        #     event_name = None
+        #     result["similarity_score"] = None
+        #     # Extract the detail word and event name
+        #     for event in self.get_all_events():
+        #         if event.get("name", "") in question:
+        #             event_name = event.get("name", "")
+        #             description = event.get("description", "")
                     
-                    # Try to find which detail is being asked about
-                    question_parts = question.split("What was the ")[1].split(" mentioned")[0]
-                    if question_parts in description:
-                        detail_word = question_parts
+        #             # Try to find which detail is being asked about
+        #             question_parts = question.split("What was the ")[1].split(" mentioned")[0]
+        #             if question_parts in description:
+        #                 detail_word = question_parts
                         
-                    if detail_word:
-                        # Find context around the detail word
-                        if detail_word.lower() in description.lower():
-                            # Calculate similarity between user answer and context around the detail
-                            # First, extract the context (sentence or phrase containing the detail)
-                            pattern = r"[^.!?]*\b" + re.escape(detail_word) + r"\b[^.!?]*[.!?]"
-                            matches = re.findall(pattern, description, re.IGNORECASE)
-                            if matches:
-                                context = matches[0]
-                            else:
-                                context = description
+        #             if detail_word:
+        #                 # Find context around the detail word
+        #                 if detail_word.lower() in description.lower():
+        #                     # Calculate similarity between user answer and context around the detail
+        #                     # First, extract the context (sentence or phrase containing the detail)
+        #                     pattern = r"[^.!?]*\b" + re.escape(detail_word) + r"\b[^.!?]*[.!?]"
+        #                     matches = re.findall(pattern, description, re.IGNORECASE)
+        #                     if matches:
+        #                         context = matches[0]
+        #                     else:
+        #                         context = description
                                 
-                            similarity = self.calculate_text_similarity(context, user_answer,relationshipQuestion=False)
-                            result["similarity_score"] = similarity
+        #                     similarity = self.calculate_text_similarity(context, user_answer,relationshipQuestion=False)
+        #                     result["similarity_score"] = similarity
                             
-                            if similarity > 0.5:
-                                result["correct"] = True
-                                result["feedback"] = f"Correct! You remembered the detail about '{detail_word}' from '{event_name}'."
-                            elif similarity > 0.4:
-                                result["correct"] = True
-                                result["feedback"] = f"Partially correct. Your answer contains some elements about the '{detail_word}' from '{event_name}'."
-                            else:
-                                result["correct"] = False
-                                result["feedback"] = f"Not quite. The detail about '{detail_word}' was different in the description of '{event_name}'."
+        #                     if similarity > 0.5:
+        #                         result["feedback"] = f"Correct! You remembered the detail about '{detail_word}' from '{event_name}'."
+        #                     elif similarity > 0.4:
+        #                         result["feedback"] = f"Partially correct. Your answer contains some elements about the '{detail_word}' from '{event_name}'."
+        #                     else:
+        #                         result["feedback"] = f"Not quite. The detail about '{detail_word}' was different in the description of '{event_name}'."
                             
-                            result["correct_answer"] = context
-                            break
+        #                     result["correct_answer"] = context
+        #                     break
                     
         elif "when did the event" in question.lower():
             print("enter when did the event")
@@ -468,9 +527,8 @@ class CognitiveGame:
                     result["correct_answer"] = expected_date_str
 
                     try:
-                        expected_date = datetime.strptime(expected_date_str, "%Y-%d-%m")
+                        expected_date = datetime.strptime(expected_date_str, "%Y-%m-%d")
                     except ValueError:
-                        result["correct"] = False
                         result["feedback"] = f"Stored date for '{event_name}' is invalid."
                         break
 
@@ -486,7 +544,7 @@ class CognitiveGame:
                             parts.append("01")
 
                         formatted_date_str = "-".join(parts)
-                        user_date = datetime.strptime(formatted_date_str, "%Y-%d-%m")
+                        user_date = datetime.strptime(formatted_date_str, "%Y-%m-%d")
 
 
                     score = 0.0
@@ -494,7 +552,7 @@ class CognitiveGame:
 
                     if match_full_date:
                         try:
-                            # user_date = datetime.strptime(match_full_date.group(), "%Y-%d-%m")
+                            # user_date = datetime.strptime(match_full_date.group(), "%Y-%m-%d")
                             delta_days = abs((user_date - expected_date).days)
                             print("delta_days", delta_days)
                             if delta_days <= 30:
@@ -535,10 +593,49 @@ class CognitiveGame:
                         score = 0.0
                         feedback = f"Could not find a date in your answer for '{event_name}'."
 
-                    result["correct"] = score >= 0.5
                     result["feedback"] = feedback
-                    result["score"] = round(score, 2)
+                    result["similarity_score"] = round(score, 2)
                     break
+        
+        elif "which happened first" in question.lower():
+            print("enter which happened first")
+            # Extract event names from question
+            all_events = self.get_all_events()
+            all_names = [event["title"] for event in all_events]
+            names_in_question = [name for name in all_names if name in question]
+            result["similarity_score"] = None
+            
+            if len(names_in_question) < 2:
+                result["feedback"] = "Please provide two events to compare."
+                return result
+            
+            # Get the first and second event from the database
+            first_event = next((e for e in all_events if e["title"] == names_in_question[0]), None)
+            second_event = next((e for e in all_events if e["title"] == names_in_question[1]), None)
+
+            if not first_event or not second_event:
+                result["feedback"] = "One or both of the events are not found in the database."
+                return result
+            
+            first_date = datetime.strptime(first_event["date_of_occurrence"], "%Y-%m-%d")
+            second_date = datetime.strptime(second_event["date_of_occurrence"], "%Y-%m-%d")
+            
+            correct_name = None
+            if first_date < second_date:
+                correct_name = first_event["title"]
+            else:
+                correct_name = second_event["title"]
+
+            # User answer can be "Event A happened first" or just "Event A"
+            user_answer = user_answer.strip().lower()
+            if correct_name.lower() in user_answer:
+                result["feedback"] = f"Correct! '{correct_name}' happened first."
+                result["similarity_score"] = 1
+            else:
+                result["feedback"] = f"Not quite. '{correct_name}' happened first."
+                result["similarity_score"] = 0
+                
+            result["correct_answer"] = correct_name
 
             
         
@@ -663,7 +760,7 @@ class CognitiveGame:
         print(f"Embedding similarity: {embedding_sim:.2f}")
         # Combine the similarities with weights - give embedding similarity higher weight
         # Sequence matching is good for order, jaccard for overall content, embedding_sim for semantic meaning
-        combined_similarity = (0.15 * seq_similarity) + (0.15 * jaccard) + (0.7 * embedding_sim)
+        combined_similarity = (0.1 * seq_similarity) + (0.2 * jaccard) + (0.7 * embedding_sim)
         
         return combined_similarity
     
@@ -699,38 +796,38 @@ if __name__ == "__main__":
     # Sample data insertion
     def insert_sample_data(db):
         # # Clear existing data
-        db["memory_aids"].delete_many({})
+        db["people"].delete_many({})
+        db["events"].delete_many({})
         
         # Insert sample people
         people = [
-            {"title": "John Smith", "phone": "555-1234", "relation": "friend", "user_id": "user1", "type": "person"},
-            {"title": "Alice Johnson", "phone": "555-5678", "relation": "coworker", "user_id": "user1", "type": "person"},
-            {"title": "Michael Brown", "phone": "555-9012", "relation": "brother", "user_id": "user1", "type": "person"}
+            {"title": "John Smith", "phone": "555-1234", "description": "friend","date_met_patient": "2015-06-01","date_of_birth":"1993-01-30"},
+            {"title": "Alice Johnson", "phone": "555-5678", "description": "coworker","date_met_patient": "2016-06-01", "date_of_birth": "1990-05-15"},
+            {"title": "Michael Brown", "phone": "555-9012", "description": "brother","date_met_patient": "2015-07-01","date_of_birth": "1992-08-20"},
+            {"title": "Emily Davis", "phone": "555-3456", "description": "sister","date_met_patient": "2017-06-01","date_of_birth":  "1995-09-10"},
         ]
-        db["memory_aids"].insert_many(people)
+        db["people"].insert_many(people)
         
         # Insert sample events
         events = [
             {
                 "title": "A visit to Paris",
                 "description": "I visited Paris in 2020 and bought a souvenir Eiffel Tower",
-                "user_id": "user1",
-                "type": "event"
+                "date_of_occurrence": "2020-06-01"
+
             },
             {
                 "title": "Birthday party",
-                "description": "We celebrated at the beach restaurant last summer",
-                "user_id": "user1",
-                "type": "event"
+                "description": "We celebrated at the beach restaurant last summer , it was a great time with friends",
+                "date_of_occurrence": "2022-07-15"
             },
             {
                 "title": "Conference presentation",
                 "description": "I presented my research on cognitive psychology to a room of experts",
-                "user_id": "user1",
-                "type": "event"
+                "date_of_occurrence": "2023-03-10"
             }
         ]
-        db["memory_aids"].insert_many(events)
+        db["events"].insert_many(events)
     
     # Initialize the database connection
     mongo_uri = "mongodb://localhost:27017/"
@@ -743,7 +840,7 @@ if __name__ == "__main__":
 
     
     # Initialize the game
-    game = CognitiveGame(db, "user1")
+    game = CognitiveGame()
     
     # Uncomment to insert sample data
     # insert_sample_data(game.db)
@@ -752,32 +849,36 @@ if __name__ == "__main__":
     print("\nDemonstrating text similarity and answer validation:")
     
     # Relationship question example
-    test_question = "What is your relationship with John Smith?"
-    test_answer = "He is a good friend of mine"
-    expected_relation = "friend"
+    test_question1 = "What is your relationship with John Smith?"
+    test_answer1 = "He is a good friend of mine"
+    expected_relation1 = "friend"
     
-    print(f"Question: {test_question}")
-    print(f"User answer: {test_answer}")
-    print(f"Expected relation: {expected_relation}")
+    print(f"Question: {test_question1}")
+    print(f"User answer: {test_answer1}")
+    print(f"Expected relation: {expected_relation1}")
     
     # Calculate similarity manually for demonstration
-    validation_result1 = game.check_answer(test_question, test_answer)
+    validation_result1 = game.check_answer(test_question1, test_answer1)
     print("out1 :")
     print(validation_result1)
     print("\n")
+
+  
+
+    
     
     print("\nEvent description question example:")
-    test_question = "What happened during the event: A visit to Paris?"
-    test_answer = "We went to Paris and I remember buying a small Eiffel Tower"
-    expected_description = "I visited Paris in 2020 and bought a souvenir Eiffel Tower"
+    test_question2 = "What happened during the event: A visit to Paris?"
+    test_answer2 = "We went to Paris and I remember buying a small Eiffel Tower"
+    expected_description2 = "I visited Paris in 2020 and bought a souvenir Eiffel Tower"
     
-    print(f"Question: {test_question}")
-    print(f"User answer: {test_answer}")
-    print(f"Expected description: {expected_description}")
+    print(f"Question: {test_question2}")
+    print(f"User answer: {test_answer2}")
+    print(f"Expected description: {expected_description2}")
     
     
     # Use the validation function
-    validation_result2 = game.check_answer(test_question, test_answer)
+    validation_result2 = game.check_answer(test_question2, test_answer2)
     print("out2 :")
     print(validation_result2)
     print("\n")
@@ -785,9 +886,95 @@ if __name__ == "__main__":
     
     print("\nExample with less similar description:")
     test_answer2 = "I think we visited somewhere in Europe last year"
-    validation_result2_1 = game.check_answer(expected_description, test_answer2)
+    validation_result2_1 = game.check_answer(test_question2, test_answer2)
     print("out2_1 :")
     print(validation_result2_1)
     print("\n")
+    
+
+    #How long have you known john
+    print("\nHow long have you known question example:")
+    test_question3 = "How long have you known John Smith?"
+    test_answer3 = "I have known him since 2014-06-01"
+    expected_duration = "2015-06-01"
+    print(f"User answer: {test_answer3}")
+    print(f"Expected duration: {expected_duration}")
+    validation_result1_1 = game.check_answer(test_question3, test_answer3)
+    print("out1_1 :")
+    print(validation_result1_1)
+    print("\n")
 
 
+    #How long have you known john
+    print("\nHow long have you known question example:")
+    test_question3 = "How long have you known John Smith?"
+    test_answer3 = "I have known him for 8 years"
+    expected_duration = "10"
+    print(f"User answer: {test_answer3}")
+    print(f"Expected duration: {expected_duration}")
+    validation_result1_1 = game.check_answer(test_question3, test_answer3)
+    print("out1_1 :")
+    print(validation_result1_1)
+    print("\n")
+
+
+    # Who did you meet first question example
+    print("\nWho did you meet first question example:")
+    test_question4 = "Who did you meet first, John Smith or Alice Johnson?"
+    test_answer4 = "I met John Smith first"
+    expected_first_person = "John Smith"
+    print(f"Question: {test_question4}")
+    print(f"User answer: {test_answer4}")
+    validation_result3 = game.check_answer(test_question4, test_answer4)
+    print("out3 :")
+    print(validation_result3)
+    print("\n")
+
+    # Who is older question example
+    print("\nWho is older question example:")
+    test_question5 = "Who is older, John Smith or Alice Johnson?"
+    test_answer5 = "John Smith is older"
+    expected_older_person = "John Smith"
+    print(f"Question: {test_question5}")
+    print(f"User answer: {test_answer5}")
+    validation_result4 = game.check_answer(test_question5, test_answer5)
+    print("out4 :")
+    print(validation_result4)
+    print("\n")
+
+
+    #When did the event '{e.get('name')}' occur?
+    print("\nEvent occurrence question example:")
+    test_question6 = "When did the event A visit to Paris occur?"
+    test_answer6 = "It happened in 2020-06-01"
+    expected_event_date = "2020"
+    print(f"Question: {test_question6}")
+    print(f"User answer: {test_answer6}")   
+    validation_result5 = game.check_answer(test_question6, test_answer6)
+    print("out5 :")
+    print(validation_result5)
+    print("\n")
+    # When did the event 'A visit to Paris' occur?
+    test_answer6_1 = "I think it was in 2019"
+    validation_result5_1 = game.check_answer(test_question6, test_answer6_1)
+    print("out5_1 :")
+    print(validation_result5_1)
+    print("\n")
+
+    #what was the detail mentioned in the event
+    print("\nEvent detail question example:")
+    test_question7 = "What was good about Birthday party?"
+    test_answer7 = "It was a great time with friends"
+    expected_event_detail = "We celebrated at the beach restaurant last summer , it was a great time with friends"
+    print(f"Question: {test_question7}")
+    print(f"User answer: {test_answer7}")
+    validation_result6 = game.check_answer(test_question7, test_answer7)
+    print("out6 :")
+    print(validation_result6)
+    print("\n")
+    # What was the detail mentioned in the event
+    test_answer7_1 = "I think it was a nice party"
+    validation_result6_1 = game.check_answer(test_question7, test_answer7_1)
+    print("out6_1 :")
+    print(validation_result6_1)
+    print("\n")

@@ -216,7 +216,10 @@ def ai_routes_funcitons(app, mongo):
                 session.pop('game_questions_asked', None)
                 session.pop('current_question', None)
                 
-                return {"response": f"Game ended! You scored {final_score} out of {total_questions} questions. Great job exercising your memory!"}
+                # Calculate final accuracy percentage
+                final_accuracy = round((final_score / total_questions) * 100, 2) if total_questions > 0 else 0
+                
+                return {"response": f"Game ended! You scored {final_accuracy}% accuracy across {total_questions} questions. Great job exercising your memory!"}
             
             # game is already started
             if session.get('game_active') and session.get('game_user_id') == user_id:
@@ -231,8 +234,11 @@ def ai_routes_funcitons(app, mongo):
                 # increment questions asked
                 session['game_questions_asked'] = session.get('game_questions_asked', 0) + 1
                 
-                if result.get('correct', False):
-                    session['game_score'] = session.get('game_score', 0) + 1
+                # Use similarity_score for scoring instead of 'correct' field
+                similarity_score = result.get('similarity_score')
+                if similarity_score is not None:
+                    # Add the similarity score to the total score
+                    session['game_score'] = session.get('game_score', 0) + similarity_score
                 
                 # Generate next question
                 next_question = game.generate_random_question()
@@ -242,7 +248,8 @@ def ai_routes_funcitons(app, mongo):
                 feedback = result.get('feedback', 'Thank you for your answer!')
                 score = session.get('game_score', 0)
                 questions_asked = session.get('game_questions_asked', 0)
-                accuracy = round((score / questions_asked) * 100, 2)
+                # Calculate accuracy as average similarity score (since scores are 0-1)
+                accuracy = round((score / questions_asked) * 100, 2) if questions_asked > 0 else 0
                 
                 response = f"{feedback}. Next question: {next_question}"
                 
