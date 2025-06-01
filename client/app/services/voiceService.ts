@@ -403,7 +403,33 @@ class VoiceService {
         ...options,
       };
 
-      await Speech.speak(text, speechOptions);
+      // Return a promise that resolves when speech is actually done
+      return new Promise<void>((resolve, reject) => {
+        const enhancedOptions = {
+          ...speechOptions,
+          onStart: () => {
+            console.log('TTS: Speech started');
+            speechOptions.onStart?.();
+          },
+          onDone: () => {
+            console.log('TTS: Speech completed');
+            speechOptions.onDone?.();
+            resolve();
+          },
+          onStopped: () => {
+            console.log('TTS: Speech stopped');
+            speechOptions.onStopped?.();
+            resolve();
+          },
+          onError: (error: any) => {
+            console.error('TTS: Speech error:', error);
+            speechOptions.onError?.(error);
+            reject(error);
+          }
+        };
+
+        Speech.speak(text, enhancedOptions);
+      });
     } catch (error) {
       console.error('Error in text-to-speech:', error);
       throw error;

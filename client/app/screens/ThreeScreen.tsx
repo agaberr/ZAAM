@@ -20,7 +20,7 @@ export default function ThreeAvatar({ setActiveTab }: ThreeAvatarProps) {
       <View style={styles.canvasStyle}>
         <Canvas camera={{ position: [0, 0, 6], fov: 30 }}>
           <ambientLight intensity={1} color={"#ffffff"} />
-          <pointLight position={[0, 3, 0]} intensity={5} color={"#ffddb1"} />
+          <pointLight position={[0, 1.8, 0]} intensity={5} color={"#ffddb1"} />
 
           <Suspense fallback={null}>
             <Avatar
