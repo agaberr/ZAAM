@@ -52,156 +52,21 @@ export function Avatar(props) {
   }, [animation, actions, mixer.stats.actions.inUse]);
 
   useEffect(() => {
-    if (!props.isTalking || !props.audio) return;
-    setAnimation(idleAnimation);
+    if (props.isTalking == true) {
+      setAnimation(talkAnimation);
+      let startTime = Date.now();
 
-    const listener = new THREE.AudioListener();
-    const sound = new THREE.Audio(listener);
-
-    audioRef.current = sound;
-    setAudioStatus("loading");
-    console.log("Loading audio...");
-
-    // Check if audio is base64 data or a file path
-    if (props.audio.startsWith("data:audio") || props.audio.length > 1000) {
-      // Handle base64 audio data
-      try {
-        // Convert base64 to Blob
-        const audioBlob = new Blob(
-          [
-            Uint8Array.from(
-              atob(props.audio.replace(/^data:audio\/[^;]+;base64,/, "")),
-              (c) => c.charCodeAt(0)
-            ),
-          ],
-          { type: "audio/wav" }
-        );
-        const audioUrl = URL.createObjectURL(audioBlob);
-
-        const audioLoader = new THREE.AudioLoader();
-
-        audioLoader.load(
-          audioUrl,
-          (buffer) => {
-            console.log(
-              "Audio loaded successfully from base64, preparing to play"
-            );
-            setAudioStatus("loaded");
-
-            sound.setBuffer(buffer);
-            sound.setLoop(false);
-            sound.setVolume(1.0);
-
-            const analyser = new THREE.AudioAnalyser(sound, 64);
-
-            sound.onEnded = () => {
-              console.log("Audio playback ended");
-              setAudioStatus("ended");
-              setLipsync(undefined);
-              setAnimation(idleAnimation);
-              URL.revokeObjectURL(audioUrl);
-            };
-
-            try {
-              console.log("Starting audio playback");
-              sound.play();
-              setAudioStatus("playing");
-
-              setLipsync(() => ({
-                getVolume: () => {
-                  if (!analyser) return 0;
-                  const frequencies = analyser.getFrequencyData();
-                  const speechRange = frequencies.slice(5, 30);
-                  const average =
-                    speechRange.reduce((a, b) => a + b, 0) / speechRange.length;
-                  return Math.pow(average / 256, 0.8);
-                },
-              }));
-
-              setAnimation(talkAnimation);
-            } catch (error) {
-              console.error("Error playing audio:", error);
-              setAudioStatus("error");
-              URL.revokeObjectURL(audioUrl);
-            }
-          },
-          undefined,
-          (error) => {
-            console.error("Error loading audio from base64:", error);
-            setAudioStatus("error");
-            URL.revokeObjectURL(audioUrl);
-          }
-        );
-      } catch (error) {
-        console.error("Error processing base64 audio:", error);
-        setAudioStatus("error");
-      }
-    } else {
-      // Handle file path (fallback for existing functionality)
-      const audioLoader = new THREE.AudioLoader();
-
-      audioLoader.load(
-        props.audio,
-        (buffer) => {
-          console.log("Audio loaded successfully from file, preparing to play");
-          setAudioStatus("loaded");
-
-          sound.setBuffer(buffer);
-          sound.setLoop(false);
-          sound.setVolume(1.0);
-
-          const analyser = new THREE.AudioAnalyser(sound, 64);
-
-          sound.onEnded = () => {
-            console.log("Audio playback ended");
-            setAudioStatus("ended");
-            setLipsync(undefined);
-            setAnimation(idleAnimation);
-          };
-
-          try {
-            console.log("Starting audio playback");
-            sound.play();
-            setAudioStatus("playing");
-
-            setLipsync(() => ({
-              getVolume: () => {
-                if (!analyser) return 0;
-                const frequencies = analyser.getFrequencyData();
-                const speechRange = frequencies.slice(5, 30);
-                const average =
-                  speechRange.reduce((a, b) => a + b, 0) / speechRange.length;
-                return Math.pow(average / 256, 0.8);
-              },
-            }));
-
-            setAnimation(talkAnimation);
-          } catch (error) {
-            console.error("Error playing audio:", error);
-            setAudioStatus("error");
-          }
+      setLipsync(() => ({
+        getVolume: () => {
+          const elapsed = (Date.now() - startTime) / 200;
+          return (Math.sin(elapsed) + 1) / 2;
         },
-        undefined,
-        (error) => {
-          console.error("Error loading audio from file:", error);
-          setAudioStatus("error");
-        }
-      );
-    }
-
-    props.setIsTalking(false);
-
-    return () => {
-      console.log("Cleaning up audio");
-      if (audioRef.current) {
-        audioRef.current.stop();
-        audioRef.current = null;
-      }
+      }));
+    } else {
       setLipsync(undefined);
-      setAnimation(defaultAnimation);
-      setAudioStatus("idle");
-    };
-  }, [props.isTalking, props.audio]);
+      setAnimation(idleAnimation);
+    }
+  }, [props.isTalking]);
 
   const lerpMorphTarget = (target, value, speed = 2) => {
     scene.traverse((child) => {

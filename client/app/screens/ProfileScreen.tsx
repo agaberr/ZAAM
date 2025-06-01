@@ -29,6 +29,9 @@ interface MemoryAid {
   date: string;
   type: 'person' | 'place' | 'event' | 'object';
   image_url?: string;
+  date_of_birth?: string;  // For person type - their date of birth
+  date_met_patient?: string;  // For person type - when they met the patient
+  date_of_occurrence?: string;  // For event type - when the event occurred
 }
 
 export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: string) => void }) {
@@ -64,7 +67,10 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
     title: '',
     description: '',
     date: new Date().toISOString().split('T')[0],
-    type: 'person'
+    type: 'person',
+    date_of_birth: '',
+    date_met_patient: '',
+    date_of_occurrence: ''
   });
   const [editingMemoryAidId, setEditingMemoryAidId] = useState<string | null>(null);
   
@@ -115,14 +121,20 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
   // Fetch user data from the backend
   useEffect(() => {
     const loadUserProfile = async () => {
+      console.log('loadUserProfile called with userData:', userData); // Debug log
+      
       if (!userData?.id) {
+        console.log('No user ID found, skipping profile load'); // Debug log
         setIsLoading(false);
         return;
       }
       
       try {
         setIsLoading(true);
+        console.log('Loading user profile for ID:', userData.id); // Debug log
+        
         const userProfileData = await fetchUserData(userData.id);
+        console.log('Loaded user profile data:', userProfileData); // Debug log
         setUserProfile(userProfileData);
         
         // Update state with fetched data
@@ -156,6 +168,8 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
       try {
         setMemoryAidsLoading(true);
         const data = await fetchMemoryAids();
+        console.log('Loaded memory aids:', data); // Debug log
+        console.log('Memory aids with IDs:', data.map(aid => ({ title: aid.title, _id: aid._id }))); // Debug log
         setMemoryAids(data);
       } catch (error) {
         console.error('Failed to load memory aids:', error);
@@ -225,44 +239,6 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
     }
   };
   
-  const handleLogout = () => {
-    Alert.alert(
-      "Log Out",
-      "Are you sure you want to log out?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        { 
-          text: "Log Out", 
-          onPress: async () => {
-            try {
-              console.log("Starting logout process...");
-              
-              // Show loading state if needed
-              setIsSaving(true);
-              
-              await signOut();
-              console.log("User logged out successfully - signOut function completed");
-              
-              // The navigation should be handled by the AuthContext
-              // but let's add a fallback just in case
-              
-            } catch (error) {
-              console.error("Logout error:", error);
-              console.error("Error details:", error instanceof Error ? error.message : String(error));
-              Alert.alert("Error", "Failed to log out. Please try again.");
-            } finally {
-              setIsSaving(false);
-            }
-          },
-          style: "destructive"
-        }
-      ]
-    );
-  };
-  
   const renderMemoryAidIcon = (type: string) => {
     switch(type) {
       case 'person':
@@ -291,50 +267,49 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
     setContactDialogVisible(true);
   };
 
-  const handleDeleteContact = (index: number) => {
-    Alert.alert(
-      "Delete Contact",
-      "Are you sure you want to delete this emergency contact?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
+  const handleDeleteContact = async (index: number) => {
+    console.log('handleDeleteContact called with index:', index); // Debug log
+    
+    // Directly call the delete API without confirmation dialog for testing
+    console.log('Contact delete confirmed, starting deletion process...'); // Debug log
+    
+    const updatedContacts = [...emergencyContacts];
+    const deletedContact = updatedContacts.splice(index, 1)[0];
+    console.log('Deleting contact:', deletedContact); // Debug log
+    
+    setEmergencyContacts(updatedContacts);
+    
+    // Save the updated profile with the contact removed
+    try {
+      setIsSaving(true);
+      console.log('About to update user profile with new emergency contacts...'); // Debug log
+      
+      const updatedUserData = {
+        full_name: name,
+        age: parseInt(age) || 0,
+        gender: gender,
+        contact_info: {
+          email: email,
+          phone: phone
         },
-        {
-          text: "Delete",
-          onPress: async () => {
-            const updatedContacts = [...emergencyContacts];
-            updatedContacts.splice(index, 1);
-            setEmergencyContacts(updatedContacts);
-            
-            // Save the updated profile with the contact removed
-            try {
-              setIsSaving(true);
-              
-              const updatedUserData = {
-                full_name: name,
-                age: parseInt(age) || 0,
-                gender: gender,
-                contact_info: {
-                  email: email,
-                  phone: phone
-                },
-                emergency_contacts: updatedContacts
-              };
-              
-              await updateUserProfile(userData.id, updatedUserData);
-              Alert.alert('Success', 'Emergency contact deleted successfully');
-            } catch (error) {
-              console.error('Failed to delete emergency contact:', error);
-              Alert.alert('Error', 'Failed to delete emergency contact. Please try again.');
-            } finally {
-              setIsSaving(false);
-            }
-          },
-          style: "destructive"
-        }
-      ]
-    );
+        emergency_contacts: updatedContacts
+      };
+      
+      console.log('Updated user data to save:', updatedUserData); // Debug log
+      
+      const result = await updateUserProfile(userData.id, updatedUserData);
+      console.log('updateUserProfile result:', result); // Debug log
+      
+      Alert.alert('Success', 'Emergency contact deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete emergency contact:', error);
+      console.error('Error details:', error instanceof Error ? error.message : String(error)); // More detailed error log
+      Alert.alert('Error', 'Failed to delete emergency contact. Please try again.');
+      // Revert the local state change on error
+      setEmergencyContacts(emergencyContacts);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSaveContact = async () => {
@@ -388,7 +363,10 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
       title: '',
       description: '',
       date: new Date().toISOString().split('T')[0],
-      type: 'person'
+      type: 'person',
+      date_of_birth: '',
+      date_met_patient: '',
+      date_of_occurrence: ''
     });
     setEditingMemoryAidId(null);
     setMemoryAidDialogVisible(true);
@@ -400,41 +378,47 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
       description: memoryAid.description,
       date: memoryAid.date,
       type: memoryAid.type,
-      image_url: memoryAid.image_url
+      image_url: memoryAid.image_url,
+      date_of_birth: memoryAid.date_of_birth || '',
+      date_met_patient: memoryAid.date_met_patient || '',
+      date_of_occurrence: memoryAid.date_of_occurrence || ''
     });
     setEditingMemoryAidId(memoryAid._id || null);
     setMemoryAidDialogVisible(true);
   };
 
-  const handleDeleteMemoryAid = (memoryAidId: string) => {
-    Alert.alert(
-      "Delete Memory Aid",
-      "Are you sure you want to delete this memory aid?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Delete",
-          onPress: async () => {
-            try {
-              setMemoryAidsLoading(true);
-              await deleteMemoryAid(memoryAidId);
-              // Update the local state after successful deletion
-              setMemoryAids(memoryAids.filter(aid => aid._id !== memoryAidId));
-              Alert.alert('Success', 'Memory aid deleted successfully');
-            } catch (error) {
-              console.error('Failed to delete memory aid:', error);
-              Alert.alert('Error', 'Failed to delete memory aid. Please try again.');
-            } finally {
-              setMemoryAidsLoading(false);
-            }
-          },
-          style: "destructive"
-        }
-      ]
-    );
+  const handleDeleteMemoryAid = async (memoryAidId: string) => {
+    console.log('handleDeleteMemoryAid called with ID:', memoryAidId); // Debug log
+    
+    // Check if memory aid ID exists
+    if (!memoryAidId) {
+      console.error('No memory aid ID provided'); // Debug log
+      Alert.alert('Error', 'Cannot delete memory aid: Invalid ID');
+      return;
+    }
+
+    // Directly call the delete API without confirmation dialog for testing
+    console.log('Delete confirmed, starting deletion process...'); // Debug log
+    try {
+      setMemoryAidsLoading(true);
+      console.log('About to call deleteMemoryAid API with ID:', memoryAidId); // Debug log
+      
+      const result = await deleteMemoryAid(memoryAidId);
+      console.log('deleteMemoryAid API result:', result); // Debug log
+      
+      // Reload memory aids from the server to ensure fresh data
+      console.log('Reloading memory aids from server...'); // Debug log
+      const updatedMemoryAids = await fetchMemoryAids();
+      setMemoryAids(updatedMemoryAids);
+      
+      Alert.alert('Success', 'Memory aid deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete memory aid:', error);
+      console.error('Error details:', error instanceof Error ? error.message : String(error)); // More detailed error log
+      Alert.alert('Error', 'Failed to delete memory aid. Please try again.');
+    } finally {
+      setMemoryAidsLoading(false);
+    }
   };
 
   const handleSaveMemoryAid = async () => {
@@ -463,6 +447,7 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
       } else {
         // Create new memory aid
         const newMemoryAid = await createMemoryAid(currentMemoryAid);
+        console.log('Created new memory aid:', newMemoryAid); // Debug log
         
         // Add to the local state
         setMemoryAids([...memoryAids, newMemoryAid]);
@@ -751,7 +736,10 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
                         icon="delete"
                         iconColor="#FF3B30"
                         size={20}
-                        onPress={() => handleDeleteContact(index)}
+                        onPress={() => {
+                          console.log('Delete button pressed for emergency contact:', contact.name, 'at index:', index); // Debug log
+                          handleDeleteContact(index);
+                        }}
                       />
                     </View>
                   </View>
@@ -807,11 +795,38 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
                             icon="delete"
                             iconColor="#FF3B30"
                             size={20}
-                            onPress={() => aid._id && handleDeleteMemoryAid(aid._id)}
+                            onPress={() => {
+                              console.log('Delete button pressed for memory aid:', aid.title, 'ID:', aid._id); // Debug log
+                              handleDeleteMemoryAid(aid._id || '');
+                            }}
                           />
                         </View>
                       </View>
                       <Text style={styles.memoryDescription}>{aid.description}</Text>
+                      {aid.type === 'person' && (aid.date_of_birth || aid.date_met_patient) && (
+                        <View style={styles.personDetails}>
+                          {aid.date_of_birth && (
+                            <Text style={styles.personDetailText}>
+                              <Text style={styles.personDetailLabel}>Born: </Text>
+                              {aid.date_of_birth}
+                            </Text>
+                          )}
+                          {aid.date_met_patient && (
+                            <Text style={styles.personDetailText}>
+                              <Text style={styles.personDetailLabel}>Met: </Text>
+                              {aid.date_met_patient}
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                      {aid.type === 'event' && aid.date_of_occurrence && (
+                        <View style={styles.personDetails}>
+                          <Text style={styles.personDetailText}>
+                            <Text style={styles.personDetailLabel}>Occurred: </Text>
+                            {aid.date_of_occurrence}
+                          </Text>
+                        </View>
+                      )}
                       <Text style={styles.memoryDate}>Added: {aid.date}</Text>
                     </Card.Content>
                   </Card>
@@ -844,22 +859,34 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
           left={props => <List.Icon {...props} icon="cog" color="#8E8E93" />}
         >
           <View style={styles.accordionContent}>
+            {/* Force logout button (was debug button) */}
             <TouchableOpacity 
-              style={[styles.accountOption, isSaving && styles.disabledButton]}
-              onPress={handleLogout}
-              disabled={isSaving}
+              style={[styles.accountOption, styles.logoutButton]}
+              onPress={() => {
+                console.log("🔴 Force logout: Clearing storage and redirecting...");
+                try {
+                  if (typeof window !== 'undefined') {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    console.log("🔴 Force logout: Storage cleared successfully");
+                    window.location.href = '/welcome';
+                  }
+                } catch (error) {
+                  console.error("🔴 Force logout failed:", error);
+                  // Fallback - try to navigate anyway
+                  if (typeof window !== 'undefined') {
+                    window.location.href = '/welcome';
+                  }
+                }
+              }}
             >
               <View style={styles.accountOptionInfo}>
                 <Ionicons name="log-out" size={24} color="#FF3B30" style={styles.accountOptionIcon} />
                 <Text style={[styles.accountOptionLabel, styles.logoutText]}>
-                  {isSaving ? "Logging Out..." : "Log Out"}
+                  Log Out
                 </Text>
               </View>
-              {isSaving ? (
-                <ActivityIndicator size="small" color="#FF3B30" />
-              ) : (
-                <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
-              )}
+              <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
             </TouchableOpacity>
           </View>
         </List.Accordion>
@@ -1037,6 +1064,41 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
                 </Text>
               </TouchableOpacity>
             </View>
+            
+            {/* Conditional fields for person type */}
+            {currentMemoryAid.type === 'person' && (
+              <>
+                <TextInput
+                  label="Date of Birth"
+                  value={currentMemoryAid.date_of_birth || ''}
+                  onChangeText={(text) => setCurrentMemoryAid({...currentMemoryAid, date_of_birth: text})}
+                  style={styles.modalInput}
+                  mode="outlined"
+                  placeholder="YYYY-MM-DD"
+                />
+                
+                <TextInput
+                  label="When did you meet this person?"
+                  value={currentMemoryAid.date_met_patient || ''}
+                  onChangeText={(text) => setCurrentMemoryAid({...currentMemoryAid, date_met_patient: text})}
+                  style={styles.modalInput}
+                  mode="outlined"
+                  placeholder="YYYY-MM-DD"
+                />
+              </>
+            )}
+            
+            {/* Conditional fields for event type */}
+            {currentMemoryAid.type === 'event' && (
+              <TextInput
+                label="When did this event occur?"
+                value={currentMemoryAid.date_of_occurrence || ''}
+                onChangeText={(text) => setCurrentMemoryAid({...currentMemoryAid, date_of_occurrence: text})}
+                style={styles.modalInput}
+                mode="outlined"
+                placeholder="YYYY-MM-DD"
+              />
+            )}
             
             <View style={styles.modalButtons}>
               <Button 
@@ -1481,6 +1543,9 @@ const styles = StyleSheet.create({
   logoutText: {
     color: '#EF4444',
   },
+  logoutButton: {
+    // Removed yellow background and border to make it look like a normal option
+  },
   divider: {
     marginVertical: 10,
   },
@@ -1534,5 +1599,20 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#E5E7EB',
+  },
+  personDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  personDetailText: {
+    fontSize: 14,
+    color: '#64748B',
+    marginLeft: 8,
+  },
+  personDetailLabel: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
   },
 }); 

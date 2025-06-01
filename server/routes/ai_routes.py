@@ -390,11 +390,11 @@ def ai_routes_funcitons(app, mongo):
             return jsonify({"error": "error in getting reminders"}), 500
     
     @app.route('/api/reminder/<reminder_id>', methods=['PUT'])
-    def updaterem(remid):
+    def updaterem(reminder_id):
         userID = get_user_loggedin()
         data = request.json
         
-        rem = mongo.db.reminders.find_one({"_id": ObjectId(remid), "user_id": userID})
+        rem = mongo.db.reminders.find_one({"_id": ObjectId(reminder_id), "user_id": userID})
         if not rem:
             return jsonify({"error": "Reminder not found"}), 404
         
@@ -410,7 +410,7 @@ def ai_routes_funcitons(app, mongo):
         if 'completed' in data:
             update_data['completed'] = data['completed']
         
-        res = ReminderDB.update_reminder(remid, update_data, db=mongo.db)
+        res = ReminderDB.update_reminder(reminder_id, update_data, db=mongo.db)
 
         if not res:
             return jsonify({"error": "Can't update it"}), 500
@@ -419,15 +419,15 @@ def ai_routes_funcitons(app, mongo):
     
 
     @app.route('/api/reminder/<reminder_id>', methods=['DELETE'])
-    def deleterem(remid):
+    def deleterem(reminder_id):
             
         id = get_user_loggedin()
-        rem = mongo.db.reminders.find_one({"_id": ObjectId(remid), "user_id": id})
+        rem = mongo.db.reminders.find_one({"_id": ObjectId(reminder_id), "user_id": id})
         
         if not rem:
             return jsonify({"error": "Reminder not found"}), 404
         
-        res = ReminderDB.delete_reminder(remid, db=mongo.db)
+        res = ReminderDB.delete_reminder(reminder_id, db=mongo.db)
 
         if not res:
             return jsonify({"error": "Can't delete this"}), 500

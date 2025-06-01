@@ -1,4 +1,4 @@
-from werkzeug.security import generate_password_hash, checkForPass_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import jwt
 import os
@@ -142,7 +142,7 @@ class User:
         return user
 
     def checkForPass(self, password):
-        return checkForPass_hash(self.password_hash, password)
+        return check_password_hash(self.password_hash, password)
 
     def generateAuthToken(self):
         payload = {"user_id": str(self._id)}

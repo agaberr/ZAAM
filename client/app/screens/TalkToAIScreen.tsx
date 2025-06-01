@@ -545,11 +545,36 @@ export default function TalkToAIScreen({
         setIsTalking(true);
       }
       
-      await voiceService.speak(text, {
-        language: 'en-US',
-        pitch: 1.0,
-        rate: 0.8,
+      // Use promise-based approach with proper event handling
+      await new Promise<void>((resolve, reject) => {
+        const speechOptions = {
+          language: 'en-US',
+          pitch: 1.0,
+          rate: 0.8,
+          onStart: () => {
+            console.log('Speech started');
+            // Ensure isTalking is true when speech actually starts
+            if (setIsTalking) {
+              setIsTalking(true);
+            }
+          },
+          onDone: () => {
+            console.log('Speech completed');
+            resolve();
+          },
+          onStopped: () => {
+            console.log('Speech stopped');
+            resolve();
+          },
+          onError: (error: any) => {
+            console.error('Speech error:', error);
+            reject(error);
+          }
+        };
+        
+        voiceService.speak(text, speechOptions).catch(reject);
       });
+      
     } catch (error) {
       console.error('Error speaking response:', error);
     } finally {
@@ -578,11 +603,6 @@ export default function TalkToAIScreen({
       stopVoiceInput();
     }
     
-    // Activate avatar talking if prop is provided
-    if (setIsTalking) {
-      setIsTalking(true);
-    }
-    
     if (!text.trim()) return;
 
     // Add user message
@@ -602,7 +622,7 @@ export default function TalkToAIScreen({
       // Use the main AI service which now includes audio support
       const aiResponse = await aiService.processAIRequest(text.trim());
 
-      const responseText = aiResponse.response || "I'm here to help you. What would you like to know?";
+      const responseText = aiResponse.response || "Sorry, I couldn't process your request right now.";
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -618,16 +638,26 @@ export default function TalkToAIScreen({
         setAudioData(aiResponse.audio);
       }
 
-      // Automatically speak the AI response
-      await speakResponse(responseText);
-
-      // Set a timeout to stop the avatar talking animation after a delay
-      // proportional to the response length
-      if (setIsTalking) {
-        const talkingDuration = Math.min(Math.max(responseText.length * 50, 2000), 10000);
-        setTimeout(() => {
-          setIsTalking(false);
-        }, talkingDuration);
+      // Automatically speak the AI response - this will handle isTalking state properly
+      if (isDesktopView) {
+        await speakResponse(responseText);
+      } else {
+        // For non-desktop views, we still want the avatar to show talking animation
+        // but without actual speech, so we simulate the duration
+        if (setIsTalking) {
+          setIsTalking(true);
+          // Calculate realistic talking duration based on text length and speech rate
+          const wordsPerMinute = 160; // Average speaking rate
+          const words = responseText.split(' ').length;
+          const durationMs = (words / wordsPerMinute) * 60 * 1000;
+          const minDuration = 1500; // Minimum 1.5 seconds
+          const maxDuration = 8000; // Maximum 8 seconds
+          const talkingDuration = Math.min(Math.max(durationMs, minDuration), maxDuration);
+          
+          setTimeout(() => {
+            setIsTalking(false);
+          }, talkingDuration);
+        }
       }
 
       // Increment AI interactions
