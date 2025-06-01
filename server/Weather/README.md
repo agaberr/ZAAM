@@ -32,7 +32,7 @@ pip install -r requirements.txt
 python run.py
 ```
 
-4. Open your web browser and navigate to http://localhost:5003:5002
+4. Open your web browser and navigate to http://localhost:5004:5002
 
 ## API Usage
 
@@ -41,6 +41,7 @@ The application exposes an API endpoint that can be used to communicate with the
 ### POST /api/chat
 
 **Request:**
+
 ```json
 {
   "message": "Will it rain tomorrow in Cairo?"
@@ -48,6 +49,7 @@ The application exposes an API endpoint that can be used to communicate with the
 ```
 
 **Response:**
+
 ```json
 {
   "response": "Based on the forecast, it will be partly cloudy in Cairo on Sunday, July 10."

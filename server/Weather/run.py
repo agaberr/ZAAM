@@ -185,6 +185,10 @@ optimizer = optim.AdamW(model.parameters(), lr=2e-5)
 
 
 best_model_path = os.path.join(WEATHER_DIR, "weather_model.pt")
+checkpoint = torch.load(best_model_path)
+model.load_state_dict(checkpoint['model_state_dict'])
+optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+print(f"Best model loaded from epoch {checkpoint['epoch']} with Intent F1: {checkpoint['intent_f1']:.4f}, NER F1: {checkpoint['ner_f1']:.4f}")
 # Load best model for inference
 print(f"Loading best model from {best_model_path} for inference...")
 checkpoint = torch.load(best_model_path)
@@ -584,7 +588,7 @@ def classify_weather(temp, humidity, wind_kph, chance_of_rain, is_raining, condi
 
 templates = {
     "weather_forecast": [
-        "The forecast shows {condition} skies and {temp_phrase} temperatures. It's expected to feel {humidity_phrase} and {wind_phrase}. Rain chances are {rain_phrase}.",
+        "The forecast shows {condition} skies and {temp_phrase} temperatures. It's expected to feel {humidity_phrase} with {wind_phrase} winds. Rain chances are {rain_phrase}.",
         "It will be {condition}, with weather feeling {temp_phrase} and {humidity_phrase}. It is predicted to be {wind_phrase}, and it should {rain_phrase} rain.",
         "Expect a {temp_phrase} day under {condition} skies. It's {humidity_phrase} and {wind_phrase}. Rain is {rain_phrase}.",
         "Skies will be {condition}, temperature is {temp_phrase}, and it's {humidity_phrase}. It is also going to be {wind_phrase}. As for rain, it is {rain_phrase}."
@@ -601,14 +605,14 @@ templates = {
         "{humidity_condition} conditions are predicted, {humidity_items} will keep you comfortable."
     ],
     "yes_no_clothing": [
-        "Yes, wearing {item[0]} would be a smart choice given the forecast.",
-        "No, wearing {item[0]} isn't necessary for this weather.",
-        "Yes, you should definitely wear {item[0]} in this weather.",
-        "No, putting on {item[0]} isn't needed for this weather.",
-        "Yes, putting on {item[0]} is advisable for this weather.",
-        "No, you can skip the {item[0]}.",
-        "Yes, sporting {item[0]} is recommended given the conditions.",
-        "No, you won't need {item[0]} I believe."
+        "Yes, wearing {item} would be a smart choice given the forecast.",
+        "No, wearing {item} isn't necessary for this weather.",
+        "Yes, you should definitely wear {item} in this weather.",
+        "No, putting on {item} isn't needed for this weather.",
+        "Yes, putting on {item} is advisable for this weather.",
+        "No, you can skip the {item}.",
+        "Yes, sporting {item} is recommended given the conditions.",
+        "No, you won't need {item} I believe."
     ],
     "yes_no_weather": [
         "Yes, it will be {temp_phrase}.",
@@ -658,11 +662,11 @@ def check_clothing_preference(user_preferred_clothing, weather_conditions):
     rain_condition = weather_conditions[3]
     if rain_condition == "rain":
         output2 = 1 if user_preferred_clothing in clothing_dict["rain"] else 0
-    elif rain_condition == "not rain":
-        # For "not rain", we consider it appropriate if it's not rain-specific gear
-        in_rain_gear = user_preferred_clothing in clothing_dict["rain"]
-        print(in_rain_gear)
-        output2 = 0 if in_rain_gear else 1
+    # elif rain_condition == "not rain":
+    #     # For not rain, we consider it appropriate if it's not rain-specific gear
+    #     in_rain_gear = user_preferred_clothing in clothing_dict["rain"]
+    #     print(in_rain_gear)
+    #     output2 = 0 if in_rain_gear else 1
 
     return output1, output2
 
@@ -1067,7 +1071,7 @@ def get_weather_response(query):
             intent_response = generate_response(
                 intent, 
                 classified_weather, 
-                user_preferred_clothing=clothing_items
+                user_preferred_clothing=clothing_items[0]
             )
         elif intent == "yes_no_weather":
             intent_response = generate_response(
