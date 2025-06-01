@@ -618,8 +618,10 @@ export default function TalkToAIScreen({
         setAudioData(aiResponse.audio);
       }
 
-      // Automatically speak the AI response
-      await speakResponse(responseText);
+      // Automatically speak the AI response only in desktop view
+      if (isDesktopView) {
+        await speakResponse(responseText);
+      }
 
       // Set a timeout to stop the avatar talking animation after a delay
       // proportional to the response length
