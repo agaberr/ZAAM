@@ -121,14 +121,20 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
   // Fetch user data from the backend
   useEffect(() => {
     const loadUserProfile = async () => {
+      console.log('loadUserProfile called with userData:', userData); // Debug log
+      
       if (!userData?.id) {
+        console.log('No user ID found, skipping profile load'); // Debug log
         setIsLoading(false);
         return;
       }
       
       try {
         setIsLoading(true);
+        console.log('Loading user profile for ID:', userData.id); // Debug log
+        
         const userProfileData = await fetchUserData(userData.id);
+        console.log('Loaded user profile data:', userProfileData); // Debug log
         setUserProfile(userProfileData);
         
         // Update state with fetched data
@@ -162,6 +168,8 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
       try {
         setMemoryAidsLoading(true);
         const data = await fetchMemoryAids();
+        console.log('Loaded memory aids:', data); // Debug log
+        console.log('Memory aids with IDs:', data.map(aid => ({ title: aid.title, _id: aid._id }))); // Debug log
         setMemoryAids(data);
       } catch (error) {
         console.error('Failed to load memory aids:', error);
@@ -259,50 +267,49 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
     setContactDialogVisible(true);
   };
 
-  const handleDeleteContact = (index: number) => {
-    Alert.alert(
-      "Delete Contact",
-      "Are you sure you want to delete this emergency contact?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
+  const handleDeleteContact = async (index: number) => {
+    console.log('handleDeleteContact called with index:', index); // Debug log
+    
+    // Directly call the delete API without confirmation dialog for testing
+    console.log('Contact delete confirmed, starting deletion process...'); // Debug log
+    
+    const updatedContacts = [...emergencyContacts];
+    const deletedContact = updatedContacts.splice(index, 1)[0];
+    console.log('Deleting contact:', deletedContact); // Debug log
+    
+    setEmergencyContacts(updatedContacts);
+    
+    // Save the updated profile with the contact removed
+    try {
+      setIsSaving(true);
+      console.log('About to update user profile with new emergency contacts...'); // Debug log
+      
+      const updatedUserData = {
+        full_name: name,
+        age: parseInt(age) || 0,
+        gender: gender,
+        contact_info: {
+          email: email,
+          phone: phone
         },
-        {
-          text: "Delete",
-          onPress: async () => {
-            const updatedContacts = [...emergencyContacts];
-            updatedContacts.splice(index, 1);
-            setEmergencyContacts(updatedContacts);
-            
-            // Save the updated profile with the contact removed
-            try {
-              setIsSaving(true);
-              
-              const updatedUserData = {
-                full_name: name,
-                age: parseInt(age) || 0,
-                gender: gender,
-                contact_info: {
-                  email: email,
-                  phone: phone
-                },
-                emergency_contacts: updatedContacts
-              };
-              
-              await updateUserProfile(userData.id, updatedUserData);
-              Alert.alert('Success', 'Emergency contact deleted successfully');
-            } catch (error) {
-              console.error('Failed to delete emergency contact:', error);
-              Alert.alert('Error', 'Failed to delete emergency contact. Please try again.');
-            } finally {
-              setIsSaving(false);
-            }
-          },
-          style: "destructive"
-        }
-      ]
-    );
+        emergency_contacts: updatedContacts
+      };
+      
+      console.log('Updated user data to save:', updatedUserData); // Debug log
+      
+      const result = await updateUserProfile(userData.id, updatedUserData);
+      console.log('updateUserProfile result:', result); // Debug log
+      
+      Alert.alert('Success', 'Emergency contact deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete emergency contact:', error);
+      console.error('Error details:', error instanceof Error ? error.message : String(error)); // More detailed error log
+      Alert.alert('Error', 'Failed to delete emergency contact. Please try again.');
+      // Revert the local state change on error
+      setEmergencyContacts(emergencyContacts);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSaveContact = async () => {
@@ -380,35 +387,38 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
     setMemoryAidDialogVisible(true);
   };
 
-  const handleDeleteMemoryAid = (memoryAidId: string) => {
-    Alert.alert(
-      "Delete Memory Aid",
-      "Are you sure you want to delete this memory aid?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Delete",
-          onPress: async () => {
-            try {
-              setMemoryAidsLoading(true);
-              await deleteMemoryAid(memoryAidId);
-              // Update the local state after successful deletion
-              setMemoryAids(memoryAids.filter(aid => aid._id !== memoryAidId));
-              Alert.alert('Success', 'Memory aid deleted successfully');
-            } catch (error) {
-              console.error('Failed to delete memory aid:', error);
-              Alert.alert('Error', 'Failed to delete memory aid. Please try again.');
-            } finally {
-              setMemoryAidsLoading(false);
-            }
-          },
-          style: "destructive"
-        }
-      ]
-    );
+  const handleDeleteMemoryAid = async (memoryAidId: string) => {
+    console.log('handleDeleteMemoryAid called with ID:', memoryAidId); // Debug log
+    
+    // Check if memory aid ID exists
+    if (!memoryAidId) {
+      console.error('No memory aid ID provided'); // Debug log
+      Alert.alert('Error', 'Cannot delete memory aid: Invalid ID');
+      return;
+    }
+
+    // Directly call the delete API without confirmation dialog for testing
+    console.log('Delete confirmed, starting deletion process...'); // Debug log
+    try {
+      setMemoryAidsLoading(true);
+      console.log('About to call deleteMemoryAid API with ID:', memoryAidId); // Debug log
+      
+      const result = await deleteMemoryAid(memoryAidId);
+      console.log('deleteMemoryAid API result:', result); // Debug log
+      
+      // Reload memory aids from the server to ensure fresh data
+      console.log('Reloading memory aids from server...'); // Debug log
+      const updatedMemoryAids = await fetchMemoryAids();
+      setMemoryAids(updatedMemoryAids);
+      
+      Alert.alert('Success', 'Memory aid deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete memory aid:', error);
+      console.error('Error details:', error instanceof Error ? error.message : String(error)); // More detailed error log
+      Alert.alert('Error', 'Failed to delete memory aid. Please try again.');
+    } finally {
+      setMemoryAidsLoading(false);
+    }
   };
 
   const handleSaveMemoryAid = async () => {
@@ -437,6 +447,7 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
       } else {
         // Create new memory aid
         const newMemoryAid = await createMemoryAid(currentMemoryAid);
+        console.log('Created new memory aid:', newMemoryAid); // Debug log
         
         // Add to the local state
         setMemoryAids([...memoryAids, newMemoryAid]);
@@ -725,7 +736,10 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
                         icon="delete"
                         iconColor="#FF3B30"
                         size={20}
-                        onPress={() => handleDeleteContact(index)}
+                        onPress={() => {
+                          console.log('Delete button pressed for emergency contact:', contact.name, 'at index:', index); // Debug log
+                          handleDeleteContact(index);
+                        }}
                       />
                     </View>
                   </View>
@@ -781,7 +795,10 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
                             icon="delete"
                             iconColor="#FF3B30"
                             size={20}
-                            onPress={() => aid._id && handleDeleteMemoryAid(aid._id)}
+                            onPress={() => {
+                              console.log('Delete button pressed for memory aid:', aid.title, 'ID:', aid._id); // Debug log
+                              handleDeleteMemoryAid(aid._id || '');
+                            }}
                           />
                         </View>
                       </View>

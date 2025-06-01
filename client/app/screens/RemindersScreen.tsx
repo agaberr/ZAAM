@@ -311,7 +311,10 @@ export default function RemindersScreen({ setActiveTab }: RemindersScreenProps) 
             <View style={styles.headerRight}>
               <TouchableOpacity 
                 style={styles.addButton}
-                onPress={() => setFormVisible(true)}
+                onPress={() => {
+                  setEditingReminder(undefined);
+                  setFormVisible(true);
+                }}
                 activeOpacity={0.8}
               >
                 <Ionicons name="add" size={24} color="white" />

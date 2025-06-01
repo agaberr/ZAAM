@@ -1045,13 +1045,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     },
     deleteMemoryAid: async (memoryAidId: string) => {
+      console.log('AuthContext deleteMemoryAid called with ID:', memoryAidId); // Debug log
+      
       try {
         const authToken = await AsyncStorage.getItem('authToken');
+        console.log('Auth token retrieved:', authToken ? 'exists' : 'missing'); // Debug log
+        
         if (!authToken) {
           throw new Error("Authentication token not found");
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/memory-aids/${memoryAidId}`, {
+        const url = `${API_BASE_URL}/api/memory-aids/${memoryAidId}`;
+        console.log('Making DELETE request to:', url); // Debug log
+
+        const response = await fetch(url, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${authToken}`,
@@ -1059,11 +1066,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           },
         });
 
+        console.log('Delete response status:', response.status); // Debug log
+        console.log('Delete response ok:', response.ok); // Debug log
+
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to delete memory aid');
+          const errorText = await response.text();
+          console.error('Delete error response text:', errorText); // Debug log
+          
+          try {
+            const errorData = JSON.parse(errorText);
+            console.error('Delete error response parsed:', errorData); // Debug log
+            throw new Error(errorData.error || 'Failed to delete memory aid');
+          } catch (parseError) {
+            console.error('Could not parse error response as JSON:', parseError);
+            throw new Error(`Server error: ${response.status} - ${errorText}`);
+          }
         }
 
+        // Try to get the response text/json for success case too
+        try {
+          const responseText = await response.text();
+          console.log('Delete success response:', responseText); // Debug log
+        } catch (responseError) {
+          console.log('Could not read success response:', responseError);
+        }
+
+        console.log('Memory aid deleted successfully'); // Debug log
         return true;
       } catch (error) {
         console.error('Error deleting memory aid:', error instanceof Error ? error.message : String(error));

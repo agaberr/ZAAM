@@ -23,14 +23,6 @@ const TIME_PRESETS = [
   { label: '8:00 PM', hour: 20, minute: 0 },
 ];
 
-// Quick date presets
-const DATE_PRESETS = [
-  { label: 'Today', offset: 0 },
-  { label: 'Tomorrow', offset: 1 },
-  { label: 'In 2 days', offset: 2 },
-  { label: 'Next week', offset: 7 },
-];
-
 const ReminderForm: React.FC<ReminderFormProps> = ({
   visible,
   onDismiss,
@@ -57,11 +49,11 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTimePreset, setSelectedTimePreset] = useState<string | null>(null);
-  const [selectedDatePreset, setSelectedDatePreset] = useState<string | null>(null);
 
   // Load edit data if provided
   useEffect(() => {
     if (editReminder) {
+      // Loading existing reminder for editing
       setTitle(editReminder.title);
       setDescription(editReminder.description || '');
       
@@ -83,29 +75,22 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
         setRecurring(false);
         setRecurrence(null);
       }
-    } else {
-      // Reset form for new reminder
-      resetForm();
+    } else if (visible) {
+      // For new reminders, only initialize if completely fresh (no user selections)
+      const hasUserInput = title || description || selectedTimePreset;
+      if (!hasUserInput) {
+        setTitle('');
+        setDescription('');
+        setStartDate(new Date());
+        setEndDate(new Date(new Date().getTime() + 60 * 60 * 1000));
+        setRecurrence(null);
+        setRecurring(false);
+        setWithEndDate(false);
+        setError('');
+        setSelectedTimePreset(null);
+      }
     }
   }, [editReminder, visible]);
-
-  // Quick date selection
-  const handleDatePresetSelect = (preset: { label: string; offset: number }) => {
-    const newDate = addDays(startOfToday(), preset.offset);
-    const updatedStartDate = new Date(startDate);
-    updatedStartDate.setFullYear(newDate.getFullYear());
-    updatedStartDate.setMonth(newDate.getMonth());
-    updatedStartDate.setDate(newDate.getDate());
-    
-    setStartDate(updatedStartDate);
-    setSelectedDatePreset(preset.label);
-    
-    // Update end date accordingly
-    const minEndDate = new Date(updatedStartDate.getTime() + 60 * 60 * 1000);
-    if (withEndDate && endDate < minEndDate) {
-      setEndDate(minEndDate);
-    }
-  };
 
   // Quick time selection
   const handleTimePresetSelect = (preset: { label: string; hour: number; minute: number }) => {
@@ -133,7 +118,6 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
     setWithEndDate(false);
     setError('');
     setSelectedTimePreset(null);
-    setSelectedDatePreset(null);
   };
   
   // Submit form
@@ -178,12 +162,18 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
         console.log('[DEBUG] Reminder created successfully:', result);
       }
       
-      // Reset and close
-      console.log('[DEBUG] Resetting form and calling success callback');
-      resetForm();
+      // Reset only title and description, preserve date/time selections for potential next reminder
+      setTitle('');
+      setDescription('');
+      setRecurrence(null);
+      setRecurring(false);
+      setWithEndDate(false);
+      setError('');
+      
       setLoading(false);
       onSuccess();
       onDismiss();
+      
       console.log('[DEBUG] Form submission completed');
     } catch (error) {
       console.error('[DEBUG] Error saving reminder:', error);
@@ -192,11 +182,17 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
     }
   };
 
+  // Handle modal dismiss - reset form when user manually closes
+  const handleDismiss = () => {
+    resetForm();
+    onDismiss();
+  };
+
   return (
     <Portal>
       <Modal
         visible={visible}
-        onDismiss={onDismiss}
+        onDismiss={handleDismiss}
         contentContainerStyle={styles.modalContainer}
       >
         <KeyboardAvoidingView
@@ -213,7 +209,7 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
               <Text style={styles.modalTitle}>
                 {editReminder ? 'Edit Reminder' : 'Create New Reminder'}
               </Text>
-              <TouchableOpacity onPress={onDismiss} style={styles.closeButton}>
+              <TouchableOpacity onPress={handleDismiss} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
@@ -245,27 +241,6 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
             <View style={styles.inputSection}>
               <Text style={styles.sectionLabel}>When?</Text>
               
-              {/* Quick Date Presets */}
-              <View style={styles.presetsContainer}>
-                {DATE_PRESETS.map((preset) => (
-                  <TouchableOpacity
-                    key={preset.label}
-                    style={[
-                      styles.presetChip,
-                      selectedDatePreset === preset.label && styles.selectedPresetChip
-                    ]}
-                    onPress={() => handleDatePresetSelect(preset)}
-                  >
-                    <Text style={[
-                      styles.presetChipText,
-                      selectedDatePreset === preset.label && styles.selectedPresetChipText
-                    ]}>
-                      {preset.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
               {/* Custom Date Picker */}
               <TouchableOpacity 
                 style={styles.dropdownButton}
@@ -435,7 +410,7 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
             <View style={styles.actionButtons}>
               <Button
                 mode="outlined"
-                onPress={onDismiss}
+                onPress={handleDismiss}
                 style={styles.cancelButton}
                 labelStyle={styles.cancelButtonText}
                 disabled={loading}
@@ -485,7 +460,6 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
                         newDate.setMonth(selectedDate.getMonth());
                         newDate.setDate(selectedDate.getDate());
                         setStartDate(newDate);
-                        setSelectedDatePreset(null);
                         
                         // Update end date to be at least 1 hour after start date
                         const minEndDate = new Date(newDate.getTime() + 60 * 60 * 1000);
@@ -511,7 +485,6 @@ const ReminderForm: React.FC<ReminderFormProps> = ({
                       const newDate = new Date(text);
                       if (!isNaN(newDate.getTime())) {
                         setStartDate(newDate);
-                        setSelectedDatePreset(null);
                       }
                       setShowStartDatePicker(false);
                     }}
