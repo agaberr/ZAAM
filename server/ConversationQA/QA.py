@@ -352,7 +352,11 @@ class ConversationalQA:
         print("category hena: ",category)
         if category == 'cooking':
             recipes =get_recipes_for_query(resolved_query)
-            answer = transform_recipe_to_conversation(recipes[0])
+            # Add null check for recipes
+            if not recipes:
+                answer = "I am sorry, I couldn't find any recipes for your request."
+            else:
+                answer = transform_recipe_to_conversation(recipes[0])
 
             self.conversation_history.append({
                 "query": query,
@@ -366,6 +370,10 @@ class ConversationalQA:
              articles = get_articles_for_query(resolved_query)
         else:
             articles= get_football_articles(resolved_query,max_articles=2)
+
+        # Add null check for articles
+        if not articles:
+            articles = []
 
         best_article = None
         article_match = None
