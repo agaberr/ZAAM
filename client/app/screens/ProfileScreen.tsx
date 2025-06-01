@@ -231,42 +231,6 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
     }
   };
   
-  const handleLogout = () => {
-    Alert.alert(
-      "Log Out",
-      "Are you sure you want to log out?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        { 
-          text: "Log Out", 
-          onPress: async () => {
-            try {
-              console.log("Starting logout process...");
-              
-              // Show loading state if needed
-              setIsSaving(true);
-              
-              await signOut();
-              console.log("User logged out successfully - signOut function completed");
-              
-          
-            } catch (error) {
-              console.error("Logout error:", error);
-              console.error("Error details:", error instanceof Error ? error.message : String(error));
-              Alert.alert("Error", "Failed to log out. Please try again.");
-            } finally {
-              setIsSaving(false);
-            }
-          },
-          style: "destructive"
-        }
-      ]
-    );
-  };
-  
   const renderMemoryAidIcon = (type: string) => {
     switch(type) {
       case 'person':
@@ -878,22 +842,34 @@ export default function ProfileScreen({ setActiveTab }: { setActiveTab: (tab: st
           left={props => <List.Icon {...props} icon="cog" color="#8E8E93" />}
         >
           <View style={styles.accordionContent}>
+            {/* Force logout button (was debug button) */}
             <TouchableOpacity 
-              style={[styles.accountOption, isSaving && styles.disabledButton]}
-              onPress={handleLogout}
-              disabled={isSaving}
+              style={[styles.accountOption, styles.logoutButton]}
+              onPress={() => {
+                console.log("🔴 Force logout: Clearing storage and redirecting...");
+                try {
+                  if (typeof window !== 'undefined') {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    console.log("🔴 Force logout: Storage cleared successfully");
+                    window.location.href = '/welcome';
+                  }
+                } catch (error) {
+                  console.error("🔴 Force logout failed:", error);
+                  // Fallback - try to navigate anyway
+                  if (typeof window !== 'undefined') {
+                    window.location.href = '/welcome';
+                  }
+                }
+              }}
             >
               <View style={styles.accountOptionInfo}>
                 <Ionicons name="log-out" size={24} color="#FF3B30" style={styles.accountOptionIcon} />
                 <Text style={[styles.accountOptionLabel, styles.logoutText]}>
-                  {isSaving ? "Logging Out..." : "Log Out"}
+                  Log Out
                 </Text>
               </View>
-              {isSaving ? (
-                <ActivityIndicator size="small" color="#FF3B30" />
-              ) : (
-                <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
-              )}
+              <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
             </TouchableOpacity>
           </View>
         </List.Accordion>
@@ -1549,6 +1525,9 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: '#EF4444',
+  },
+  logoutButton: {
+    // Removed yellow background and border to make it look like a normal option
   },
   divider: {
     marginVertical: 10,

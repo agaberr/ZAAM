@@ -7,7 +7,7 @@ import { useGoogleAuth, getCurrentUser } from '../services/authService';
 
 // API endpoint base URL
 // const API_BASE_URL = 'https://zaam-mj7u.onrender.com'; // For Android emulator pointing to localhost
-const API_BASE_URL = 'https://www.zaaam.me'; // For Android emulator pointing to localhost
+const API_BASE_URL = 'http://localhost:5003'; // For Android emulator pointing to localhost
 
 
 
@@ -556,10 +556,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Sign out function
-  const signOut = async () => {
+  // Local sign out function (client-side only)
+  const signOutLocal = async () => {
     try {
-      console.log('Signing out user...');
+      console.log('🔄 Starting LOCAL sign out process (client-side only)...');
       
       // Remove auth token and user data from AsyncStorage
       await AsyncStorage.removeItem('authToken');
@@ -569,18 +569,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.removeItem('isNewUser');
       await AsyncStorage.removeItem('tempRegData');
       
+      console.log('🗑️ AsyncStorage cleared');
+      
       // Also clear SecureStore tokens (used by API service)
       try {
         const SecureStore = await import('expo-secure-store');
         await SecureStore.deleteItemAsync('userToken');
         await SecureStore.deleteItemAsync('authToken');
-        console.log('SecureStore cleared');
+        console.log('🔒 SecureStore cleared');
       } catch (secureStoreError) {
-        console.log('SecureStore not available or failed to clear:', secureStoreError);
+        console.log('⚠️ SecureStore not available or failed to clear:', secureStoreError);
       }
       
       // Clear web storage if running in browser
       if (typeof window !== 'undefined') {
+        console.log('🌐 Running in browser, clearing web storage...');
+        
         // Clear localStorage with specific keys first
         if (window.localStorage) {
           // Clear all possible auth-related keys
@@ -611,13 +615,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           });
           
-          console.log('localStorage specific keys removed');
+          console.log('🗑️ localStorage specific keys removed');
         }
         
         // Clear sessionStorage
         if (window.sessionStorage) {
           window.sessionStorage.clear();
-          console.log('sessionStorage cleared');
+          console.log('🗑️ sessionStorage cleared');
         }
         
         // Clear all cookies
@@ -631,27 +635,219 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname};`;
             document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.${window.location.hostname};`;
           });
-          console.log('All cookies cleared');
+          console.log('🍪 All cookies cleared');
         }
       }
       
+      console.log('🎯 Updating auth state...');
       setIsAuthenticated(false);
       setUserData(null);
       
-      console.log('Successfully signed out');
+      console.log('✅ Successfully signed out (LOCAL)');
       
       // Force reload the page for web to ensure complete cleanup
       if (typeof window !== 'undefined') {
+        console.log('🔄 Reloading page for complete cleanup...');
         // Add a small delay to ensure all async storage operations complete
         setTimeout(() => {
           window.location.href = '/welcome';
         }, 100);
       } else {
+        console.log('📱 Navigating to welcome screen...');
         // Navigate to welcome screen for mobile
         router.replace('/welcome');
       }
     } catch (error) {
-      console.error('Sign out failed:', error instanceof Error ? error.message : String(error));
+      console.error('🚨 Local sign out failed:', error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+  };
+
+  // Sign out function
+  const signOut = async () => {
+    try {
+      console.log('🔄 Starting sign out process...');
+      
+      // Try to call server logout endpoint, but don't let it block the logout process
+      let serverLogoutSuccess = false;
+      try {
+        const authToken = await AsyncStorage.getItem('authToken');
+        console.log('🔑 Auth token found:', authToken ? 'Yes' : 'No');
+        
+        if (authToken) {
+          console.log('📡 Calling server logout endpoint:', `${API_BASE_URL}/api/auth/logout`);
+          
+          // Create abort controller for timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+          
+          const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          });
+          
+          clearTimeout(timeoutId);
+          console.log('📡 Server response status:', response.status);
+          
+          if (response.ok) {
+            console.log('✅ Server logout successful');
+            serverLogoutSuccess = true;
+          } else {
+            console.warn('⚠️ Server logout failed, but continuing with client cleanup');
+            const errorText = await response.text();
+            console.warn('Server error:', errorText);
+          }
+        }
+      } catch (serverError) {
+        console.warn('🚨 Failed to call server logout endpoint:', serverError);
+        console.warn('🚨 Continuing with client-side cleanup anyway...');
+      }
+      
+      console.log('🧹 Starting client-side cleanup...');
+      
+      // Always perform client-side cleanup regardless of server response
+      try {
+        // Remove auth token and user data from AsyncStorage
+        await AsyncStorage.removeItem('authToken');
+        await AsyncStorage.removeItem('userData');
+        await AsyncStorage.removeItem('onboardingCompleted');
+        await AsyncStorage.removeItem('userId');
+        await AsyncStorage.removeItem('isNewUser');
+        await AsyncStorage.removeItem('tempRegData');
+        
+        console.log('🗑️ AsyncStorage cleared');
+        
+        // Also clear SecureStore tokens (used by API service)
+        try {
+          const SecureStore = await import('expo-secure-store');
+          await SecureStore.deleteItemAsync('userToken');
+          await SecureStore.deleteItemAsync('authToken');
+          console.log('🔒 SecureStore cleared');
+        } catch (secureStoreError) {
+          console.log('⚠️ SecureStore not available or failed to clear:', secureStoreError);
+        }
+        
+        // Clear web storage if running in browser
+        if (typeof window !== 'undefined') {
+          console.log('🌐 Running in browser, clearing web storage...');
+          
+          // Clear localStorage with specific keys first
+          if (window.localStorage) {
+            // Clear all possible auth-related keys
+            const keysToRemove = [
+              'authToken', 
+              'userData', 
+              'userToken',
+              'userId',
+              'isNewUser',
+              'tempRegData',
+              'onboardingCompleted'
+            ];
+            
+            keysToRemove.forEach(key => {
+              window.localStorage.removeItem(key);
+              console.log(`🗑️ Removed ${key} from localStorage`);
+            });
+            
+            // Also try to clear any Expo/AsyncStorage mapped keys
+            // AsyncStorage keys on web are usually prefixed
+            const allKeys = Object.keys(window.localStorage);
+            allKeys.forEach(key => {
+              if (key.includes('authToken') || 
+                  key.includes('userData') || 
+                  key.includes('userToken') ||
+                  key.includes('userId') ||
+                  key.includes('@') && (key.includes('auth') || key.includes('user'))) {
+                window.localStorage.removeItem(key);
+                console.log(`🗑️ Removed prefixed key ${key} from localStorage`);
+              }
+            });
+            
+            console.log('🗑️ localStorage specific keys removed');
+          }
+          
+          // Clear sessionStorage
+          if (window.sessionStorage) {
+            window.sessionStorage.clear();
+            console.log('🗑️ sessionStorage cleared');
+          }
+          
+          // Clear all cookies
+          if (document && document.cookie) {
+            const cookies = document.cookie.split(";");
+            cookies.forEach(cookie => {
+              const eqPos = cookie.indexOf("=");
+              const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+              // Clear cookie by setting expiration to past date
+              document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;`;
+              document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname};`;
+              document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.${window.location.hostname};`;
+            });
+            console.log('🍪 All cookies cleared');
+          }
+        }
+        
+        console.log('🎯 Updating auth state...');
+        setIsAuthenticated(false);
+        setUserData(null);
+        
+        console.log('✅ Successfully signed out');
+        
+        // Force reload the page for web to ensure complete cleanup
+        if (typeof window !== 'undefined') {
+          console.log('🔄 Reloading page for complete cleanup...');
+          // Add a small delay to ensure all async storage operations complete
+          setTimeout(() => {
+            window.location.href = '/welcome';
+          }, 100);
+        } else {
+          console.log('📱 Navigating to welcome screen...');
+          // Navigate to welcome screen for mobile
+          router.replace('/welcome');
+        }
+      } catch (cleanupError) {
+        console.error('🚨 Client cleanup failed:', cleanupError);
+        // Even if cleanup fails, try to at least update the auth state
+        setIsAuthenticated(false);
+        setUserData(null);
+        
+        // Force navigation anyway
+        if (typeof window !== 'undefined') {
+          window.location.href = '/welcome';
+        } else {
+          router.replace('/welcome');
+        }
+        
+        throw cleanupError;
+      }
+    } catch (error) {
+      console.error('🚨 Sign out failed:', error instanceof Error ? error.message : String(error));
+      console.error('🚨 Full error:', error);
+      
+      // Emergency fallback - try to at least clear localStorage and navigate
+      try {
+        console.log('🚨 Emergency fallback - force clearing everything...');
+        if (typeof window !== 'undefined') {
+          // Force clear localStorage
+          window.localStorage.clear();
+          window.sessionStorage.clear();
+          console.log('🚨 Emergency: Storage cleared');
+          
+          // Update state
+          setIsAuthenticated(false);
+          setUserData(null);
+          
+          // Force navigate
+          window.location.href = '/welcome';
+        }
+      } catch (emergencyError) {
+        console.error('🚨 Emergency fallback also failed:', emergencyError);
+      }
+      
       throw error;
     }
   };

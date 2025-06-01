@@ -89,4 +89,4 @@ if __name__ == '__main__':
     if models_available:
         initialize_qa_system()
     
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5003, debug=True)
