@@ -380,7 +380,9 @@ class ConversationalQA:
    
         print("best score: ",best_score)
         print("best article match: ",article_match)
-      
+
+        print("###########################################")
+        print("best article: ",best_article['qa_text'])
         if best_article and queryType == "Summarization":
             answer = article_summarize(best_article['qa_text'])
             source = best_article['source']

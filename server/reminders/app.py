@@ -210,9 +210,9 @@ def chat():
                         meridian = time_parts[1].lower()
                     else:
                         return jsonify({"response": f"Could not parse time format: {time_str}. Please use format like '3 pm' or '11 am'."})
-                    
+
                     print(f"Parsed time - Hour: {hour}, Meridian: {meridian}")
-                    
+
                     # Convert to 24-hour format
                     if meridian == 'pm' and hour != 12:
                         hour += 12

@@ -26,11 +26,11 @@ export interface ReminderStats {
 
 // Reminder interface that matches the server model
 export interface ReminderData {
-  _id?: string; // MongoDB ID (undefined for new reminders)
+  _id?: string; 
   title: string;
   description?: string;
-  start_time: string; // ISO date string
-  end_time?: string; // ISO date string or null
+  start_time: string;
+  end_time?: string; 
   recurrence?: 'daily' | 'weekly' | 'monthly' | 'yearly' | null;
   completed?: boolean;
 }
@@ -45,7 +45,7 @@ export interface ReminderType {
   title: string;
   time: string;
   date: string;
-  start_time: string; // Keep original ISO string for editing
+  start_time: string;
   type: 'medication' | 'appointment' | 'activity' | 'hydration';
   description?: string;
   location?: string;
@@ -75,7 +75,7 @@ const createAuthAPI = async () => {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : '',
       },
-      withCredentials: true, // Include cookies in requests
+      withCredentials: true, 
     });
   } catch (error) {
     console.error('Error creating auth API:', error);

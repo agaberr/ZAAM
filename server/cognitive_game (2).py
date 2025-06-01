@@ -24,8 +24,8 @@ class CognitiveGame:
         """
         self.client = pymongo.MongoClient(mongo_uri)
         self.db = self.client[db_name]
-        self.people_collection = self.db["people"]
-        self.events_collection = self.db["events"]
+        self.people_collection = self.db["person"]
+        self.events_collection = self.db["event"]
         
     def get_all_people(self):
         """Get all people from the database"""
@@ -48,7 +48,7 @@ class CognitiveGame:
         # Different question types
         question_types = [
             # Questions about relationships
-            lambda p: f"What is your relationship with {p.get('name')}?",
+            lambda p: f"What is your relationship with {p.get('title')}?",
             
 
             
@@ -63,21 +63,23 @@ class CognitiveGame:
     def _generate_multi_people_question(self, target_person, all_people):
         """Generate a question that involves multiple people"""
         if len(all_people) < 2:
-            return f"How long have you known {target_person.get('name')}?"
+            return f"How long have you known {target_person.get('title')}?"
         
         # Get another random person different from target
-        other_people = [p for p in all_people if p["_id"] != target_person["_id"]]
+        other_people = [p for p in all_people if p["user_id"] != target_person["user_id"]]
         if other_people:
             other_person = random.choice(other_people)
             
             question_types = [
-                f"Who did you meet first, {target_person.get('name')} or {other_person.get('name')}?",
-                f"Do {target_person.get('name')} and {other_person.get('name')} know each other?"
+                f"Who did you meet first, {target_person.get('title')} or {other_person.get('title')}?",
+                f"who is older, {target_person.get('title')} or {other_person.get('title')}?",
+                
+
             ]
             
             return random.choice(question_types)
         else:
-            return f"How long have you known {target_person.get('name')}?"
+            return f"How long have you known {target_person.get('title')}?"
     
     def generate_event_question(self):
         """Generate a question related to events"""
@@ -92,8 +94,8 @@ class CognitiveGame:
         # Different question types
         question_types = [
             # Basic recall
-            lambda e: f"What happened during the event: {e.get('name')}?",
-            lambda e: f"When did the event '{e.get('name')}' occur?",
+            lambda e: f"What happened during the event: {e.get('title')}?",
+            lambda e: f"When did the event '{e.get('title')}' occur?",
             
             # Detail-oriented questions
             lambda e: self._generate_detail_question(e),
@@ -116,14 +118,14 @@ class CognitiveGame:
         
         if potential_details:
             detail = random.choice(potential_details)
-            return f"What was the {detail} mentioned in the event '{event.get('name')}'?"
+            return f"What was the {detail} mentioned in the event '{event.get('title')}'?"
         else:
-            return f"Can you describe what happened during '{event.get('name')}'?"
+            return f"Can you describe what happened during '{event.get('title')}'?"
     
     def _generate_multi_event_question(self, target_event, all_events):
         """Generate a question that involves multiple events"""
         if len(all_events) < 2:
-            return f"What do you remember most about '{target_event.get('name')}'?"
+            return f"What do you remember most about '{target_event.get('title')}'?"
         
         # Get another random event different from target
         other_events = [e for e in all_events if e["_id"] != target_event["_id"]]
@@ -131,33 +133,33 @@ class CognitiveGame:
             other_event = random.choice(other_events)
             
             question_types = [
-                f"Which happened first: '{target_event.get('name')}' or '{other_event.get('name')}'?",
-                f"What common elements were there between '{target_event.get('name')}' and '{other_event.get('name')}'?"
+                f"Which happened first: '{target_event.get('title')}' or '{other_event.get('title')}'?",
+                # f"What common elements were there between '{target_event.get('title')}' and '{other_event.get('title')}'?"
             ]
             
             return random.choice(question_types)
         else:
-            return f"What do you remember most about '{target_event.get('name')}'?"
+            return f"What do you remember most about '{target_event.get('title')}'?"
     
-    def generate_mixed_question(self):
-        """Generate a question that combines people and events"""
-        people = self.get_all_people()
-        events = self.get_all_events()
+    # def generate_mixed_question(self):
+    #     """Generate a question that combines people and events"""
+    #     people = self.get_all_people()
+    #     events = self.get_all_events()
         
-        if not people or not events:
-            return "Not enough data to generate mixed questions."
+    #     if not people or not events:
+    #         return "Not enough data to generate mixed questions."
         
-        person = random.choice(people)
-        event = random.choice(events)
+    #     person = random.choice(people)
+    #     event = random.choice(events)
         
-        question_types = [
-            f"Was {person.get('name')} present during the event '{event.get('name')}'?",
-            f"What was {person.get('name')}'s reaction to '{event.get('name')}'?",
-            f"Did you talk to {person.get('name')} about '{event.get('name')}'?",
-            f"Did any memorable interaction happen between you and {person.get('name')} during '{event.get('name')}'?"
-        ]
+    #     question_types = [
+    #         f"Was {person.get('title')} present during the event '{event.get('title')}'?",
+    #         f"What was {person.get('title')}'s reaction to '{event.get('title')}'?",
+    #         f"Did you talk to {person.get('title')} about '{event.get('title')}'?",
+    #         f"Did any memorable interaction happen between you and {person.get('title')} during '{event.get('title')}'?"
+    #     ]
         
-        return random.choice(question_types)
+    #     return random.choice(question_types)
     
     def generate_random_question(self):
         """Generate a random question selecting from all types"""
@@ -206,36 +208,182 @@ class CognitiveGame:
                     result["similarity_score"] = similarity
                     
                     # We'll consider it correct if similarity is above 0.7
-                    if similarity > 0.7:
+                    if similarity > 0.6:
                         result["correct"] = True
-                        result["feedback"] = f"Correct! Your relationship with {person['name']} is '{expected_relation}'."
+                        result["feedback"] = f"Correct! Your relationship with {person['title']} is '{expected_relation}'."
                     elif similarity > 0.4:
                         result["correct"] = True
-                        result["feedback"] = f"Partially correct. Your relationship with {person['name']} is '{expected_relation}'."
+                        result["feedback"] = f"Partially correct. Your relationship with {person['title']} is '{expected_relation}'."
                     else:
                         result["correct"] = False
-                        result["feedback"] = f"Not quite. Your relationship with {person['name']} is '{expected_relation}'."
+                        result["feedback"] = f"Not quite. Your relationship with {person['title']} is '{expected_relation}'."
                     result["correct_answer"] = expected_relation
                     break
                     
-        elif "phone number" in question:
-            # Extract person name from question
+
+
+        #Handle how long have you known 
+        elif "how long have you known" in question.lower():
+            print("enter how long have you known")
             for person in self.get_all_people():
-                if person["name"] in question:
-                    expected_phone = person.get("phone", "")
-                    # Allow for variations in format (e.g., with or without dashes)
-                    user_digits = ''.join(c for c in user_answer if c.isdigit())
-                    expected_digits = ''.join(c for c in expected_phone if c.isdigit())
-                    
-                    if user_digits == expected_digits or user_answer.strip() == expected_phone:
-                        result["correct"] = True
-                        result["feedback"] = f"Correct! {person['name']}'s phone number is {expected_phone}."
+                if person["name"].lower() in question.lower():
+                    expected_duration = person.get("FirstMeet", "")
+                    result["person"] = person["name"]
+                    today = datetime.today()
+
+                    try:
+                        expected_date = datetime.strptime(expected_duration, "%Y-%m-%d")
+                        years_known = today.year - expected_date.year
+                        if (today.month, today.day) < (expected_date.month, expected_date.day):
+                            years_known -= 1  # Adjust if anniversary hasn't occurred yet
+                    except Exception as e:
+                        result["score"] = 0.0
+                        result["feedback"] = f"Invalid stored date format: {e}"
+                        result["correct_answer"] = expected_duration
+                        break
+
+                    # Try extracting a year, full date, or year duration from user_answer
+                    year_match = re.search(r"since\s+(\d{4})", user_answer.lower())
+                    full_date_match = re.search(r"since\s+(\d{4}-\d{2}-\d{2})", user_answer.lower())
+                    number_match = re.search(r"\b(\d{1,3})\s*(years?|yrs?)\b", user_answer.lower())
+
+                    score = 0.0
+                    tolerance = 2  # Allow ±2 years
+
+                    if full_date_match:
+                        try:
+                            user_date = datetime.strptime(full_date_match.group(1), "%Y-%m-%d")
+                            delta_years = abs(user_date.year - expected_date.year)
+                            if delta_years == 0:
+                                score = 1.0
+                                result["feedback"] = f"Correct! You met {person['title']} on {expected_duration}."
+                            elif delta_years <= tolerance:
+                                score = 1.0 - (0.1 * delta_years)
+                                result["feedback"] = f"Almost correct. You met {person['title']} in {expected_date.year}."
+                            else:
+                                score = max(0.0, 1.0 - (0.1 * delta_years))
+                                result["feedback"] = f"You were a bit off. You met {person['title']} in {expected_date.year}."
+                            result["score"] = score
+                            result["correct_answer"] = expected_duration
+                        except ValueError:
+                            result["score"] = 0.0
+                            result["feedback"] = "Invalid date format. Expected format: YYYY-MM-DD."
+                            result["correct_answer"] = expected_duration
+
+                    elif year_match:
+                        user_year = int(year_match.group(1))
+                        delta_years = abs(user_year - expected_date.year)
+                        if delta_years == 0:
+                            score = 1.0
+                            result["feedback"] = f"Correct! You met {person['title']} in {expected_date.year}."
+                        elif delta_years <= tolerance:
+                            score = 1.0 - (0.1 * delta_years)
+                            result["feedback"] = f"Close. You met {person['title']} in {expected_date.year}."
+                        else:
+                            score = max(0.0, 1.0 - (0.1 * delta_years))
+                            result["feedback"] = f"Not quite. The correct year was {expected_date.year}."
+                        result["score"] = score
+                        result["correct_answer"] = str(expected_date.year)
+
+                    elif number_match:
+                        user_years = int(number_match.group(1))
+                        delta_years = abs(user_years - years_known)
+                        if delta_years == 0:
+                            score = 1.0
+                            result["feedback"] = f"Correct! You've known {person['title']} for {years_known} years."
+                        elif delta_years <= tolerance:
+                            score = 1.0 - (0.1 * delta_years)
+                            result["feedback"] = f"Almost right. You've known {person['title']} for {years_known} years."
+                        else:
+                            score = max(0.0, 1.0 - (0.1 * delta_years))
+                            result["feedback"] = f"You were off by a few years. It's actually {years_known} years."
+                        result["score"] =score
+                        result["correct_answer"] = str(years_known)
+
                     else:
-                        result["correct"] = False
-                        result["feedback"] = f"Not quite. {person['name']}'s phone number is {expected_phone}."
-                    result["correct_answer"] = expected_phone
-                    break
-                    
+                        result["score"] = 0.0
+                        result["feedback"] = "Sorry, I couldn't understand your answer. Try giving a year or a number of years."
+                        result["correct_answer"] = str(years_known)
+
+                    break  # End after first matched person
+        # handle Who did you meet first jhon or snow 
+        elif "who did you meet first" in question.lower():
+            # Extract person names from question
+            all_people = self.get_all_people()
+            all_names = [person["name"] for person in all_people]
+            names_in_question = [name for name in all_names if name in question]
+            if len(names_in_question) < 2:
+                result["feedback"] = "Please provide two names to compare."
+                return result
+            
+            # Get the first and second person from the database
+            first_person = next((p for p in all_people if p["name"] == names_in_question[0]), None)
+            second_person = next((p for p in all_people if p["name"] == names_in_question[1]), None)
+
+            if not first_person or not second_person:
+                result["feedback"] = "One or both of the people are not found in the database."
+                return result
+            
+            first_meet_date = datetime.strptime(first_person["FirstMeet"], "%Y-%m-%d")
+            second_meet_date = datetime.strptime(second_person["FirstMeet"], "%Y-%m-%d")
+            
+            correct_name = None
+            if first_meet_date < second_meet_date:
+                correct_name = first_person["name"]
+            else:
+                correct_name = second_person["name"]
+
+            # User answer can be "John met snow first" or just "John"
+            user_answer = user_answer.strip().lower()
+            if correct_name.lower() in user_answer:
+                result["correct"] = True
+                result["feedback"] = f"Correct! You met {correct_name} first."
+            else:
+                result["correct"] = False
+                result["feedback"] = f"Not quite. You met {correct_name} first."
+                
+            result["correct_answer"] = correct_name
+        # Handle who is older questions
+        elif "is older" in question:
+            # Extract person names from question
+            all_people = self.get_all_people()
+            all_names = [person["name"] for person in all_people]
+            names_in_question = [name for name in all_names if name in question]
+            if len(names_in_question) < 2:
+                result["feedback"] = "Please provide two names to compare."
+                return result
+            
+            # Get the first and second person from the database
+            first_person = next((p for p in all_people if p["name"] == names_in_question[0]), None)
+            second_person = next((p for p in all_people if p["name"] == names_in_question[1]), None)
+
+            if not first_person or not second_person:
+                result["feedback"] = "One or both of the people are not found in the database."
+                return result
+            
+            first_birth_date = datetime.strptime(first_person["bithday"], "%Y-%m-%d")
+            second_birth_date = datetime.strptime(second_person["bithday"], "%Y-%m-%d")
+            
+            correct_name = None
+            if first_birth_date < second_birth_date:
+                correct_name = first_person["name"]
+            else:
+                correct_name = second_person["name"]
+
+            # User answer can be "John is older" or just "John"
+            user_answer = user_answer.strip().lower()
+            if correct_name.lower() in user_answer:
+                result["correct"] = True
+                result["feedback"] = f"Correct! {correct_name} is older."
+            else:
+                result["correct"] = False
+                result["feedback"] = f"Not quite. {correct_name} is older."
+                
+            result["correct_answer"] = correct_name
+
+            
+
+
         # Handle event-related questions
         elif "What happened during the event" in question or "Can you describe what happened during" in question or "about the event" in question:
             # Extract event name from question
@@ -309,32 +457,88 @@ class CognitiveGame:
                             result["correct_answer"] = context
                             break
                     
-        # Handle mixed questions (people + events)
-        elif "present during the event" in question:
-            # This requires information that may not be explicitly stored in the database
-            # The system would need a way to connect people to events
-            person_name = None
-            event_name = None
-            
-            # Extract person and event names
-            for person in self.get_all_people():
-                if person["name"] in question:
-                    person_name = person["name"]
-                    break
-                    
+        elif "when did the event" in question.lower():
+            print("enter when did the event")
             for event in self.get_all_events():
-                if event.get("name", "") in question:
-                    event_name = event.get("name", "")
+                event_name = event.get("name", "")
+                if event_name.lower() in question.lower():
+                    expected_date_str = event.get("date", "")
+                    result["correct_answer"] = expected_date_str
+
+                    try:
+                        expected_date = datetime.strptime(expected_date_str, "%Y-%m-%d")
+                    except ValueError:
+                        result["correct"] = False
+                        result["feedback"] = f"Stored date for '{event_name}' is invalid."
+                        break
+
+                    # Try to extract full date or just the year from the user input
+                    match_full_date = re.search(r"\d{4}(-\d{2})?(-\d{2})?", user_answer)
+                    match_year = re.search(r"\b\d{4}\b", user_answer)
+                    
+                    if match_full_date:
+                        date_str = match_full_date.group()
+                        parts = date_str.split("-")
+
+                        while len(parts) < 3:
+                            parts.append("01")
+
+                        formatted_date_str = "-".join(parts)
+                        user_date = datetime.strptime(formatted_date_str, "%Y-%m-%d")
+
+
+                    score = 0.0
+                    feedback = ""
+
+                    if match_full_date:
+                        try:
+                            # user_date = datetime.strptime(match_full_date.group(), "%Y-%m-%d")
+                            delta_days = abs((user_date - expected_date).days)
+                            print("delta_days", delta_days)
+                            if delta_days <= 30:
+                                score = 1.0
+                                feedback = f"Excellent! You remembered the date of '{event_name}' almost exactly."
+                            elif delta_days <= 90:
+                                score = 0.8
+                                feedback = f"Good! You were close on the date of '{event_name}'."
+                            else:
+                                score = 0.5
+                                feedback = f"Your answer is a bit off, but you remembered something about '{event_name}'."
+
+                        except ValueError:
+                            feedback = "Couldn't understand the date format you gave."
+
+                    elif match_year:
+                        try:
+                            user_year = int(match_year.group())
+                            year_diff = abs(user_year - expected_date.year)
+
+                            if year_diff == 0:
+                                score = 0.9
+                                feedback = f"Great! You got the right year for '{event_name}'."
+                            elif year_diff == 1:
+                                score = 0.7
+                                feedback = f"Close! You were just a year off for '{event_name}'."
+                            elif year_diff == 2:
+                                score = 0.5
+                                feedback = f"A bit far off, but at least you remembered roughly when '{event_name}' happened."
+                            else:
+                                score = 0.0
+                                feedback = f"Your answer about '{event_name}' is quite far from the actual date."
+
+                        except Exception:
+                            feedback = "Couldn't understand the year format you gave."
+
+                    else:
+                        score = 0.0
+                        feedback = f"Could not find a date in your answer for '{event_name}'."
+
+                    result["correct"] = score >= 0.5
+                    result["feedback"] = feedback
+                    result["score"] = round(score, 2)
                     break
+
             
-            if person_name and event_name:
-                # We don't have actual attendance data, so we can only provide feedback
-                result["feedback"] = f"For questions about whether {person_name} was present at {event_name}, " \
-                                    f"we don't have that information stored directly. " \
-                                    f"This is a memory question for you to recall."
-                                    
-                # We could potentially check if both person and event are mentioned together
-                # in some other data source, but that's beyond the current implementation
         
         # For other question types that we don't handle yet
         if not result["correct_answer"]:
@@ -493,33 +697,38 @@ if __name__ == "__main__":
     # Sample data insertion
     def insert_sample_data(db):
         # # Clear existing data
-        db["people"].delete_many({})
-        db["events"].delete_many({})
+        db["person"].delete_many({})
+        db["event"].delete_many({})
         
         # Insert sample people
         people = [
-            {"name": "John Smith", "phone": "555-1234", "relation": "friend"},
-            {"name": "Alice Johnson", "phone": "555-5678", "relation": "coworker"},
-            {"name": "Michael Brown", "phone": "555-9012", "relation": "brother"}
+            {"name": "John Smith", "phone": "555-1234", "relation": "friend","FirstMeet": "2015-06-01","bithday":"1993-01-30"},
+            {"name": "Alice Johnson", "phone": "555-5678", "relation": "coworker","FirstMeet": "2016-06-01", "bithday": "1990-05-15"},
+            {"name": "Michael Brown", "phone": "555-9012", "relation": "brother","FirstMeet": "2015-07-01","bithday": "1992-08-20"},
+            {"name": "Emily Davis", "phone": "555-3456", "relation": "sister","FirstMeet": "2017-06-01","bithday":  "1995-09-10"},
         ]
-        db["people"].insert_many(people)
+        db["person"].insert_many(people)
         
         # Insert sample events
         events = [
             {
                 "name": "A visit to Paris",
-                "description": "I visited Paris in 2020 and bought a souvenir Eiffel Tower"
+                "description": "I visited Paris in 2020 and bought a souvenir Eiffel Tower",
+                "date": "2020-06-01"
+
             },
             {
                 "name": "Birthday party",
-                "description": "We celebrated at the beach restaurant last summer"
+                "description": "We celebrated at the beach restaurant last summer",
+                "date": "2022-07-15"
             },
             {
                 "name": "Conference presentation",
-                "description": "I presented my research on cognitive psychology to a room of experts"
+                "description": "I presented my research on cognitive psychology to a room of experts",
+                "date": "2023-03-10"
             }
         ]
-        db["events"].insert_many(events)
+        db["event"].insert_many(events)
     
     # Initialize the database connection
     mongo_uri = "mongodb://localhost:27017/"
@@ -554,6 +763,10 @@ if __name__ == "__main__":
     print("out1 :")
     print(validation_result1)
     print("\n")
+
+  
+
+    
     
     print("\nEvent description question example:")
     test_question = "What happened during the event: A visit to Paris?"
@@ -574,9 +787,77 @@ if __name__ == "__main__":
     
     print("\nExample with less similar description:")
     test_answer2 = "I think we visited somewhere in Europe last year"
-    validation_result2_1 = game.check_answer(expected_description, test_answer2)
+    validation_result2_1 = game.check_answer(test_question, test_answer2)
     print("out2_1 :")
     print(validation_result2_1)
     print("\n")
     
 
+    #How long have you known john
+    print("\nHow long have you known question example:")
+    test_question3 = "How long have you known John Smith?"
+    test_answer3 = "I have known him since 2014-06-01"
+    expected_duration = "2015-06-01"
+    print(f"User answer: {test_answer3}")
+    print(f"Expected duration: {expected_duration}")
+    validation_result1_1 = game.check_answer(test_question3, test_answer3)
+    print("out1_1 :")
+    print(validation_result1_1)
+    print("\n")
+
+
+    #How long have you known john
+    print("\nHow long have you known question example:")
+    test_question3 = "How long have you known John Smith?"
+    test_answer3 = "I have known him for 8 years"
+    expected_duration = "10"
+    print(f"User answer: {test_answer3}")
+    print(f"Expected duration: {expected_duration}")
+    validation_result1_1 = game.check_answer(test_question3, test_answer3)
+    print("out1_1 :")
+    print(validation_result1_1)
+    print("\n")
+
+
+    # Who did you meet first question example
+    print("\nWho did you meet first question example:")
+    test_question4 = "Who did you meet first, John Smith or Alice Johnson?"
+    test_answer4 = "I met John Smith first"
+    expected_first_person = "John Smith"
+    print(f"Question: {test_question4}")
+    print(f"User answer: {test_answer4}")
+    validation_result3 = game.check_answer(test_question4, test_answer4)
+    print("out3 :")
+    print(validation_result3)
+    print("\n")
+
+    # Who is older question example
+    print("\nWho is older question example:")
+    test_question5 = "Who is older, John Smith or Alice Johnson?"
+    test_answer5 = "John Smith is older"
+    expected_older_person = "John Smith"
+    print(f"Question: {test_question5}")
+    print(f"User answer: {test_answer5}")
+    validation_result4 = game.check_answer(test_question5, test_answer5)
+    print("out4 :")
+    print(validation_result4)
+    print("\n")
+
+
+    #When did the event '{e.get('title')}' occur?
+    print("\nEvent occurrence question example:")
+    test_question6 = "When did the event A visit to Paris occur?"
+    test_answer6 = "It happened in 2020-06-01"
+    expected_event_date = "2020"
+    print(f"Question: {test_question6}")
+    print(f"User answer: {test_answer6}")   
+    validation_result5 = game.check_answer(test_question6, test_answer6)
+    print("out5 :")
+    print(validation_result5)
+    print("\n")
+    # When did the event 'A visit to Paris' occur?
+    test_answer6_1 = "I think it was in 2019"
+    validation_result5_1 = game.check_answer(test_question6, test_answer6_1)
+    print("out5_1 :")
+    print(validation_result5_1)
+    print("\n")
