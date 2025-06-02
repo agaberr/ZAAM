@@ -192,15 +192,22 @@ def ai_routes_funcitons(app, mongo):
                     return {"response": "Something went wrong. Please start a new game."}
                 
                 game = CognitiveGame(db, user_id)
-                result = game.check_answer(current_question, text)
+                result = game.checkans(current_question, text)
                 
                 session['game_questions_asked'] = session.get('game_questions_asked', 0) + 1
                 
                 similarity_score = result.get('similarity_score')
-                if similarity_score is not None:
-                    session['game_score'] = session.get('game_score', 0) + similarity_score
+                if similarity_score is not None and similarity_score > 0.7:
+                    session['game_score'] = session.get('game_score', 0) + 1
                 
-                next_question = game.generate_random_question()
+                # Generate next question using the correct method
+                question_generators = [
+                    game.generatePeoplequestion,
+                    game.generateEventSquestion
+                ]
+                import random
+                selected_generator = random.choice(question_generators)
+                next_question = selected_generator()
                 session['current_question'] = next_question
                 
                 feedback = result.get('feedback', 'Thank you for your answer!')
@@ -212,8 +219,9 @@ def ai_routes_funcitons(app, mongo):
             if "start game" in text.lower():
                 game = CognitiveGame(db, user_id)
                 
-                memaid = game.get_all_memory_aids()
-                if not memaid:
+                people = game.getAllpeople()
+                events = game.getAllevents()
+                if not people and not events:
                     return {"response": "You don't have any memory aids yet."}
                 
                 session['game_active'] = True
@@ -221,7 +229,14 @@ def ai_routes_funcitons(app, mongo):
                 session['game_score'] = 0
                 session['game_questions_asked'] = 0
                 
-                question = game.generate_random_question()
+                # Generate question using the correct method
+                question_generators = [
+                    game.generatePeoplequestion,
+                    game.generateEventSquestion
+                ]
+                import random
+                selected_generator = random.choice(question_generators)
+                question = selected_generator()
                 session['current_question'] = question
                 
                 res = f"Game started, Let's test your memory! Here's your first question: {question}."
@@ -270,12 +285,10 @@ def ai_routes_funcitons(app, mongo):
             print("segmenter is initialized")
             print("segments:", segments)
             
-            # Check if this is a greeting
             if "greeting" in segments and segments["greeting"]:
                 print("Greeting detected")
                 return jsonify({"response": "I'm here to help you. What would you like to know?"})
             
-            # Process each segment
             responses = {}
             all_responses = ""
             
@@ -311,7 +324,7 @@ def ai_routes_funcitons(app, mongo):
             
             all_responses = all_responses.strip()
             
-            # If no response was generated, provide a default message
+            # Lw mafeesh response hasal, byb3at errors
             if not all_responses:
                 all_responses = "I couldn't find any relevant information for your query."
             
@@ -320,8 +333,7 @@ def ai_routes_funcitons(app, mongo):
             return jsonify(result)
             
         except Exception as e:
-            print(f"Error processing AI request: {str(e)}")
-            return jsonify({"error": str(e), "success": False}), 500
+            return jsonify({"error": "there is some error in ai requests"}), 500
     
 
 
