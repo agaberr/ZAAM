@@ -60,7 +60,7 @@ def verify_models():
         print("\nAll required AI models are available.\n")
         return True, []
 
-def download_models(missing_models):
+def downloadModels(missing_models):
     """Download missing model files"""
     import tempfile
     import gdown
@@ -233,7 +233,7 @@ def setup_models():
 
     if not models_available:
         print("Missing models detected. Attempting to download...")
-        if download_models(missing_models):
+        if downloadModels(missing_models):
             print("Model setup completed successfully!")
             return True
         else:
