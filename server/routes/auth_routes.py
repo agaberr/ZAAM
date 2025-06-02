@@ -7,25 +7,25 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-
 # Get JWT secret key from environment
 JWT_SECRET = os.getenv("JWT_SECRET")
 
 # Create a Blueprint for authentication routes
 auth_bp = Blueprint("auth", __name__)
+# Decorator to check for JWT token in request headers
+# Used to protect routes that require user login
 
-# Middleware: Token authentication
+def extract_token():
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        return auth_header.split(' ')[1]
+    return None
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
         
-        # Check if token is in headers
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            if auth_header.startswith('Bearer '):
-                token = auth_header.split(' ')[1]
-        
+        token = extract_token()
         if not token:
             return jsonify({'error': 'Token is missing'}), 401
         
@@ -43,53 +43,57 @@ def token_required(f):
     return decorated
 
 
-def register_auth_routes(app, mongo):
+def authRoutes(app, mongo):
 
-    ###### AUTH ROUTES ######
-    # POST: /api/auth/login -> Login a user
-    # POST: /api/auth/register -> Register a new user
+
+
 
     ##################################### LOGIN ROUTE START #####################################
     @app.route('/api/auth/login', methods=['POST'])
     def login():
-        try:
-            data = request.json
-            email = data.get('email')
-            password = data.get('password')
 
-            user = User.findUserByEmail(mongo.db, email)
-            if not user or not user.checkForPass(password):
-                return jsonify({"error": "Invalid email or password"}), 401
+        reposnsedata = request.get_json()
+        if not reposnsedata:
+            return jsonify({"error": "Invalid request"}), 400
+        
+        email = reposnsedata.get('email')
 
-            token = user.generateAuthToken()
-            return jsonify({
-                "message": "Login successful", 
-                "token": token,
-                "user_id": str(user._id)
-            })
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        password = reposnsedata.get('password')
+
+        if not email or not password:
+            return jsonify({"error": "Please enter email and password"}), 400
+        
+        user = User.findUserByEmail(mongo.db, email)
+        if not user or not user.checkForPass(password):
+            return jsonify({"error": "email or password are incorrect"}), 401
+        
+        token = user.generateAuthToken()
+
+
+
+        return jsonify({"message": "Login successful", "token": token,"user_id": str(user._id)})
+        
     ##################################### LOGIN ROUTE END #####################################
+
 
     ##################################### REGISTER ROUTE START #####################################
     @app.route('/api/auth/register', methods=['POST'])
     def register():
-        try:
-            user_data = request.json
-            
-            user = User(
-                full_name=user_data.get('full_name'),
-                age=user_data.get('age'),
-                gender=user_data.get('gender'),
-                contact_info=user_data.get('contact_info', {}),
-                password=user_data.get('password'),
-                emergency_contacts=user_data.get('emergency_contacts', [])
-            )
-            success, errors = user.save(mongo.db)
-            if not success:
-                return jsonify({"error": "Validation failed", "details": errors}), 400
-            
-            return jsonify({"message": "User registered successfully", "user_id": str(user._id)}), 201
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        reposnsedata = request.get_json()
+        if not reposnsedata:
+            return jsonify({"error": "Invalid request"}), 400
+        
+        reposnsedata = User(
+            full_name=reposnsedata.get('full_name'),
+            age=reposnsedata.get('age'),
+            gender=reposnsedata.get('gender'),
+            contact_info=reposnsedata.get('contact_info', {}),
+            password=reposnsedata.get('password'),
+            emergency_contacts=reposnsedata.get('emergency_contacts', [])
+        )
+        success, errors = reposnsedata.save(mongo.db)
+        if not success:
+            return jsonify({"error": "Validation failed", "details": errors}), 400
+        
+        return jsonify({"message": "User registered successfully", "user_id": str(reposnsedata._id)}), 201
     
