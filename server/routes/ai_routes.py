@@ -162,100 +162,76 @@ def ai_routes_funcitons(app, mongo):
 
 
     def process_game_internal(text):
-        """process game query"""
         try:
 
             print("game processing startinggggg")
 
-            # get thelogged in user id and the database contain the questions
             user_id = get_user_loggedin()
             db = app.config.get("DATABASE")
 
-            # There are three actions with three priorities:
-            # user would like to stop the game
-            # user would like to answer some questions
-            # user would like to start game
             if "stop game" in text.lower():
-                # Check if game is active
                 if not session.get('game_active') or session.get('game_user_id') != user_id:
                     return {"response": "You didn't start a game to stop it."}
                 
-                final_score = session.get('game_score', 0)
-                total_questions = session.get('game_questions_asked', 0)
+                finalScore = session.get('game_score', 0)
+                totalQ = session.get('game_questions_asked', 0)
                 
-                # Clear game session
                 session.pop('game_active', None)
                 session.pop('game_user_id', None)
                 session.pop('game_score', None)
                 session.pop('game_questions_asked', None)
                 session.pop('current_question', None)
                 
-                # Calculate final accuracy percentage
-                final_accuracy = round((final_score / total_questions) * 100, 2) if total_questions > 0 else 0
+                finalacc = round((finalScore / totalQ) * 100, 2) if totalQ > 0 else 0
                 
-                return {"response": f"Game ended! You scored {final_accuracy}% accuracy across {total_questions} questions. Great job exercising your memory!"}
+                return {"response": f"Game ended! You scored {finalacc}% accuracy across {totalQ} questions. Great job exercising your memory!"}
             
-            # game is already started
             if session.get('game_active') and session.get('game_user_id') == user_id:
                 current_question = session.get('current_question')
                 if not current_question:
                     return {"response": "Something went wrong. Please start a new game."}
                 
-                # init game instance
                 game = CognitiveGame(db, user_id)
                 result = game.check_answer(current_question, text)
                 
-                # increment questions asked
                 session['game_questions_asked'] = session.get('game_questions_asked', 0) + 1
                 
-                # Use similarity_score for scoring instead of 'correct' field
                 similarity_score = result.get('similarity_score')
                 if similarity_score is not None:
-                    # Add the similarity score to the total score
                     session['game_score'] = session.get('game_score', 0) + similarity_score
                 
-                # Generate next question
                 next_question = game.generate_random_question()
                 session['current_question'] = next_question
                 
-                # Prepare response
                 feedback = result.get('feedback', 'Thank you for your answer!')
-                score = session.get('game_score', 0)
-                questions_asked = session.get('game_questions_asked', 0)
-                # Calculate accuracy as average similarity score (since scores are 0-1)
-                accuracy = round((score / questions_asked) * 100, 2) if questions_asked > 0 else 0
                 
                 response = f"{feedback}. Next question: {next_question}"
                 
                 return {"response": response}
             
-            # Start a new game
             if "start game" in text.lower():
                 game = CognitiveGame(db, user_id)
                 
-                # Check if user has any memory aids
-                memory_aids = game.get_all_memory_aids()
-                if not memory_aids:
+                memaid = game.get_all_memory_aids()
+                if not memaid:
                     return {"response": "You don't have any memory aids yet."}
                 
-                # Store game session in session storage
                 session['game_active'] = True
                 session['game_user_id'] = user_id
                 session['game_score'] = 0
                 session['game_questions_asked'] = 0
                 
-                # create the first question
                 question = game.generate_random_question()
                 session['current_question'] = question
                 
-                response = f"Game started, Let's test your memory! Here's your first question: {question}."
+                res = f"Game started, Let's test your memory! Here's your first question: {question}."
                 
-                return {"response": response}
+                return {"response": res}
             
             return {"response": "say start game to start the game, or stop top stop the game"}
             
-        except Exception as e:
-            return {"response": f"Error processing game request: {str(e)}"}
+        except :
+            return {"response": "you got an error in games route"}
 
 
 
@@ -288,7 +264,7 @@ def ai_routes_funcitons(app, mongo):
                 
                 return jsonify({"response": game_result["response"]})
             
-            # init the segmenter
+            # init the segmenterrrr
             ai_processor = AIProcessor()
             segments = ai_processor.segmentAllTxt(text)
             print("segmenter is initialized")
@@ -349,25 +325,8 @@ def ai_routes_funcitons(app, mongo):
     
 
 
-############## FOR TESTING each model alone #####################
-    @app.route('/api/ai/news', methods=['POST'])
-    def process_news():
-        try:
-            data = request.json
-            if not data or 'text' not in data:
-                return jsonify({"error": "No text provided"}), 400
-                
-            text = data['text']
-            
-            result = newsmodel_function(text)
-            return jsonify(result)
-            
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-    
-
     @app.route('/api/ai/weather', methods=['POST'])
-    def process_weather():
+    def weathermodel():
         try:
             data = request.json
             if not data or 'text' not in data:
@@ -381,29 +340,29 @@ def ai_routes_funcitons(app, mongo):
             
             return jsonify(result)
             
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        except:
+            return jsonify({"error": "error in weather model"}), 500
     
     @app.route('/api/ai/reminder', methods=['POST'])
-    def process_reminder():
+    def remindermodel():
         try:
             data = request.json
             if not data or 'text' not in data:
-                return jsonify({"error": "No text provided"}), 400
+                return jsonify({"error": "write some text.."}), 400
                 
             text = data['text']
             
-            result = remindermodel_function(text)
-            return jsonify(result)
+            res = remindermodel_function(text)
+            return jsonify(res)
             
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        except:
+            return jsonify({"error": "can't process reminders"}), 500
     
 
 
     ## REMINDER ROUTES
     @app.route('/api/reminder', methods=['GET'])
-    def getReminders():
+    def getrem():
         try:
             userid = get_user_loggedin()
  
@@ -414,12 +373,13 @@ def ai_routes_funcitons(app, mongo):
             reminders = ReminderDB.getDayReminders(userid, date, db=mongo.db)
             
             remindersOutput = []
-            for r in reminders:
-                r['_id'] = str(r['_id'])
-                r['start_time'] =  r['start_time'].isoformat()
-                r['end_time'] = r['end_time'].isoformat()
-                r['created_at'] =  r['created_at'].isoformat()
-                remindersOutput.append(r)
+            for reminder in reminders:
+                reminder['_id'] = str(reminder['_id'])
+                reminder['start_time'] = reminder['start_time'].isoformat()
+                reminder['end_time'] = reminder['end_time'].isoformat()
+                reminder['created_at'] = reminder['created_at'].isoformat()
+                
+                remindersOutput.append(reminder)
             
             return jsonify({"reminders": remindersOutput})
             
@@ -427,54 +387,47 @@ def ai_routes_funcitons(app, mongo):
             return jsonify({"error": "error in getting reminders"}), 500
     
     @app.route('/api/reminder/<reminder_id>', methods=['PUT'])
-    def update_reminder(reminder_id):
-        try:
-            user_id = get_user_loggedin()
-            data = request.json
-            
-            reminder = mongo.db.reminders.find_one({"_id": ObjectId(reminder_id), "user_id": user_id})
-            if not reminder:
-                return jsonify({"error": "Reminder not found"}), 404
-            
-            update_data = {}
-            if 'title' in data:
-                update_data['title'] = data['title']
-            if 'start_time' in data:
-                update_data['start_time'] = datetime.datetime.fromisoformat(data['start_time'])
-            if 'end_time' in data:
-                update_data['end_time'] = datetime.datetime.fromisoformat(data['end_time'])
-            if 'description' in data:
-                update_data['description'] = data['description']
-            if 'completed' in data:
-                update_data['completed'] = data['completed']
-            
-            success = ReminderDB.update_reminder(reminder_id, update_data, db=mongo.db)
+    def updaterem(reminder_id):
+        userID = get_user_loggedin()
+        data = request.json
+        
+        rem = mongo.db.reminders.find_one({"_id": ObjectId(reminder_id), "user_id": userID})
+        if not rem:
+            return jsonify({"error": "Reminder not found"}), 404
+        
+        update_data = {}
+        if 'title' in data:
+            update_data['title'] = data['title']
+        if 'start_time' in data:
+            update_data['start_time'] = datetime.datetime.fromisoformat(data['start_time'])
+        if 'end_time' in data:
+            update_data['end_time'] = datetime.datetime.fromisoformat(data['end_time'])
+        if 'description' in data:
+            update_data['description'] = data['description']
+        if 'completed' in data:
+            update_data['completed'] = data['completed']
+        
+        res = ReminderDB.update_reminder(reminder_id, update_data, db=mongo.db)
 
-            if not success:
-                return jsonify({"error": "Failed to update reminder"}), 500
-            
-            return jsonify({"message": "Reminder updated successfully"})
-            
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        if not res:
+            return jsonify({"error": "Can't update it"}), 500
+        
+        return jsonify({"message": "Reminder updated..."})
     
-    @app.route('/api/reminder/<reminder_id>', methods=['DELETE'])
-    def delete_reminder(reminder_id):
-        try:
-            
-            user_id = get_user_loggedin()
-            reminder = mongo.db.reminders.find_one({"_id": ObjectId(reminder_id), "user_id": user_id})
-            
-            if not reminder:
-                return jsonify({"error": "Reminder not found"}), 404
-            
-            # Delete the reminder
-            success = ReminderDB.delete_reminder(reminder_id, db=mongo.db)
 
-            if not success:
-                return jsonify({"error": "Failed to delete reminder"}), 500
+    @app.route('/api/reminder/<reminder_id>', methods=['DELETE'])
+    def deleterem(reminder_id):
             
-            return jsonify({"message": "Reminder deleted successfully"})
-            
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        id = get_user_loggedin()
+        rem = mongo.db.reminders.find_one({"_id": ObjectId(reminder_id), "user_id": id})
+        
+        if not rem:
+            return jsonify({"error": "Reminder not found"}), 404
+        
+        res = ReminderDB.delete_reminder(reminder_id, db=mongo.db)
+
+        if not res:
+            return jsonify({"error": "Can't delete this"}), 500
+        
+        return jsonify({"message": "Reminder deleted..."})
+    
