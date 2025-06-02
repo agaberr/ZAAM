@@ -90,14 +90,14 @@ class MemoryAid:
                 return False, [str(e)]
 
     @staticmethod
-    def find_by_id(db, memory_aid_id):
+    def findByID(db, memory_aid_id):
         """Find a memory aid by ID."""
         if db is None:
             return None
             
         try:
             data = db.memory_aids.find_one({"_id": ObjectId(memory_aid_id)})
-            return MemoryAid.from_mongo(data) if data else None
+            return MemoryAid.fromMongo(data) if data else None
         except Exception:
             return None
 
@@ -111,7 +111,7 @@ class MemoryAid:
             cursor = db.memory_aids.find({"user_id": user_id})
             memory_aids = []
             for data in cursor:
-                memory_aid = MemoryAid.from_mongo(data)
+                memory_aid = MemoryAid.fromMongo(data)
                 if memory_aid:
                     memory_aids.append(memory_aid)
             return memory_aids
@@ -135,7 +135,7 @@ class MemoryAid:
             return False
 
     @staticmethod
-    def from_mongo(data):
+    def fromMongo(data):
         """Convert MongoDB document to MemoryAid object."""
         if not data:
             return None

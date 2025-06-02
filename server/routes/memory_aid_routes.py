@@ -121,7 +121,7 @@ def get_memory_aid(user_id, memory_aid_id):
         return jsonify({"error": "Database connection failed"}), 500
         
     # Get the memory aid
-    memory_aid = MemoryAid.find_by_id(db, memory_aid_id)
+    memory_aid = MemoryAid.findByID(db, memory_aid_id)
     
     if not memory_aid:
         return jsonify({"error": "Memory aid not found"}), 404
@@ -143,7 +143,7 @@ def update_memory_aid(user_id, memory_aid_id):
         return jsonify({"error": "Database connection failed"}), 500
         
     # Get the memory aid
-    memory_aid = MemoryAid.find_by_id(db, memory_aid_id)
+    memory_aid = MemoryAid.findByID(db, memory_aid_id)
     
     if not memory_aid:
         return jsonify({"error": "Memory aid not found"}), 404

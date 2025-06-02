@@ -57,11 +57,11 @@ def register_auth_routes(app, mongo):
             email = data.get('email')
             password = data.get('password')
 
-            user = User.find_by_email(mongo.db, email)
-            if not user or not user.check_password(password):
+            user = User.findUserByEmail(mongo.db, email)
+            if not user or not user.checkForPass(password):
                 return jsonify({"error": "Invalid email or password"}), 401
 
-            token = user.generate_auth_token()
+            token = user.generateAuthToken()
             return jsonify({
                 "message": "Login successful", 
                 "token": token,

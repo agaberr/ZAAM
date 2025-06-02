@@ -47,7 +47,7 @@ def register_user_routes(app, mongo):
     @app.route('/api/users/<user_id>', methods=['GET'])
     def get_user(user_id):
         try:
-            user = User.find_by_id(mongo.db, user_id)
+            user = User.findByID(mongo.db, user_id)
             
             if not user:
                 return jsonify({"error": "User not found"}), 404
@@ -71,7 +71,7 @@ def register_user_routes(app, mongo):
     def update_user(user_id):
         try:
             user_data = request.json
-            user = User.find_by_id(mongo.db, user_id)
+            user = User.findByID(mongo.db, user_id)
             
             if not user:
                 return jsonify({"error": "User not found"}), 404
