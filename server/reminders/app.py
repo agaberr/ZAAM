@@ -75,7 +75,7 @@ def credentials_to_dict(credentials):
         "scopes": credentials.scopes,
     }
 
-def extract_time_expressions(text):
+def getTimeExpression(text):
     """Extract time expressions from text and return modified text and days offset"""
     text_lower = text.lower()
     days_offset = 0
@@ -130,7 +130,7 @@ def chat():
         service = build("calendar", "v3", credentials=credentials)
         
         original_input = request.json["text"]
-        user_input, days_offset = extract_time_expressions(original_input)
+        user_input, days_offset = getTimeExpression(original_input)
         
         print(f"\nProcessing request:")
         print(f"Original input: {original_input}")
@@ -145,7 +145,7 @@ def chat():
         print(f"Intent: {predicted_intent}")
         print(f"Slots: {predicted_slots}")
         
-        result = postprocess_ner_predictions(predicted_intent, tokenized_text, predicted_slots)
+        result = postprocessNER(predicted_intent, tokenized_text, predicted_slots)
         print(f"Postprocessed result: {result}")
         
         # Add null checks for action and time
@@ -299,7 +299,7 @@ def predict(model, tokenized_text, max_seq_length=128):
         print(f"Error in predict function: {str(e)}")
         raise e
 
-def postprocess_ner_predictions(predicted_intent, predicted_tokens, predicted_slots):
+def postprocessNER(predicted_intent, predicted_tokens, predicted_slots):
     print(f"Processing - Intent: {predicted_intent}")
     print(f"Processing - Tokens: {predicted_tokens}")
     print(f"Processing - Slots: {predicted_slots}")

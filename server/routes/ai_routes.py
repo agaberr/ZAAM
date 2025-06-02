@@ -403,7 +403,7 @@ def ai_routes_funcitons(app, mongo):
 
     ## REMINDER ROUTES
     @app.route('/api/reminder', methods=['GET'])
-    def get_reminders():
+    def getReminders():
         try:
             userid = get_user_loggedin()
  
@@ -411,7 +411,7 @@ def ai_routes_funcitons(app, mongo):
             
             date = datetime.datetime.now(pytz.timezone('Africa/Cairo')) + datetime.timedelta(days=daysoffset)
             
-            reminders = ReminderDB.get_day_reminders(userid, date, db=mongo.db)
+            reminders = ReminderDB.getDayReminders(userid, date, db=mongo.db)
             
             remindersOutput = []
             for r in reminders:

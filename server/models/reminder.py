@@ -12,32 +12,23 @@ class NERIntentModel(nn.Module):
     def __init__(self, vocab_size, embedding_dim, hidden_dim, num_intents, num_slots):
         super(NERIntentModel, self).__init__()
         
-        # Embedding layer
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         
-        # BiLSTM layer for sequence labeling (NER)
         self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True, bidirectional=True)
         
-        # Linear layer for intent classification
         self.intent_fc = nn.Linear(hidden_dim * 2, num_intents)
-        
-        # Linear layer for slot tagging (NER)
         self.slot_fc = nn.Linear(hidden_dim * 2, num_slots)
 
     def forward(self, x):
-        # Get token embeddings
-        embedded = self.embedding(x)
+        embedded =  self.embedding (x)
         
-        # Pass through LSTM
-        lstm_out, _ = self.lstm(embedded)
+        lstm_out, _ =  self.lstm(embedded)
         
-        # Predict intent (classification for entire sentence)
-        intent_pred = self.intent_fc(lstm_out[:, 0, :])  # Use the first token (CLS) for intent prediction
+        intentPrediction = self.intent_fc (lstm_out[:, 0, :])
         
-        # Predict slots (token-level classification)
-        slot_pred = self.slot_fc(lstm_out)
+        slotPrediction =  self.slot_fc (lstm_out)
         
-        return intent_pred, slot_pred 
+        return intentPrediction,  slotPrediction 
 
 class ReminderNLP:
     """NLP model for processing reminder text and extracting intent and entities"""
@@ -47,7 +38,7 @@ class ReminderNLP:
         self.tokenizer = None
         self.intent_encoder = None
         self.slot_encoder = None
-        self.initialize_model()
+        self.intiModel()
         
         # Time expressions mapping
         self.TIME_EXPRESSIONS = {
@@ -68,34 +59,28 @@ class ReminderNLP:
             "in a month": 30,
         }
     
-    def initialize_model(self):
-        """Load the model and tokenizers from files"""
+    def intiModel(self):
         try:
             reminders_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'reminders')
-            print(f"Reminders directory: {reminders_dir}")
             
-            # Load tokenizer and encoders first
             tokenizer_path = os.path.join(reminders_dir, 'reminder_tokenizer.pkl')
             with open(tokenizer_path, 'rb') as f:
                 self.tokenizer = pickle.load(f)
-                print("Tokenizer loaded")
                 
             intent_encoder_path = os.path.join(reminders_dir, 'reminder_intent_encoder.pkl')
             with open(intent_encoder_path, 'rb') as f:
                 self.intent_encoder = pickle.load(f)
-                print("Intent encoder loaded")
                 
             slot_encoder_path = os.path.join(reminders_dir, 'reminder_slot_encoder.pkl')
             with open(slot_encoder_path, 'rb') as f:
                 self.slot_encoder = pickle.load(f)
-                print("Slot encoder loaded")
             
             vocab_size = len(self.tokenizer)
-            embedding_dim = 100
-            hidden_dim = 128
+            embedding_dim = 100 
+            hidden_dim = 128 
             num_intents = len(self.intent_encoder.classes_)
             num_slots = len(self.slot_encoder.classes_)
-            
+       
             self.model = NERIntentModel(
                 vocab_size=vocab_size,
                 embedding_dim=embedding_dim,
@@ -104,10 +89,9 @@ class ReminderNLP:
                 num_slots=num_slots
             )
             
-           
             model_path = os.path.join(reminders_dir, 'reminder_model_checkpoint.pth')
             saved_model = torch.load(model_path, map_location=torch.device("cpu"))
-
+         
             
             if isinstance(saved_model, dict) and 'state_dict' in saved_model:
                 self.model.load_state_dict(saved_model['state_dict'])
@@ -118,98 +102,79 @@ class ReminderNLP:
             else:
                 raise ValueError(f"Unexpected model format: {type(saved_model)}")
                 
-        
             self.model.eval()
                 
-        except Exception as e:
-            print(f"Error initializing reminder model: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            raise e
+        except:            
+            raise ("Can't init reminder model")
     
-    def extract_time_expressions(self, text):
-        """Extract time expressions from text and return modified text and days offset"""
-        text_lower = text.lower()
+
+
+    def getTimeExpression(self, txt):
+        text =  txt.lower()
         days_offset = 0
-        found_expression = None
-        time_match = None
-        
-        # Extract time expressions like "3 pm", "5:30 pm", etc.
-        time_pattern = r'\b(\d{1,2})(?::(\d{1,2}))?\s*(am|pm|a\.m\.|p\.m\.)\b'
-        time_match = re.search(time_pattern, text_lower)
-        
-        # Check for date expressions (today, tomorrow, etc.)
-        for expression, offset in self.TIME_EXPRESSIONS.items():
-            if expression in text_lower:
+        finalExprr = None
+                
+        for expr, offset in self.TIME_EXPRESSIONS.items():
+            if expr in text:
                 days_offset = offset
-                found_expression = expression
+                finalExprr = expr
                 break
         
-        processed_text = text_lower
-        if found_expression:
-            print(f"Found time expression: '{found_expression}', days offset: {days_offset}")
-            processed_text = re.sub(r'\b' + re.escape(found_expression) + r'\b', '', processed_text, flags=re.IGNORECASE)
+        final_txt = text
+        if finalExprr:
+            final_txt = re.sub(r'\b' + re.escape(finalExprr) + r'\b', '', final_txt, flags=re.IGNORECASE)
         
-        processed_text = re.sub(r'\s+', ' ', processed_text).strip()
+        final_txt = re.sub(r'\s+', ' ', final_txt).strip()
         
-        return processed_text, days_offset
+        return final_txt, days_offset
     
-    def predict(self, tokenized_text, max_seq_length=128):
-        """Run prediction on tokenized text"""
+    def predict(self,  tokenized_text,  max_seq_length=128):
         try:
-            # Convert tokens to ids
-            token_ids = [self.tokenizer.get(token, self.tokenizer["UNK"]) for token in tokenized_text]
+            tokenIds = [self.tokenizer.get(token, self.tokenizer["UNK"]) for token in tokenized_text]
             
-            # Pad sequence
-            token_ids = token_ids[:max_seq_length] + [self.tokenizer["PAD"]] * (max_seq_length - len(token_ids))
+            tokenIds = tokenIds[:max_seq_length] + [self.tokenizer["PAD"]] * (max_seq_length - len(tokenIds))
             
-            # Convert to tensor
-            input_tensor = torch.tensor(token_ids).unsqueeze(0)
+            INtensor = torch.tensor(tokenIds).unsqueeze(0)
             
-            # Make prediction
             self.model.eval()
             with torch.no_grad():
-                intent_pred, slot_pred = self.model(input_tensor)
+                intentPrediction, slotPrediction = self.model(INtensor)
             
-            # Get the predicted intent
-            intent_label = intent_pred.argmax(dim=1).item()
-            predicted_intent = self.intent_encoder.inverse_transform([intent_label])[0]
+            intentLabell = intentPrediction.argmax(dim=1).item()
+            predIndent = self.intent_encoder.inverse_transform([intentLabell])[0]
             
-            # Get the predicted slots
-            slot_preds = slot_pred.argmax(dim=2).squeeze().cpu().numpy()
-            predicted_slots = self.slot_encoder.inverse_transform(slot_preds[:len(tokenized_text)])
+            slotPredictions = slotPrediction.argmax(dim=2).squeeze().cpu().numpy()
+            predslots = self.slot_encoder.inverse_transform(slotPredictions[:len(tokenized_text)])
             
-            return predicted_intent, predicted_slots
+            return predIndent, predslots
             
-        except Exception as e:
-            print(f"Error in predict function: {str(e)}")
-            raise e
+        except:
+            raise ("there is an error in prediction")
     
-    def postprocess_ner_predictions(self, predicted_intent, predicted_tokens, predicted_slots):
-        """Process the model predictions and extract structured data"""
+
+
+    def postprocessNER(self,  predicted_intent,  predicted_tokens,  predicted_slots):
         predicted_time, predicted_action = [], []
         current_action = []
         current_time = []
         
       
         
-        for token, slot in zip(predicted_tokens, predicted_slots):
-            # Handle time slots
-            if slot == 'B-TIME':
+        for token,  slot in zip(predicted_tokens, predicted_slots):
+            if slot ==  'B-TIME':
                 if current_time: 
                     predicted_time.append(' '.join(current_time))
                     current_time = []
                 current_time.append(token)
-            elif slot == 'I-TIME' and current_time:
+            elif slot ==  'I-TIME' and current_time:
                 current_time.append(token)
-                
-            # Handle action slots
-            if slot == 'B-ACTION':
+                 
+            if slot ==  'B-ACTION':
                 if current_action: 
                     predicted_action.append(' '.join(current_action))
                     current_action = []
                 current_action.append(token)
-            elif slot == 'I-ACTION' and current_action: 
+            elif slot ==  'I-ACTION' and current_action: 
                 current_action.append(token)
         
         if current_time:
@@ -219,19 +184,18 @@ class ReminderNLP:
         
         final_action = None
         if predicted_action:
-            raw_action = " ".join(predicted_action)
+            raw_action =  " ".join(predicted_action)
             
-            # Pattern 1: "me to [actual_action]" -> extract just the actual action
             if raw_action.startswith('me to '):
                 remaining_tokens = predicted_tokens[:]
                 start_idx = -1
                 
-                for i in range(len(predicted_tokens) - 1):
+                for i in  range(len(predicted_tokens) - 1):
                     if predicted_tokens[i] == 'me' and predicted_tokens[i + 1] == 'to':
                         start_idx = i + 2 
                         break
                 
-                if start_idx >= 0 and start_idx < len(predicted_tokens):
+                if start_idx >= 0 and start_idx  < len(predicted_tokens):
                     meaningful_tokens = []
                     for token in predicted_tokens[start_idx:]:
                         if token not in ['at', 'on', 'for', 'by', 'in', 'the', 'a', 'an']:
@@ -242,20 +206,19 @@ class ReminderNLP:
                     if meaningful_tokens:
                         final_action = ' '.join(meaningful_tokens)
             
-            elif raw_action.endswith(' me') or raw_action.endswith(' to'):
+            elif raw_action.endswith(' me')  or raw_action.endswith(' to'):
                 final_action = raw_action.rsplit(' ', 1)[0]
             
-            # If no fixes applied, use the raw action
             if not final_action:
                 final_action = raw_action
         else:
             final_action = None
         
         result = {
-            "text": " ".join(predicted_tokens),
+            "text": " " .join(predicted_tokens),
             "predicted_intent": predicted_intent,
             "predicted_time": " ".join(predicted_time) if predicted_time else None,
-            "predicted_action": final_action
+            "predicted_action":  final_action
         }
         
         return result
@@ -272,7 +235,7 @@ class ReminderNLP:
             time_str = time_match.group(0)
         
         # Extract time expressions and process text
-        user_input, days_offset = self.extract_time_expressions(text)
+        user_input, days_offset = self.getTimeExpression(text)
         
         # Tokenize the text
         tokenized_text = user_input.lower().split()
@@ -309,7 +272,7 @@ class ReminderNLP:
         
       
         # Process the predictions
-        result = self.postprocess_ner_predictions(predicted_intent, tokenized_text, predicted_slots)
+        result = self.postprocessNER(predicted_intent, tokenized_text, predicted_slots)
         
         # Add days offset to the result
         result['days_offset'] = days_offset
@@ -320,220 +283,208 @@ class ReminderNLP:
             
         return result
 
-class ReminderDB:
-    """Database interface for storing and retrieving reminders"""
-    
-    @staticmethod
-    def create_reminder(user_id, title, start_time, end_time=None, description=None, db=None):
-        """Create a new reminder in the database"""
-        if db is None:
-            raise ValueError("Database connection required")
 
-        # Ensure timezone is set to Egypt time
-        egypt_tz = pytz.timezone("Africa/Cairo")
-        
-        # Make sure the start_time is timezone-aware in Egypt time
-        if start_time.tzinfo is None:
-            start_time = egypt_tz.localize(start_time)
-        elif start_time.tzinfo != egypt_tz:
-            start_time = start_time.astimezone(egypt_tz)
-            
-        if not end_time:
-            end_time = start_time + timedelta(hours=1)
-        else:
-            # Make sure end_time has the same timezone handling
-            if end_time.tzinfo is None:
-                end_time = egypt_tz.localize(end_time)
-            elif end_time.tzinfo != egypt_tz:
-                end_time = end_time.astimezone(egypt_tz)
-            
-        # Create reminder object
-        reminder = {
-            "user_id": user_id,
-            "title": title,
-            "start_time": start_time,
-            "end_time": end_time,
-            "description": description,
-            "completed": False,  # Default is pending
-            "created_at": datetime.now(egypt_tz),
-            "status": "active"
-        }
-        
-        result = db.reminders.insert_one(reminder)
-        
-        # Add the ID to the reminder object
-        reminder["_id"] = result.inserted_id
-        
-        return reminder
+
+
+
+
+
+
+####### REMINDER DATABSASE
+
+
+
+class ReminderDB:
     
     @staticmethod
-    def get_reminders(user_id, time_min=None, time_max=None, max_results=10, db=None):
-        """Get reminders from database within a time range"""
+    def createReminder(userID, title, startTime, endTime=None, description=None, db=None):
         if db is None:
-            raise ValueError("Database connection required")
+            raise  ValueError("Can't connect to the db..")
+
+        # de bt7l almost kol mashakel el time zone as we need cairo zone
+        if startTime.tzinfo is None:
+            startTime =  pytz.timezone("Africa/Cairo").localize(startTime)
+        elif startTime.tzinfo != pytz.timezone("Africa/Cairo"):
+            startTime = startTime.astimezone(pytz.timezone("Africa/Cairo"))
             
-        # Default to today if no time range is provided
-        egypt_tz = pytz.timezone("Africa/Cairo")
-        
-        # Set default time range if not provided
-        if not time_min:
-            time_min = datetime.now(egypt_tz).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
+
+        # by default el reminder byb2a sa3a wahda
+        if not  endTime:
+            endTime = startTime + timedelta(hours=1)
+        else:
+            if  endTime.tzinfo is None:
+                endTime  = pytz.timezone("Africa/Cairo").localize(endTime)
+            elif endTime.tzinfo != pytz.timezone("Africa/Cairo"):
+                endTime = endTime.astimezone(pytz.timezone("Africa/Cairo"))
             
-        if not time_max:
-            time_max = time_min.replace(hour=23, minute=59, second=59)
-        
-        # Ensure timezone awareness for query parameters
-        if time_min.tzinfo is None:
-            time_min = egypt_tz.localize(time_min)
-        elif time_min.tzinfo != egypt_tz:
-            time_min = time_min.astimezone(egypt_tz)
-            
-        if time_max.tzinfo is None:
-            time_max = egypt_tz.localize(time_max)
-        elif time_max.tzinfo != egypt_tz:
-            time_max = time_max.astimezone(egypt_tz)
-            
-      
-        # Build query
-        query = {
-            "user_id": user_id,
-            "start_time": {"$gte": time_min, "$lte": time_max},
+        rem = {
+            "user_id":  userID,
+            "title":  title,
+            "start_time":  startTime,
+            "end_time": endTime,
+            "description": description,
+            "completed": False, # byb2a pending in the frontend
+            "created_at":  datetime.now(pytz.timezone("Africa/Cairo")),
             "status": "active"
         }
         
-        # Get reminders
-        reminders = list(db.reminders.find(query).sort("start_time", 1).limit(max_results))
+        result =  db.reminders.insert_one(rem)
         
-        # Ensure all returned times have consistent timezone
-        for reminder in reminders:
+        rem["_id"] = result.inserted_id
+        
+        return rem
+    
+
+
+    @staticmethod
+    def getReminders(userID,  timeMin=None,  timeMax=None,  maxRes=10,  db=None):
+
+        if db is None:
+            raise ValueError("can't connecto to database..")
+            
+        
+        if not timeMin:
+            timeMin = datetime.now(pytz.timezone("Africa/Cairo")).replace(hour=0, minute=0, second=0, microsecond=0)
+            
+        if not timeMax:
+            timeMax = timeMin.replace(hour=23,  minute=59,  second=59)
+        
+        if timeMin.tzinfo  is None:
+            timeMin =  pytz.timezone("Africa/Cairo").localize(timeMin)
+        elif timeMin.tzinfo != pytz.timezone("Africa/Cairo"):
+            timeMin =  timeMin.astimezone(pytz.timezone("Africa/Cairo"))
+            
+        if timeMax.tzinfo is  None:
+            timeMax = pytz.timezone("Africa/Cairo").localize(timeMax)
+        elif timeMax.tzinfo != pytz.timezone("Africa/Cairo"):
+            timeMax = timeMax.astimezone(pytz.timezone("Africa/Cairo"))
+            
+        
+        query =  {
+        "user_id": userID,
+        "start_time": {"$gte": timeMin, "$lte": timeMax},
+        "status": "active"}
+        
+        reminders =  list(db.reminders.find(query).sort("start_time", 1) )
+        
+        for rem in reminders:
             for field in ['start_time', 'end_time', 'created_at']:
-                if field in reminder and reminder[field]:
-                    dt = reminder[field]
-                    if dt.tzinfo is None:
-                        reminder[field] = egypt_tz.localize(dt)
-                    elif dt.tzinfo != egypt_tz:
-                        reminder[field] = dt.astimezone(egypt_tz)
+                if field in rem and rem[field]:
+                    dt  = rem[field]
+                    if  dt.tzinfo is  None:
+                        rem[field] =  pytz.timezone("Africa/Cairo").localize(dt)
+                    elif  dt.tzinfo !=  pytz.timezone("Africa/Cairo"):
+                        rem[field] =  dt.astimezone(pytz.timezone("Africa/Cairo"))
         
         return reminders
     
+
+
+
+
     @staticmethod
-    def get_day_reminders(user_id, target_date=None, db=None):
-        """Get all reminders for a specific day"""
+    def getDayReminders(userID, targetDate=None, db=None):
         if db is None:
-            raise ValueError("Database connection required")
+            raise ValueError("can't connect to the database..")
             
-        # Default to today if no date is provided
-        egypt_tz = pytz.timezone('Africa/Cairo')
-        if not target_date:
-            target_date = datetime.now(egypt_tz)
+        # lw mafeesh date provided hakhaly el date elnaharda
+        if not targetDate:
+            targetDate = datetime.now(pytz.timezone('Africa/Cairo'))
             
-        # Set time range for the whole day
-        time_min = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        time_max = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        timeMin = targetDate.replace(hour=0, minute=0, second=0, microsecond=0)
+        timeMax = targetDate.replace(hour=23, minute=59, second=59, microsecond=999999)
         
-        return ReminderDB.get_reminders(user_id, time_min=time_min, time_max=time_max, max_results=50, db=db)
+        return ReminderDB.getReminders(userID, timeMin=timeMin, timeMax=timeMax, maxRes=50, db=db)
+    
+
     
     @staticmethod
-    def format_reminders_response(reminders, date_context=None):
-        """Format reminders into a human-readable response"""
+    def formatReminderResponse(reminders, dateContext=None):
         if not reminders:
-            time_context = ReminderDB._get_time_context(date_context)
-            return f"I've checked your reminders and you don't have any scheduled {time_context}. Your schedule is clear!"
+            timeContext = ReminderDB._get_time_context(dateContext)
+            return f"I've checked your reminders and you don't have any scheduled {timeContext}. Your schedule is clear!"
             
-        # Format reminders in a more conversational way
-        formatted_reminders = []
+        remindersFormatted = []
         for reminder in reminders:
-            start_time = reminder['start_time']
-            adjusted_time = start_time + timedelta(hours=3)
-            time_str = adjusted_time.strftime("%I:%M %p")
-            formatted_reminders.append(f"At {time_str}, you have {reminder['title']}")
+            startTime = reminder['start_time']
+            timeString = startTime.strftime("%I:%M %p")
+            remindersFormatted.append(f"At {timeString}, you have {reminder['title']}")
         
-        timetable = "\n".join(formatted_reminders)
+        timetable = "".join(remindersFormatted)
         
-        time_context = ReminderDB._get_time_context(date_context)
-        return f"Let me tell you what's on your schedule {time_context}.\n\n{timetable}"
+        timeContext = ReminderDB._get_time_context(dateContext)
+        return f"Let me tell you what's on your schedule {timeContext}.\n{timetable}"
     
+
+
+
+
     @staticmethod
-    def _get_time_context(date_context):
-        """Get a human-readable time context string"""
-        if not date_context:
+    def _get_time_context(dateContext):
+        if not  dateContext:
             return "today"
             
-        # If it's a datetime object
-        if isinstance(date_context, datetime):
-            now = datetime.now(date_context.tzinfo)
-            days_diff = (date_context.date() - now.date()).days
+        if isinstance(dateContext,  datetime):
+            now =  datetime.now(dateContext.tzinfo)
+            daysDiff = (dateContext.date() - now.date()).days
             
-            if days_diff == 0:
+            if  daysDiff == 0:
                 return "today"
-            elif days_diff == 1:
+            elif  daysDiff == 1:
                 return "tomorrow"
             else:
-                return f"for {date_context.strftime('%A, %B %d')}"
+                return f"for {dateContext.strftime('%A, %B %d')}"
                 
-        # If it's an integer (days offset)
-        if isinstance(date_context, int):
-            if date_context == 0:
+        if isinstance(dateContext, int):
+            if dateContext == 0:
                 return "today"
-            elif date_context == 1:
+            elif dateContext == 1:
                 return "tomorrow"
             else:
-                tz = pytz.timezone("Africa/Cairo")
-                target_date = datetime.now(tz) + timedelta(days=date_context)
+                target_date = datetime.now(pytz.timezone("Africa/Cairo")) + timedelta(days=dateContext)
                 return f"for {target_date.strftime('%A, %B %d')}"
                 
-        return "today"  # Default fallback
+        return "today"
     
     @staticmethod
     def update_reminder(reminder_id, updates, db=None):
-        """Update a reminder in the database"""
         if db is None:
-            raise ValueError("Database connection required")
+            raise ValueError("err in db connection")
             
-        result = db.reminders.update_one(
+        res = db.reminders.update_one(
             {"_id": ObjectId(reminder_id)},
             {"$set": updates}
         )
         
-        return result.modified_count > 0
+        return res.modified_count > 0
     
     @staticmethod
-    def delete_reminder(reminder_id, db=None):
-        """Delete a reminder from the database"""
-        if db is None:
-            raise ValueError("Database connection required")
-                    
+    def delete_reminder(remiID, db=None):
+        if db  is None:
+            raise ValueError("there is error in database connection..")
+            
         try:
-            result = db.reminders.update_one(
-                {"_id": ObjectId(reminder_id)},
-                {"$set": {"status": "deleted"}}
-            )
-            
-            
-            return result.modified_count > 0
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            raise e
+            res =  db.reminders.update_one(
+                {"_id": ObjectId(remiID)},
+                {"$set": {"status": "deleted"}})
+                        
+            return  res.modified_count > 0
+        except:
+            raise  ("can't delete reminder..")
 
 class Reminder:
-    """Reminder utility for creating and managing reminders"""
     
     @staticmethod
-    def create_event(title, start_time):
-        """Create a reminder event object"""
-        reminder = {
+    def create_event(title, startTime):
+        rem = {
             "title": title,
-            "start_time": start_time,
-            "end_time": start_time + timedelta(hours=1)
+            "start_time": startTime,
+            "end_time": startTime + timedelta(hours=1)
         }
-        return reminder
+        return rem
     
     @staticmethod
     def get_timetable(days_offset=0):
-        """Get the time range for fetching reminders"""
         egypt_tz = pytz.timezone('Africa/Cairo')
         target_date = datetime.now(egypt_tz) + timedelta(days=days_offset)
         
@@ -544,53 +495,41 @@ class Reminder:
         }
     
     @staticmethod
-    def parse_time(time_str, target_date):
-        """Parse time string into datetime object with timezone"""
+    def parse_time(timeString,  targetDate):
         
-        if not time_str:
-            return target_date
+        if not timeString:
+            return  targetDate
             
         try:
-            # Extract hours, minutes, and am/pm
-            time_pattern = r'(\d{1,2})(?::(\d{1,2}))?\s*(am|pm|a\.m\.|p\.m\.)'
-            match = re.match(time_pattern, time_str.lower())
-            
-            
+            match = re.match(r'(\d{1,2})(?::(\d{1,2}))?\s*(am|pm|a\.m\.|p\.m\.)', timeString.lower())
+                        
             if match:
-                hour = int(match.group(1))
-                minute = int(match.group(2)) if match.group(2) else 0
-                meridian = match.group(3)
+                hr =  int(match.group(1))
+                minute =  int(match.group(2)) if match.group(2) else 0
+                amorpm = match.group(3)
                 
                 
-                # Convert to 24-hour format
-                if meridian in ['pm', 'p.m.'] and hour != 12:
-                    hour += 12
-                    print(f"[DEBUG PARSE_TIME] PM conversion: hour changed to {hour}")
-                elif meridian in ['am', 'a.m.'] and hour == 12:
-                    hour = 0
-                    print(f"[DEBUG PARSE_TIME] 12 AM conversion: hour changed to {hour}")
+                if amorpm ==  "pm" and hr != 12:
+                    hr +=  12
+                elif amorpm ==  "am" and hr == 12:
+                    hr = 0
                 
-                # Ensure target_date has Egypt timezone
-                egypt_tz = pytz.timezone('Africa/Cairo')
-                if target_date.tzinfo is None:
-                    target_date = egypt_tz.localize(target_date)
-                elif target_date.tzinfo != egypt_tz:
-                    target_date = target_date.astimezone(egypt_tz)
+                if targetDate.tzinfo  is None:
+                    targetDate =  pytz.timezone('Africa/Cairo').localize(targetDate)
+                elif targetDate.tzinfo != pytz.timezone('Africa/Cairo'):
+                    targetDate =  targetDate.astimezone(pytz.timezone('Africa/Cairo'))
                 
                 
-                # Create new time with the target date
-                new_time = target_date.replace(
-                    hour=hour,
+                newTime =  targetDate.replace(
+                    hour=hr,
                     minute=minute,
-                    second=0,
+                    second =0 ,
                     microsecond=0
                 )
                 
-                return new_time
+                return newTime
             else:
-                error_msg = f"Could not parse time format: {time_str}"
-                raise ValueError(error_msg)
+                raise  ValueError(f"Could not parse time format")
                 
-        except ValueError as e:
-            error_msg = f"Invalid time format. Please use format like '3 pm' or '11:30 am'. Error: {str(e)}"
-            raise ValueError(error_msg) 
+        except:
+            raise ValueError("there is error in format.") 
