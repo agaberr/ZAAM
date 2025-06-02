@@ -3,137 +3,93 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 class TopicClassifier:
-    def __init__(self, model_name='all-MiniLM-L6-v2', confidence_threshold=0.6):
-        print(f"Loading embedding model: {model_name}")
+    def __init__(self, model_name='all-MiniLM-L6-v2', threshold=0.5):
+       
         self.model = SentenceTransformer(model_name)
         self.categories = []
-        self.category_embeddings = {}
-        self.category_centroids = {}
-        self.confidence_threshold = confidence_threshold
+        self.categoryEmbeddings = {}
+        self.categoryCentroids = {}
+        self.confidenceThreshold = threshold
         
     def add_examples(self, category_examples):
         self.categories = list(category_examples.keys())
         
-        # Generate embeddings for all examples
         for category, examples in category_examples.items():
-            print(f"Generating embeddings for category: {category} ({len(examples)} examples)")
-            self.category_embeddings[category] = self.model.encode(examples)
-            
-            # Calculate category centroid (average embedding)
-            self.category_centroids[category] = np.mean(self.category_embeddings[category], axis=0)
-    
-    def get_query_embedding(self, query):
-        return self.model.encode([query])[0]
-    
-    def classify(self, query, method='max_similarity', threshold=0.5):
-        query_embedding = self.model.encode([query])[0]
-        
-        if method == 'max_similarity':
-            return self._classify_max_similarity(query_embedding, threshold)
-        elif method == 'centroid':
-            return self._classify_centroid(query_embedding, threshold)
-        else:
-            raise ValueError(f"Unknown method: {method}. Use 'max_similarity' or 'centroid'.")
-    
-    def _classify_max_similarity(self, query_embedding, threshold):
-        category_scores = {}
-        
-        for category in self.categories:
-            # Calculate cosine similarity with each example in the category
-            similarities = [
-                cosine_similarity([query_embedding], [emb])[0][0] 
-                for emb in self.category_embeddings[category]
-            ]
-            # Take the maximum similarity as the category score
-            category_scores[category] = max(similarities)
-        
-        # Get best category and its score
-        best_category = max(category_scores, key=category_scores.get)
-        confidence = category_scores[best_category]
-        
-        # Return unknown if below threshold
-        if confidence < threshold:
-            return "unknown", confidence
-        
-        return best_category, confidence
-    
-    def _classify_centroid(self, query_embedding, threshold):
-        category_scores = {}
-        
-        for category in self.categories:
-            # Calculate cosine similarity with the category centroid
-            similarity = cosine_similarity([query_embedding], [self.category_centroids[category]])[0][0]
-            category_scores[category] = similarity
-        
-        # Get best category and its score
-        best_category = max(category_scores, key=category_scores.get)
-        confidence = category_scores[best_category]
-        
-        if confidence < threshold:
-            return "unknown", confidence
-        
-        return best_category, confidence
-    
-    def evaluate(self, test_data):
-        total = len(test_data)
-        correct = 0
-        category_metrics = {cat: {"correct": 0, "total": 0} for cat in self.categories}
-        category_metrics["unknown"] = {"correct": 0, "total": 0}
-        
-        for query, true_category in test_data:
-            pred_category, confidence = self.classify(query)
-            
-            # Update metrics
-            if pred_category == true_category:
-                correct += 1
-                category_metrics[true_category]["correct"] += 1
-            
-            category_metrics[true_category]["total"] += 1
-            
-        # Calculate accuracy
-        accuracy = correct / total if total > 0 else 0
-        
-        # Calculate per-category metrics
-        for cat in category_metrics:
-            if category_metrics[cat]["total"] > 0:
-                category_metrics[cat]["accuracy"] = category_metrics[cat]["correct"] / category_metrics[cat]["total"]
-            else:
-                category_metrics[cat]["accuracy"] = 0
-        
-        return {
-            "overall_accuracy": accuracy,
-            "category_metrics": category_metrics
-        }
+            # print("henaa\n")
+            self.categoryEmbeddings[category] =self.model.encode(examples)
+            # print("aloooooooooooooooooooooooooooooooooo  ",self.categoryEmbeddings[category].shape)
+            self.categoryCentroids[category] =np.mean(self.categoryEmbeddings[category], axis=0)
 
-    def interactive_classify(self, query, method='max_similarity'):
+    
+    def getEmbedding(self, query):
+
+        #### bcalll model 3shan a7seb embedding
+
+
+        em = self.model.encode([query])[0]
+        return em
+    
+    def classify(self, query, threshold=0.5):
+        emb = self.model.encode([query])[0]
+
+        # bagebb similarity
+        out = self.classifySimilarity(emb, threshold)
+        return out
+  
+    def classifySimilarity(self, query_embedding, threshold):
+        categoryScores = []
+        
+        for category in self.categories:
+            ############## Half 3la kol categories el homa 3 ely 3ndyy #############
+
+
+            for emb in self.categoryEmbeddings[category]:
+
+                ##############  bageeb cosine similarity 3la kol embedding 3ndy ################
+
+                Similarity = cosine_similarity([query_embedding], [emb])[0][0]
+                
+                ############### ba7outo 3ndy fi scoress 
+                categoryScores.append((category, Similarity))
+
+            ########### bag3bb awl 3 3ndy 
+        topNKNN = sorted(categoryScores,key=lambda x: x[1], reverse=True)[:3]
+
+        categories = [cat for cat, sim in topNKNN]
+        voteCounts = {}
+
+        ### bageeb votess 
+
+        ################## 3shan a7seb confidence 
+        for cat in categories:
+            if cat in voteCounts:
+                voteCounts[cat] += 1
+            else:
+                voteCounts[cat] = 1
+        
+        bestCategory = max(voteCounts, key=voteCounts.get)
+        confidenceScores = [sim for cat, sim in categoryScores if cat == bestCategory]
+                # ba7seb average confid
+        confidence = sum(confidenceScores) / len(confidenceScores)
+       
+
+
+       ## lw confiden 2olyal awyy ###
+        if confidence < threshold:
+            return "unknown", confidence
+        
+        return bestCategory, confidence
+
+    def TopicClassify(self, query):
         query_embedding = self.model.encode([query])[0]
         
-        if method == 'max_similarity':
-            category, confidence = self._classify_max_similarity(query_embedding, 0)
-        else:
-            category, confidence = self._classify_centroid(query_embedding, 0)
-            
-        # Get all category scores for ranking
-        category_scores = {}
-        for cat in self.categories:
-            if method == 'max_similarity':
-                similarities = [
-                    cosine_similarity([query_embedding], [emb])[0][0] 
-                    for emb in self.category_embeddings[cat]
-                ]
-                category_scores[cat] = max(similarities)
-            else:
-                similarity = cosine_similarity([query_embedding], [self.category_centroids[cat]])[0][0]
-                category_scores[cat] = similarity
+       
+        category, confidence = self.classifySimilarity(query_embedding, 0)
         
-        # Sort categories by confidence
-        sorted_categories = sorted(category_scores.items(), key=lambda x: x[1], reverse=True)
-        
-        # If confidence is below threshold, ask for confirmation
-        if confidence < self.confidence_threshold:
-            top_categories = sorted_categories  # All three categories
-            
+        # lw confidence smaller than threshold then i will apply fall back system and ask user
+        if confidence < self.confidenceThreshold:
             # Generate confirmation message
+            # print("alooooooooooooooooooooo confid",confidence)
             if category != "unknown":
                 message = f"I think you're asking about {category} is that right? "
                 message += "Please confirm if this is about football, cooking, or news."
@@ -143,7 +99,6 @@ class TopicClassifier:
                     "suggested_category": category,
                     "confidence": confidence,
                     "message": message,
-                    "top_categories": sorted_categories,
                     "query": query,
                     "query_embedding": query_embedding
                 }
@@ -155,7 +110,6 @@ class TopicClassifier:
                     "suggested_category": "unknown",
                     "confidence": confidence,
                     "message": message,
-                    "top_categories": sorted_categories,
                     "query": query,
                     "query_embedding": query_embedding
                 }
@@ -166,29 +120,27 @@ class TopicClassifier:
                 "confidence": confidence
             }
     
-    def add_confirmed_example(self, query, correct_category, query_embedding=None):
+    def addExample(self, query, correct_category, queryEmbedding=None):
 
         if correct_category not in self.categories or correct_category == "unknown":
-            print(f"Warning: Cannot add example to '{correct_category}'. Valid categories are: {', '.join(self.categories)}")
+            print(f"error")
             return
             
-        # Get or compute embedding
-        if query_embedding is None:
-            query_embedding = self.model.encode([query])[0]
+        if queryEmbedding is None:
+
+            ### lw embedding msh 3ndy bagebo  ###########
+
+
+            queryEmbedding = self.model.encode([query])[0]
             
-        # Add to category embeddings
-        if len(self.category_embeddings.get(correct_category, [])) == 0:
-            self.category_embeddings[correct_category] = np.array([query_embedding])
+        ############################## b3mal adding new example hena ################
+
+        if len(self.categoryEmbeddings.get(correct_category, [])) == 0:
+            self.categoryEmbeddings[correct_category] = np.array([queryEmbedding])
         else:
-            self.category_embeddings[correct_category] = np.vstack([
-                self.category_embeddings[correct_category], 
-                query_embedding
+            self.categoryEmbeddings[correct_category] = np.vstack([
+                self.categoryEmbeddings[correct_category], 
+                queryEmbedding
             ])
-            
-        # Update centroid
-        self.category_centroids[correct_category] = np.mean(
-            self.category_embeddings[correct_category], 
-            axis=0
-        )
+
         
-        print(f"Added example to category '{correct_category}': '{query}'")

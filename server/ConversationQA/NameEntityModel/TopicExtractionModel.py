@@ -12,21 +12,15 @@ MAX_LEN = 128
 BATCH_SIZE = 16
 EPOCHS = 5
 LEARNING_RATE = 2e-5
-BERT_MODEL = 'bert-base-cased'  # Using cased variant as NER is case-sensitive
+BERT_MODEL = 'bert-base-cased' 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Define function to get model path
 def get_model_path(model_filename):
-    # Get the directory of the current file
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    # Get the parent directory (ConversationQA)
     parent_dir = os.path.dirname(current_dir)
-    # Get the Models directory path
     models_dir = os.path.join(parent_dir, 'Models')
-    # Return the full path to the model file
     return os.path.join(models_dir, model_filename)
 
-# CoNLL-2003 has these entity types
 tag2idx = {
     'O': 0,
     'B-PER': 1, 'I-PER': 2,
@@ -38,111 +32,116 @@ idx2tag = {v: k for k, v in tag2idx.items()}
 
 class BERTSeq2SeqForNER(nn.Module):
     def __init__(self, bert_model_name, num_labels):
+         #### mafroud a3ml calling bert constructor w a3ml loading
+        # load model w
         super(BERTSeq2SeqForNER, self).__init__()
-        self.bert = BertModel.from_pretrained(bert_model_name)
+        self.bert =BertModel.from_pretrained(bert_model_name)
         self.dropout = nn.Dropout(0.1)
-        self.num_labels = num_labels
+        self.num = num_labels
         
         
         # Decoder
         # Simple linear layer for token classification
-        self.classifier = nn.Linear(self.bert.config.hidden_size, num_labels)
+        self.classifier=nn.Linear(self.bert.config.hidden_size, self.num)
         
         # Additional seq2seq components
-        self.lstm = nn.LSTM(
+        self.lstm=nn.LSTM(
+            ### mafroud henna configuration input size
             input_size=self.bert.config.hidden_size,
+    # config hidden size
             hidden_size=self.bert.config.hidden_size // 2,
+        
             num_layers=2,
             batch_first=True,
+
             bidirectional=True
         )
     
     def forward(self, input_ids, attention_mask, labels=None):
         # Get BERT embeddings
-        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        sequence_output = outputs.last_hidden_state
-        
-        # Process through LSTM
-        lstm_output, _ = self.lstm(sequence_output)
+        out = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+       
+
+        lstmOutput, _= self.lstm(out.last_hidden_state)
         
         # Apply dropout
-        lstm_output = self.dropout(lstm_output)
+        lstmOutput= self.dropout(lstmOutput)
         
-        # Apply classifier
-        logits = self.classifier(lstm_output)
+        #### classifier 
+        logits =self.classifier(lstmOutput)
         
         loss = None
         if labels is not None:
-            loss_fct = nn.CrossEntropyLoss()
-            # Only keep active parts of the loss
-            active_loss = attention_mask.view(-1) == 1
-            active_logits = logits.view(-1, self.num_labels)
-            active_labels = torch.where(
-                active_loss, labels.view(-1), torch.tensor(loss_fct.ignore_index).type_as(labels)
+            LOSSfnc = nn.CrossEntropyLoss()
+          
+            loss= attention_mask.view(-1) == 1
+            activeLogits =logits.view(-1, self.num)
+            activeLabels= torch.where(
+                activeLogits, labels.view(-1), torch.tensor(LOSSfnc.ignore_index).type_as(labels)
             )
-            loss = loss_fct(active_logits, active_labels)
+            loss =LOSSfnc(activeLogits, activeLabels)
         
         return {"loss": loss, "logits": logits} if loss is not None else {"logits": logits}
 
 class NERPredictor:
+############################################ INITIALIZATION ########################################################
     def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        # Load the model
+        self.device=torch.device("cuda" if torch.cuda.is_available()else "cpu")
         model_path = get_model_path('bert_seq2seq_ner.pt')
-        print(f"Loading NER model from: {model_path}")
-        
-        try:
-            self.model = BERTSeq2SeqForNER(BERT_MODEL, len(tag2idx))
-            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
-            self.model.to(self.device)
-            self.model.eval()
-            print(f"NER model loaded successfully on {self.device}")
 
-            # Initialize tokenizer - Use Fast version
-            self.tokenizer = BertTokenizerFast.from_pretrained(BERT_MODEL)
-        except Exception as e:
-            print(f"Failed to load NER model: {e}")
-            raise
+        #### 3ayeen n3mal evaluation 
+        # load model w nenady evaluation
+        self.model=BERTSeq2SeqForNER(BERT_MODEL, len(tag2idx))
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        ## bwdeha ll device
+        self.model.to(self.device)
+        
+        self.model.eval()
+
+        # Initialize tokenizer 
+        self.tokenizer = BertTokenizerFast.from_pretrained(BERT_MODEL)
+
+
+################################################## PREDICT #######################################################
 
     def predict(self, text):
         # Tokenize input
-        words = text.lower().split()
-        inputs = self.tokenizer(
-            words,
-            is_split_into_words=True,
-            return_tensors='pt',
-            padding=True,
-            truncation=True,
-            max_length=MAX_LEN
+        words =text.lower().split()
+        inputs =self.tokenizer(
+            words
+            ,is_split_into_words=True,
+            ### mafroud henna max length
+            return_tensors= 'pt',
+            padding= True
+            ,truncation=True,max_length=MAX_LEN
         )
 
-        # Move tensors to device
-        input_ids = inputs['input_ids'].to(self.device)
-        attention_mask = inputs['attention_mask'].to(self.device)
-
-        # Get predictions
+        #Get predictions
         with torch.no_grad():
-            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
-            logits = outputs['logits']
-            predictions = torch.argmax(logits, dim=2).cpu().numpy()[0]
+            outputs= self.model(input_ids=inputs['input_ids'].to(self.device), attention_mask= inputs['attention_mask'].to(self.device)
+)
+            logits= outputs['logits']
+            predictions=torch.argmax(logits, dim=2).cpu().numpy()[0]
 
-        # Get word-to-token mapping
-        word_ids = inputs.word_ids(batch_index=0)
+        # Get word token mapping
+        word_ids=inputs.word_ids(batch_index=0)
+    #map predictions to words
+        wordPredictions=[]
+        prevIdx= None
 
-        # Map predictions to words
-        word_predictions = []
-        prev_word_idx = None
-
-        for token_idx, word_idx in enumerate(word_ids):
-            if word_idx is None or word_idx == prev_word_idx:
+        for idx, wordIdx in enumerate(word_ids):
+        #############  bageeb tage with O 
+            if not wordIdx or wordIdx==prevIdx:
                 continue
 
-            word = words[word_idx]
-            tag_idx = predictions[token_idx]
-            tag = idx2tag.get(tag_idx, "O")
+            word=words[wordIdx]
+            
+            tag_idx = predictions[idx]
+            
+            ### get tag with O
+            tag=idx2tag.get(tag_idx, "O")
 
-            word_predictions.append((word, tag))
-            prev_word_idx = word_idx
+            wordPredictions.append((word, tag))
+            prevIdx= wordIdx
 
-        return word_predictions
+        return wordPredictions

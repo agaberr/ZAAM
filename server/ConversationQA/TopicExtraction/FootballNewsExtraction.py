@@ -6,12 +6,9 @@ import time
 from googleapiclient.discovery import build
 from urllib.parse import urlparse
 import os
-from dotenv import load_dotenv
 import nltk
 from nltk.tokenize import sent_tokenize
 
-# Load environment variables
-load_dotenv()
 
 API_KEY = "AIzaSyBA-2V_K-sjI9voApCARrlKXZDdVgg5OPM"
 SEARCH_ENGINE_ID = "c7df448be45934f6e"
@@ -31,42 +28,52 @@ class NewsArticleExtractor:
     
     def extract_from_url(self, url):
         if not self._is_allowed_domain(url):
-            return {"error": f"URL not from allowed domains: {url}"}
+            return "error"
             
         try:
             response = requests.get(url, headers=self.headers, timeout=10)
             response.raise_for_status()
             
-            # Process ESPN article
+           #### ba3mel processsing hena tab3n
+
+
             return self._process_espn_article(response.text, url)
             
-        except requests.RequestException as e:
-            return {"error": f"Failed to fetch URL: {str(e)}"}
+        except:
+            return "errorr"
     
     def _is_allowed_domain(self, url):
-        domain = urlparse(url).netloc
-        return any(allowed_domain in domain for allowed_domain in ALLOWED_DOMAINS)
+        ############## bashouf men allowed web 
+        domain = urlparse(url).netloc  # b3mal pasrsssing
+
+        out = any(allowed_domain in domain for allowed_domain in ALLOWED_DOMAINS)
+        return out
     
     def _clean_text(self, text):
-        # Remove extra whitespace
+            #### ba3mel showayet cleaning 
+
+        ############################# Basheeel white spacesss
+
         text = re.sub(r'\s+', ' ', text)
-        # Remove HTML comment leftovers
+
+        # basheel html
         text = re.sub(r'<!--.*?-->', '', text)
-        # Remove scripts leftovers
+
+        ############### Remove scripts 
         text = re.sub(r'<script.*?</script>', '', text)
-        # Remove URLs
+
+        ####### basheeel urlsss 
         text = re.sub(r'https?://\S+', '', text)
-        # Remove any remaining HTML tags
+       
         text = re.sub(r'<[^>]+>', '', text)
-        # Fix spacing after periods, question marks, and exclamation points
+        
         text = re.sub(r'([.!?])\s*', r'\1 ', text)
-        # Remove multiple spaces
+       
         text = re.sub(r' +', ' ', text)
-        # Remove spaces before punctuation
         text = re.sub(r' ([,.;:])', r'\1', text)
         return text.strip()
     
-    def _extract_text_without_links(self, element):
+    def extractText(self, element):
         if element is None:
             return ""
             
@@ -77,7 +84,7 @@ class NewsArticleExtractor:
             elif content.name == 'a':
                 text_parts.append(content.get_text())
             elif content.name not in ['script', 'style', 'svg']:
-                text_parts.append(self._extract_text_without_links(content))
+                text_parts.append(self.extractText(content))
                 
         return ' '.join(text_parts)
     
@@ -134,7 +141,7 @@ class NewsArticleExtractor:
         story_body = soup.find('div', class_=re.compile(r'Story__Body'))
         
         if story_body:
-            article_text = self._extract_content_from_story_body(story_body)
+            article_text = self.extContent(story_body)
         else:
             article_text = self._extract_content_from_other_containers(soup)
         
@@ -146,11 +153,11 @@ class NewsArticleExtractor:
         if not result["content"]:
             result["content"] = self._extract_main_content(soup)
         
-        result["structured_content"] = self._structure_content(result["content"])
+        result["structured_content"] = self.Structure_content(result["content"])
         
         return result
     
-    def _extract_content_from_story_body(self, story_body):
+    def extContent(self, story_body):
         article_text = []
         
         # Get all paragraphs
@@ -159,13 +166,15 @@ class NewsArticleExtractor:
             if not p.text.strip():
                 continue
             
-            p_text = self._extract_text_without_links(p)
+            p_text = self.extractText(p)
             p_text = self._clean_text(p_text)
             
             if p_text:
                 article_text.append(p_text)
         
-        # Extract subheadings
+        ############# bageeb sub heading based 3la structure
+        ############
+
         subheadings = story_body.find_all(['h2', 'h3', 'h4'])
         for heading in subheadings:
             heading_text = heading.get_text().strip()
@@ -206,7 +215,7 @@ class NewsArticleExtractor:
                     continue
                 
                 # Extract clean text
-                p_text = self._extract_text_without_links(p)
+                p_text = self.extractText(p)
                 p_text = self._clean_text(p_text)
                 
                 if p_text:
@@ -223,8 +232,10 @@ class NewsArticleExtractor:
         return article_text
     
     def _extract_football_data(self, soup, result):
-        """Extract football match data from the page"""
-        # Look for match results/scores
+        ####################### 
+        ############################ 3ayz ageeb asamy classes ely h3mlha select
+
+        ############# selectors #########
         match_selectors = [
             '.competitors', 
             '.score-container', 
@@ -233,15 +244,21 @@ class NewsArticleExtractor:
             '.GameScoreBox'
         ]
         
+
         for selector in match_selectors:
             match_container = soup.select_one(selector)
             if match_container:
-                # Try to extract team names
+                #  team names
                 teams = match_container.select('.team-name, .team, .ScoreCell__TeamName, .TeamName')
-                # Try to extract scores
+
+
+# ba7waal ageeb scores matchat
                 scores = match_container.select('.score, .ScoreCell__Score, .Score')
                 
                 if teams and scores and len(teams) >= 2 and len(scores) >= 2:
+                    ## ba3ml check bs en 3rft a3ml extract l etneen teams
+
+                    ################ b3d kda b7out data fi shakl structuredd #######
                     result["football_data"]["match_result"] = {
                         "home_team": teams[0].text.strip() if teams else "",
                         "away_team": teams[1].text.strip() if len(teams) > 1 else "",
@@ -292,7 +309,7 @@ class NewsArticleExtractor:
             paragraphs = []
             for p in content.find_all('p'):
                 if p.text.strip() and len(p.text.strip()) > 10:
-                    p_text = self._extract_text_without_links(p)
+                    p_text = self.extractText(p)
                     p_text = self._clean_text(p_text)
                     if p_text:
                         paragraphs.append(p_text)
@@ -300,12 +317,12 @@ class NewsArticleExtractor:
             if paragraphs:
                 return "\n\n".join(paragraphs)
             else:
-                text = self._extract_text_without_links(content)
+                text = self.extractText(content)
                 return self._clean_text(text)
         
         return ""
     
-    def _structure_content(self, text_content):
+    def Structure_content(self, text_content):
         paragraphs = text_content.split("\n\n")
         
         structured_content = []
@@ -321,9 +338,17 @@ class NewsArticleExtractor:
                     "paragraphs": []
                 }
             else:
-                # Remove any extra whitespace or newlines
+                ###################################################
+
+                ############ BASHEEL AY WHITE SPACE ###############
+
+                #### LEEH 3AMLT KDA ###
+                ### MAFROUD A3MLHA HANDLE 3SHAN DENYA KANET BTBOZZ
+
+
                 clean_paragraph = re.sub(r'\s+', ' ', paragraph).strip()
                 if clean_paragraph:
+                    ## tb3n b3ml appending 
                     current_section["paragraphs"].append(clean_paragraph)
         
         if current_section["paragraphs"]:
@@ -331,15 +356,22 @@ class NewsArticleExtractor:
             
         return structured_content
     
-    def get_text_for_qa(self, structured_content=None):
+    def getTextQa(self, structured_content=None):
         if not structured_content:
             return ""
             
         qa_text = []
         
         for section in structured_content:
+
+            #### ba7wal ageeb title article
+
+
             qa_text.append(f"{section['title']}")
             
+
+            ## concatenate paragraphsss 
+
             for paragraph in section['paragraphs']:
                 qa_text.append(paragraph)
             
@@ -355,21 +387,25 @@ class NewsArticleExtractor:
             return re.findall(r'[^.!?]+[.!?]', text)
 
 
-def google_search(query, num_results=10):
+def googleSearch(query, num_results=10):
     try:
         service = build("customsearch", "v1", developerKey=API_KEY)
         
         site_restrictions = f"site:{ALLOWED_DOMAINS[0]}"
-        football_focus = "football OR soccer"
-        site_restricted_query = f"{query} {football_focus} {site_restrictions}"
+        footballFocus = "football OR soccer"
+ 
         
-        result = service.cse().list(q=site_restricted_query, cx=SEARCH_ENGINE_ID, num=num_results).execute()
+        result = service.cse().list(q=f"{query} {footballFocus} {site_restrictions}", cx=SEARCH_ENGINE_ID, num=num_results).execute()
         
         if "items" not in result:
             return []
         
         search_results = []
         for item in result["items"]:
+              
+            ##### apending results
+
+            #### 
             search_results.append({
                 "url": item["link"],
                 "title": item["title"],
@@ -378,20 +414,21 @@ def google_search(query, num_results=10):
         
         return search_results
     
-    except Exception as e:
-        print(f"Error performing Google search: {e}")
+    except:
         return []
   
 def get_football_articles(query, max_articles=3):
-    search_results = google_search(query, max_articles * 2)
+    searchResults = googleSearch(query, max_articles * 2)
 
-    if not search_results:
+    if not searchResults:
         return []
     
     extractor = NewsArticleExtractor()
     articles = []
     
-    for i, result in enumerate(search_results):
+    for i, result in enumerate(searchResults):
+        ############# BALF 3LA KOL ARTICLEE
+
         if len(articles) >= max_articles:
             break
             
@@ -400,10 +437,13 @@ def get_football_articles(query, max_articles=3):
         # Extract the article
         article = extractor.extract_from_url(result["url"])
         
-        # Add the article if it has meaningful content
+        # ##############  lw article kwicaa
+
         if article and "error" not in article and len(article["content"]) > 100:
-            # Get text formatted for QA
-            article["qa_text"] = extractor.get_text_for_qa(article["structured_content"])
+            
+            ##
+            ############ bageb structure format 
+            article["qa_text"] = extractor.getTextQa(article["structured_content"])
             articles.append(article)
     
     return articles

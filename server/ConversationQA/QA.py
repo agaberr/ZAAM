@@ -1,6 +1,5 @@
 import joblib
 import numpy as np
-import os
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 from NameEntityModel.TopicExtractionModel import NERPredictor
@@ -15,29 +14,16 @@ import re
 from transformers import BertTokenizer
 from text_summarization import article_summarize
 from classifier.QueryClassifier import predict_query_type
-from TopicExtraction.Daily_football import ImprovedFootballScraper
-from TopicExtraction.NewsExtraction import get_articles_for_query
-from TopicExtraction.ArticleEvaluation import article_contains_answer
-from TopicExtraction.CookingExtraction import transform_recipe_to_conversation,get_recipes_for_query
+from TopicExtraction.NewsExtraction import get_articles_for_query            
+from TopicExtraction.ArticleEvaluation import article_contains_answer        
+from TopicExtraction.CookingExtraction import GetRecipe,get_recipes_for_query
 from TopicExtraction.FootballNewsExtraction import get_football_articles
 from TopicExtraction.TopicClassifier import TopicClassifier
-from TopicExtraction.ExtractTopic import ExtractTopic
+from TopicExtraction.ExtractTopic import ExtractTopic   
+import os  
 
-# Get current directory path for loading models
 QA_DIR = os.path.dirname(os.path.abspath(__file__))
-# Path to Models directory
 MODELS_DIR = os.path.join(QA_DIR, "Models")
-
-# Performance decorator for timing functions
-def timing_decorator(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        result = func(*args, **kwargs)
-        end_time = time.time()
-        print(f"Function {func.__name__} took {end_time - start_time:.4f} seconds")
-        return result
-    return wrapper
 
 class ConversationalQA:
     def __init__(self, model_name="all-MiniLM-L6-v2"):
@@ -46,7 +32,7 @@ class ConversationalQA:
         self.nlp = spacy.load("en_core_web_sm") 
         self.current_entity = None
         self.entity_info = {}
-        self.topic_classifier = TopicClassifier(model_name=model_name, confidence_threshold=0.7)
+        self.topic_classifier = TopicClassifier(model_name=model_name, threshold=0.5)
         category_examples = {
         "football": [
             "Who won the match yesterday?",
@@ -157,7 +143,7 @@ class ConversationalQA:
     def _load_qa_model(self):
         self.model_qa = BertForQA()
         self.model_qa.load_state_dict(torch.load(os.path.join(MODELS_DIR, "extractiveQA.pt"), 
-                                             map_location=self.device))
+                                            map_location=self.device))
         self.model_qa.to(self.device)
         self.model_qa.eval()
         self.model_qa = self.model_qa.to(self.device)
@@ -277,13 +263,11 @@ class ConversationalQA:
         return entities
     
     def process_query(self, query, passage=None):
-        # Skip empty queries (used when setting a new passage)
         if not query.strip():
             if passage is not None:
                 self.current_passage = passage
             return "",'none'
         
-        # Update passage if provided
         if passage is not None:
             self.current_passage = passage
             # Preprocess the passage sentences
@@ -292,7 +276,7 @@ class ConversationalQA:
         # Apply attention to resolve the query using conversation history
 
         print("current Query: ",query)
-        resolved_query = self._apply_attention(query)
+        resolved_query = self.apply_attention(query)
         
         print("the query:: ",query)
         print("\nresolved query:: ",resolved_query)
@@ -301,9 +285,9 @@ class ConversationalQA:
         print("query type: ",queryType)
 
         # Check if current passage has the entities we need
-        answer, confidence = self._get_answer_with_cosine_similarity(resolved_query)
-        print("answer before checking confidence: ",answer)
-        print("\nconfidence level: ",confidence)
+        confidence = 1
+        # print(answer)
+        # print(confidence)
 
         #get last element in history
         last_element = self.conversation_history[-1] if self.conversation_history else None
@@ -319,9 +303,9 @@ class ConversationalQA:
                 category = 'news'
             elif 'football' in resolved_query:
                 category = 'football'
-            query_embedding = self.topic_classifier.get_query_embedding(last_element['resolved_query'])
+            query_embedding = self.topic_classifier.getEmbedding(last_element['resolved_query'])
 
-            self.topic_classifier.add_confirmed_example(
+            self.topic_classifier.addExample(
                 last_element['resolved_query'], 
                 category, 
                 query_embedding
@@ -329,7 +313,7 @@ class ConversationalQA:
             print("category hena b3d confirmation: ",category)
         else:
 
-            result = self.topic_classifier.interactive_classify(resolved_query)
+            result = self.topic_classifier.TopicClassify(resolved_query)
 
             if result["result"] == "confident":
                 category = result["category"]
@@ -352,11 +336,7 @@ class ConversationalQA:
         print("category hena: ",category)
         if category == 'cooking':
             recipes =get_recipes_for_query(resolved_query)
-            # Add null check for recipes
-            if not recipes:
-                answer = "I am sorry, I couldn't find any recipes for your request."
-            else:
-                answer = transform_recipe_to_conversation(recipes[0])
+            answer = GetRecipe(recipes[0])
 
             self.conversation_history.append({
                 "query": query,
@@ -371,16 +351,12 @@ class ConversationalQA:
         else:
             articles= get_football_articles(resolved_query,max_articles=2)
 
-        # Add null check for articles
-        if not articles:
-            articles = []
-
         best_article = None
         article_match = None
         best_score = 0.0
 
         for article in articles:
-           contains_answer, best_match, score = article_contains_answer(article['qa_text'], resolved_query, debug=False)
+           contains_answer, best_match, score = article_contains_answer(article['qa_text'], resolved_query)
            if score > best_score:
                 best_score = score
                 best_article = article
@@ -388,9 +364,7 @@ class ConversationalQA:
    
         print("best score: ",best_score)
         print("best article match: ",article_match)
-
-        print("###########################################")
-        print("best article: ",best_article['qa_text'])
+      
         if best_article and queryType == "Summarization":
             answer = article_summarize(best_article['qa_text'])
             source = best_article['source']
@@ -529,7 +503,7 @@ class ConversationalQA:
         return False
     
     
-    def _apply_attention(self, query):
+    def apply_attention(self, query):
         # If this is the first query, no resolution needed
         if not self.conversation_history:
             return query
@@ -558,116 +532,6 @@ class ConversationalQA:
       
         return resolved_query
     
-    def _replace_pronouns(self, query, entities):
-        if not entities:
-            return query
-            
-        # Simple string replacement for speed
-        words = query.split()
-        replaced = False
-        
-        for i, word in enumerate(words):
-            word_lower = word.lower()
-            
-            # Handle common pronouns
-            if word_lower in ["he", "him", "she", "her", "it", "they", "them", "this", "that"] and not replaced:
-                words[i] = entities[0].split()[0] if ' ' in entities[0] else entities[0]
-                replaced = True
-            elif word_lower in ["his", "her", "its", "their"] and not replaced:
-                name = entities[0].split()[0] if ' ' in entities[0] else entities[0]
-                words[i] = f"{name}'s"
-                replaced = True
-                
-        resolved_query = " ".join(words)
-        return resolved_query
-    
-    def assess_answer_quality(self, query, answer_sentence, similarity_score, question_type):
-        
-        # remove stopwords and lemmatize query and find important keywords
-        query_keywords = set()
-        query_doc = self.nlp(query)
-        for token in query_doc:
-            if (token.text.lower() not in self.question_words and 
-                not token.is_stop and 
-                token.pos_ in ['NOUN', 'PROPN', 'VERB', 'ADJ']):
-                query_keywords.add(token.lemma_.lower())
-        
-        # If no keywords found, rely on similarity score
-        if not query_keywords:
-            return similarity_score
-            
-        # Quick keyword check for answer
-        # Extract Keywords from the Answer
-        answer_doc = self.nlp(answer_sentence)
-        answer_keywords = set()
-        for token in answer_doc:
-            if not token.is_stop and token.pos_ in ['NOUN', 'PROPN', 'VERB', 'ADJ']:
-                answer_keywords.add(token.lemma_.lower())
-        
-        # Calculate keyword overlap
-        keyword_overlap = len(query_keywords.intersection(answer_keywords))
-        keyword_ratio = keyword_overlap / len(query_keywords) if query_keywords else 0
-        
-        # Check for named entities based on question type (simplified)
-        has_relevant_entity = False
-        if question_type == "who":
-            has_relevant_entity = any(ent.label_ == "PERSON" for ent in answer_doc.ents)
-        elif question_type == "where":
-            has_relevant_entity = any(ent.label_ in ["GPE", "LOC", "FAC"] for ent in answer_doc.ents)
-        elif question_type == "when":
-            has_relevant_entity = any(ent.label_ == "DATE" or ent.label_ == "TIME" for ent in answer_doc.ents)
-        
-        # Weighted quality score
-        quality_score = (similarity_score * 0.4) + (keyword_ratio * 0.4) + (0.2 if has_relevant_entity else 0)
-        return quality_score
-    
-    @timing_decorator
-    def _get_answer_with_cosine_similarity(self, query):
-        
-        if not self.processed_sentences:
-            return "Insufficient information available.", 0.0
-        
-        # Categorize the question
-        question_type = self._categorize_question(query)
-        
-        # Get query embedding
-        query_embedding = self._get_embedding(query)
-        print("QUESTION TYPE::::::  ", question_type)
-  
-        # Default handling: use all sentences
-        sent_embeddings = np.array([sent_data['embedding'] for sent_data in self.sentence_cache.values()])
-        
-        # Calculate similarities in batch
-        similarities = cosine_similarity([query_embedding], sent_embeddings)[0]
-        
-        best_idx = np.argmax(similarities)
-        base_confidence = similarities[best_idx]
-        answer = self.processed_sentences[best_idx]
-        
-        # Assess answer quality
-        adjusted_confidence = self.assess_answer_quality(query, answer, base_confidence, question_type)
-        
-        # Reduce confidence for very short answers
-        if len(answer.split()) < 5:
-            adjusted_confidence *= 0.5
-            
-        return answer, adjusted_confidence
-
-    def _categorize_question(self, query):
-        query_lower = query.lower()
-        
-        if query_lower.startswith(("when", "what time", "what date")):
-            return "when"
-        elif query_lower.startswith(("where", "what place", "which city")):
-            return "where"
-        elif query_lower.startswith(("who", "what person")):
-            return "who"
-        elif query_lower.startswith("how"):
-            return "how"
-        elif query_lower.startswith("why"):
-            return "why"
-        else:
-            return "general"
         
     def set_passage(self, new_passage):
         self.current_passage = new_passage 

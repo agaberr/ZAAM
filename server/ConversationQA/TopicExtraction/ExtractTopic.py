@@ -1,44 +1,55 @@
 import datetime
 from typing import List, Tuple, Dict, Any
-import openai
+import numpy as np
 
 
 def ExtractTopic(predictions, important_keywords):
     topics = []
     important_words = []
-    current_topic = []
+    currentTopic = []
     current_tag = None
     
-    for word, tag in predictions:
-        # Check if the word is in the important keywords list
+    for word, t in predictions:
+       
+       #### bahsouf kelma mwgoda 3ndy fi list wla eh
+
         if word.lower() in important_keywords:
             important_words.append(word)
         
-        # Handle topic extraction
-        if tag.startswith("B-"):
-            # If a new topic starts, save the previous one (if any)
-            if current_topic:
-                topics.append(" ".join(current_topic))
-                current_topic = []
-            current_topic.append(word)
-            current_tag = tag
-        elif tag.startswith("I-"):
-            # If it's part of the current topic, add the word
-            if current_topic:
-                current_topic.append(word)
+        #
+        ## handle tags ll kol kelma lw hya b tbd2 B- bashousf lw fi b3dha I- wla eh lw
+        ## kda byb2o entity wahda 
+
+        if t.startswith("B-"):
+        
+            if currentTopic:
+        
+        ### b3ml save ll current topic lw mwgoda
+                topics.append(" ".join(currentTopic))
+                currentTopic = []
+            currentTopic.append(word)
+            current_tag = t
+            
+        elif t.startswith("I-"):
+         
+         ## hena ba bhandle lw hya I- lw mafesh current ablha yba hya deh ablha O
+            if currentTopic:
+                currentTopic.append(word)
             else:
-                # If there's no current topic, treat it as a new topic
-                current_topic = [word]
-                current_tag = tag
+                currentTopic = [word]
+                current_tag = t
         else:
-            # If it's "O", save the current topic (if any)
-            if current_topic:
-                topics.append(" ".join(current_topic))
-                current_topic = []
+        
+            if currentTopic:
+                ### hena ba lw tag kan o
+
+                topics.append(" ".join(currentTopic))
+                
+                currentTopic = []
+           
             current_tag = None
 
-    if current_topic:
-        topics.append(" ".join(current_topic))
+    if currentTopic:
+        topics.append(" ".join(currentTopic))
     
     return topics, important_words
-
