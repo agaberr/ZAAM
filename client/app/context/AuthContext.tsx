@@ -7,7 +7,7 @@ import { useGoogleAuth, getCurrentUser } from '../services/authService';
 
 // API endpoint base URL
 // const API_BASE_URL = 'https://zaam-mj7u.onrender.com'; // For Android emulator pointing to localhost
-const API_BASE_URL = 'http://localhost:5004'; // For Android emulator pointing to localhost
+const API_BASE_URL = 'http://localhost:5005'; // For Android emulator pointing to localhost
 
 
 

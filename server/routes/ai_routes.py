@@ -8,35 +8,21 @@ import jwt
 import datetime
 import pytz
 import re
-# Add imports for reminder functionality
 from models.reminder import ReminderNLP, Reminder, ReminderDB
 from bson.objectid import ObjectId
-
-# Import the Weather functionality
 sys.path.append(str(Path(__file__).parent.parent / "Weather"))
 from Weather.run import get_weather_response
-
-# Add ConversationQA to the path
 conversation_qa_path = Path(__file__).parent.parent / "ConversationQA"
 sys.path.append(str(conversation_qa_path))
-
-# Import ConversationQA functionality
 from ConversationQA.text_summarization import article_summarize
 from ConversationQA.qa_singleton import get_qa_instance
-
-# Get the singleton instance
 qa_system = get_qa_instance()
-
-# Add imports for cognitive game functionality
 from cognitive_game import CognitiveGame
 
 def ai_routes_funcitons(app, mongo):
     
     
-    # set for auth 
     JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-key")
-    
-    ai_processor = AIProcessor()    
 
     def get_user_loggedin():
         auth_header = request.headers.get('Authorization')
@@ -53,13 +39,13 @@ def ai_routes_funcitons(app, mongo):
             elif 'user_id' in session:
                 return session['user_id']
         
+        # decode el token 3shan ageeb kol el data bta3t el user
         if token:
             try:
-                # Decode the token
                 payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
                 return payload.get('user_id')
             except Exception as e:
-                print(f"Error decoding token: {str(e)}")
+                print("can't decode the token, what did you do??")
         
         try:
             session_id = request.cookies.get('session_id')
@@ -67,54 +53,44 @@ def ai_routes_funcitons(app, mongo):
                 user_session = mongo.db.sessions.find_one({"_id": session_id})
                 if user_session and 'user_id' in user_session:
                     return user_session['user_id']
-        except Exception as e:
-            print(f"Error checking session in database: {str(e)}")
+        except :
+            print("can't auth user")
             
-        # No authentication found
+        # mafeeesh authentication
         return None
     
 
-##### Processing internal functions for the ai routes 
-    def process_news_function(text):
-        """process news query"""
-        try:
-            
+    def newsmodel_function(text):            
             result, _ = qa_system.process_query(text)
-            
+            if not result:
+                return {"response": "news service is not available.."}
             return {"response": result}
-        except Exception as e:
-            return {"response": f"Error processing news query: {str(e)}"}
     
 
 
-    def process_reminder_function(text):
-        """process reminder query"""
+    def remindermodel_function(text):
         try:
             reminder_nlp = ReminderNLP()
             if not reminder_nlp:
-                return {"response": "The reminder service is not available."}
+                return {"response": "reminder model is not available..."}
             
             user_id = get_user_loggedin()
-
+            res = reminder_nlp.process_text(text)
             
-            result = reminder_nlp.process_text(text)
-            
-            # get all predictions from the result
-            predicted_intent = result.get("predicted_intent", "")
-            predicted_action = result.get("predicted_action", "")
-            predicted_time = result.get("predicted_time", "")
-            days_offset = result.get("days_offset", 0)
+            # get all predictions mn el result of the query
+            predicted_intent = res.get("predicted_intent", "")
+            predicted_action = res.get("predicted_action", "")
+            predicted_time = res.get("predicted_time", "")
+            days_offset = res.get("days_offset", 0)
             
 
-            # there are 2 predictions, one is get time table and other is to create an event
+            # there are 2 predictions, el awal is get time table and el tany  is to create an event
             if predicted_intent == "get_timetable":
                 
                 final_date = datetime.datetime.now(pytz.timezone('Africa/Cairo')) + datetime.timedelta(days=days_offset)
                 
-                # Get reminders from db
-                reminders = ReminderDB.get_day_reminders(user_id, final_date, db=mongo.db)
-                
-                response = ReminderDB.format_reminders_response(reminders, days_offset)
+                reminders = ReminderDB.getDayReminders(user_id, final_date, db=mongo.db)
+                response = ReminderDB.formatReminderResponse(reminders, days_offset)
                 
                 return {"response": response}
                 
@@ -124,34 +100,33 @@ def ai_routes_funcitons(app, mongo):
                     return {"response": "I couldn't understand the action, please be more clear."}
                 
                 start_time = datetime.datetime.now(pytz.timezone('Africa/Cairo')) + datetime.timedelta(days=days_offset)
-                
-                # Parse the time if provided
+
                 if predicted_time:
                     try:
                         if hasattr(reminder_nlp, 'parse_time'):
                             start_time = reminder_nlp.parse_time(predicted_time, start_time)
                         else:
                             start_time = Reminder.parse_time(predicted_time, start_time)
-                    except ValueError as e:
-                        return {"response": str(e)}
+                    except:
+                        return {"response": "error parsing the time.."}
                 else:
 
-                    # set for an hour
+                    # el default value bta3 el duration byab2a 1 hr
                     start_time = start_time.replace(hour=(start_time.hour + 1) % 24, minute=0, second=0, microsecond=0)
                 
-                # Create the reminder
-                try:
-                    reminder = ReminderDB.create_reminder(
+                    reminder = ReminderDB.createReminder(
                         user_id=user_id, 
                         title=predicted_action, 
                         start_time=start_time,
                         description=text,
                         db=mongo.db
                     )
+                try:
                     
                     new_time = start_time.strftime("%I:%M %p")
                     new_date = start_time.strftime("%A, %B %d")
-                    # Choose appropriate time context based on days_offset
+
+                    # make days offset tb2a readable by human
                     if days_offset == 0:
                         time_context = "today"
                     elif days_offset == 1:
@@ -163,26 +138,25 @@ def ai_routes_funcitons(app, mongo):
                     
                     return {"response": response}
 
-                except Exception as e:
-                    return {"response": f"Sorry, I couldn't create your reminder: {str(e)}"}
+                except:
+                    return {"response": f"Sorry, I couldn't create your reminder"}
             
             return {"response": "I couldn't understand your request, please be more clear"}
             
-        except Exception as e:
-            return {"response": f"Error processing reminder: {str(e)}"}
+        except:
+            return {"response": "error occured processsing the reminder..."}
 
 
 
 
-    def process_weather_frunction(text):
-        """process weather query"""
+    def weathermodel_function(text):
         try:
             
             response = get_weather_response(text)
             return {"response": response}
             
-        except Exception as e:
-            return {"response": f"Error processing weather query: {str(e)}"}
+        except:
+            return {"response": "error processing the weather quey.."}
     
 
 
@@ -333,7 +307,7 @@ def ai_routes_funcitons(app, mongo):
                 print("i am in news segment now")
                 news_text = " ".join(segments["news"])
                 
-                news_result = process_news_function(news_text)
+                news_result = newsmodel_function(news_text)
                 news_response = f"{news_result['response']}"
                 
                 responses["news"] = news_response
@@ -343,7 +317,7 @@ def ai_routes_funcitons(app, mongo):
                 print("i am in weather segment now")
                 weather_text = " ".join(segments["weather"])
                 
-                weather_result = process_weather_frunction(weather_text)
+                weather_result = weathermodel_function(weather_text)
                 weather_response = weather_result["response"]
                 
                 responses["weather"] = weather_response
@@ -353,7 +327,7 @@ def ai_routes_funcitons(app, mongo):
                 print("i am in reminder segment now")
                 reminder_text = " ".join(segments["reminder"])
 
-                reminder_result = process_reminder_function(reminder_text)
+                reminder_result = remindermodel_function(reminder_text)
                 reminder_response = reminder_result["response"]
 
                 responses["reminder"] = reminder_response
@@ -385,7 +359,7 @@ def ai_routes_funcitons(app, mongo):
                 
             text = data['text']
             
-            result = process_news_function(text)
+            result = newsmodel_function(text)
             return jsonify(result)
             
         except Exception as e:
@@ -419,7 +393,7 @@ def ai_routes_funcitons(app, mongo):
                 
             text = data['text']
             
-            result = process_reminder_function(text)
+            result = remindermodel_function(text)
             return jsonify(result)
             
         except Exception as e:
@@ -431,26 +405,26 @@ def ai_routes_funcitons(app, mongo):
     @app.route('/api/reminder', methods=['GET'])
     def get_reminders():
         try:
-            user_id = get_user_loggedin()
+            userid = get_user_loggedin()
  
-            days_offset = request.args.get('days_offset', 0, type=int)
+            daysoffset = request.args.get('days_offset', 0, type=int)
             
-            target_date = datetime.datetime.now(pytz.timezone('Africa/Cairo')) + datetime.timedelta(days=days_offset)
+            date = datetime.datetime.now(pytz.timezone('Africa/Cairo')) + datetime.timedelta(days=daysoffset)
             
-            reminders = ReminderDB.get_day_reminders(user_id, target_date, db=mongo.db)
+            reminders = ReminderDB.get_day_reminders(userid, date, db=mongo.db)
             
-            formatted_reminders = []
-            for reminder in reminders:
-                reminder['_id'] = str(reminder['_id'])
-                reminder['start_time'] = reminder['start_time'].isoformat()
-                reminder['end_time'] = reminder['end_time'].isoformat()
-                reminder['created_at'] = reminder['created_at'].isoformat()
-                formatted_reminders.append(reminder)
+            remindersOutput = []
+            for r in reminders:
+                r['_id'] = str(r['_id'])
+                r['start_time'] =  r['start_time'].isoformat()
+                r['end_time'] = r['end_time'].isoformat()
+                r['created_at'] =  r['created_at'].isoformat()
+                remindersOutput.append(r)
             
-            return jsonify({"reminders": formatted_reminders})
+            return jsonify({"reminders": remindersOutput})
             
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        except:
+            return jsonify({"error": "error in getting reminders"}), 500
     
     @app.route('/api/reminder/<reminder_id>', methods=['PUT'])
     def update_reminder(reminder_id):
